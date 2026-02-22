@@ -1,0 +1,12 @@
+{
+  "name": "@crmed/config",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./eslint.config.js",
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^8",
+    "prettier": "^3",
+    "typescript": "^5"
+  }
+}
