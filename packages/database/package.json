@@ -1,0 +1,17 @@
+{
+  "name": "@crmed/database",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/client": "^5"
+  },
+  "devDependencies": {
+    "prisma": "^5"
+  }
+}
