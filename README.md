@@ -32,9 +32,41 @@ O sistema atua como o cérebro operacional do hospital, gerenciando desde a entr
 | **Infraestrutura** | Docker & LocalStack (Simulação AWS) |
 | **Autenticação** | Clerk / Auth0 |
 
+## Arquitetura do Projeto
+
+Estrutura monorepo com pnpm workspaces e Turbo para orquestração de builds:
+
+```
+apps/
+├── api/              # Backend Node.js (GraphQL/REST) - Processa leads e agendamentos
+├── web/              # Next.js Dashboard Interno - Interface para colaboradores e médicos
+├── workers/          # BullMQ Workers - Processamento de filas (RN05)
+
+functions/
+├── pdf-generator/    # Lambda - Gera contratos e orçamentos PDF
+├── lead-webhook/     # Lambda - Captura leads das redes sociais
+
+packages/
+├── config/           # Configurações compartilhadas (ESLint, Prettier, TSConfig)
+├── database/         # Prisma ORM - Schema, migrations e cliente compartilhado
+├── types/            # Tipos TypeScript compartilhados
+├── ui/               # Biblioteca de componentes React
+
+infra/
+├── docker/           # Dockerfiles e Docker Compose
+└── localstack/       # Scripts de inicialização S3/SES
+```
+
+### Banco de Dados Centralizado
+
+O pacote `@crmed/database` garante a **RN01 - Duplicidade Zero**:
+- Constraint `@unique` em CPF, e-mail e telefone
+- Função helper `checkUniqueness()` exportada para todos os projetos
+- Backend, Lambdas e Workers compartilham o mesmo Prisma Client
+
 ## Regras de Negócio Críticas (RNs)
 
-Para suprir as necessidades do hospsital, o código deve obrigatoriamente seguir estas diretrizes extraídas dos manuais operacionais:
+Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas diretrizes extraídas dos manuais operacionais:
 
 | RN | Descrição | Prioridade |
 | :--- | :--- | :--- |
@@ -53,19 +85,53 @@ Para suprir as necessidades do hospsital, o código deve obrigatoriamente seguir
 
 - Docker e Docker Compose instalados.
 - Node.js v20+.
+- pnpm v10+.
 
 ### Instalação
 
 1. Clone o repositório.
-2. Configure o arquivo `.env` com as chaves da Evolution API e do Clerk.
-3. Suba o ambiente de infraestrutura local:
+2. Configure o arquivo `.env`:
    ```bash
-   docker-compose up -d
+   cp packages/database/.env.example packages/database/.env
    ```
-4. Execute as migrações do banco de dados:
+3. Instale as dependências:
    ```bash
-   npx prisma migrate dev
+   pnpm install
    ```
+4. Gere o Prisma Client:
+   ```bash
+   pnpm --filter @crmed/database db:generate
+   ```
+5. Suba a infraestrutura com Docker Compose:
+   ```bash
+   cd infra/docker && docker-compose up -d
+   ```
+6. Execute as migrações do banco de dados:
+   ```bash
+   pnpm --filter @crmed/database db:migrate
+   ```
+
+### Scripts Disponíveis
+
+| Comando | Descrição |
+| :--- | :--- |
+| `pnpm dev` | Inicia todos os projetos em modo desenvolvimento |
+| `pnpm build` | Build de todos os projetos |
+| `pnpm --filter @crmed/api dev` | Inicia apenas a API |
+| `pnpm --filter @crmed/web dev` | Inicia apenas o frontend |
+| `pnpm --filter @crmed/workers dev` | Inicia apenas os workers |
+| `pnpm infra:up` | Sobe containers Docker |
+| `pnpm infra:down` | Para containers Docker |
+
+### Variáveis de Ambiente
+
+| Variável | Descrição |
+| :--- | :--- |
+| `DATABASE_URL` | String de conexão PostgreSQL |
+| `REDIS_URL` | String de conexão Redis |
+| `LOCALSTACK_URL` | URL do LocalStack (desenvolvimento) |
+| `CLERK_SECRET_KEY` | Chave do Clerk para autenticação |
+| `EVOLUTION_API_KEY` | Chave da Evolution API |
 
 ---
 
