@@ -133,6 +133,170 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
 | `CLERK_SECRET_KEY` | Chave do Clerk para autenticação |
 | `EVOLUTION_API_KEY` | Chave da Evolution API |
 
+## API GraphQL
+
+O projeto utiliza **Apollo Server** para a API GraphQL.
+
+### Iniciar a API
+
+```bash
+pnpm --filter @crmed/api dev
+```
+
+A API estará disponível em: `http://localhost:3001`
+
+### Playground GraphQL
+
+Acesse o GraphQL Playground em: `http://localhost:3001/graphql`
+
+### Endpoints GraphQL
+
+<details>
+<summary>Ver exemplos de Queries e Mutations</summary>
+
+**Queries:**
+```graphql
+# Listar leads (opcional: filtrar por status)
+query GetLeads {
+  leads(status: NEW) {
+    id
+    name
+    email
+    phone
+    status
+    createdAt
+  }
+}
+
+# Buscar lead por CPF
+query GetLeadByCpf {
+  leadByCpf(cpf: "12345678900") {
+    id
+    name
+    status
+  }
+}
+
+# Listar cirurgiões ativos
+query GetSurgeons {
+  surgeons {
+    id
+    name
+    specialty
+    crm
+    availability {
+      dayOfWeek
+      startTime
+      endTime
+    }
+  }
+}
+
+# Listar agendamentos
+query GetAppointments {
+  appointments(status: SCHEDULED) {
+    id
+    procedure
+    scheduledAt
+    status
+    patient { name }
+    surgeon { name }
+  }
+}
+```
+
+**Mutations:**
+```graphql
+# Criar lead
+mutation CreateLead {
+  createLead(input: {
+    name: "João Silva"
+    email: "joao@email.com"
+    phone: "11999999999"
+    cpf: "12345678900"
+    source: "Instagram"
+  }) {
+    id
+    name
+    status
+  }
+}
+
+# Atualizar status do lead
+mutation UpdateLeadStatus {
+  updateLeadStatus(input: {
+    id: "lead-id"
+    status: CONTACTED
+    reason: "Contato realizado com sucesso"
+  }) {
+    id
+    status
+  }
+}
+
+# Criar agendamento
+mutation CreateAppointment {
+  createAppointment(input: {
+    patientId: "patient-id"
+    surgeonId: "surgeon-id"
+    procedure: "Cirurgia Plástica"
+    scheduledAt: "2026-03-15T14:00:00Z"
+    notes: "Paciente chegou pelo Instagram"
+  }) {
+    id
+    status
+    scheduledAt
+  }
+}
+
+# Atualizar status do agendamento
+mutation UpdateAppointmentStatus {
+  updateAppointmentStatus(input: {
+    id: "appointment-id"
+    status: CONFIRMED
+    reason: "Paciente confirmou presença"
+  }) {
+    id
+    status
+  }
+}
+
+# Criar cirurgião
+mutation CreateSurgeon {
+  createSurgeon(input: {
+    name: "Dr. Carlos Santos"
+    specialty: "Cirurgia Plástica"
+    crm: "123456-SP"
+    email: "carlos@hospital.com"
+    phone: "11988887777"
+  }) {
+    id
+    name
+    specialty
+  }
+}
+```
+</details>
+
+### Schema GraphQL
+
+O schema inclui os seguintes tipos principais:
+- **Lead** - Potenciais pacientes
+- **Patient** - Pacientes cadastrados (após conversão)
+- **Surgeon** - Cirurgiões do hospital
+- **Appointment** - Agendamentos de cirurgias
+- **User** - Usuários do sistema (admin, call center, recepção, etc.)
+- **AuditLog** - Logs de auditoria (RN06)
+- **Notification** - Notificações de lembretes
+
+### Portas dos Serviços
+
+| Serviço | Porta |
+| :--- | :--- |
+| API GraphQL | 3001 |
+| Web (Next.js) | 3000 |
+| Workers | 3002 |
+
 ---
 
 Projeto desenvolvido pelo Grupo Moskitto para o Challenge FIAP / Hospital São Rafael.
