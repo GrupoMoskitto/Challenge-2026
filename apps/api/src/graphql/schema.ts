@@ -1,6 +1,9 @@
 import gql from 'graphql-tag';
 
 export const typeDefs = gql`
+  scalar DateTime
+  scalar ID
+
   enum LeadStatus {
     NEW
     CONTACTED
@@ -32,6 +35,30 @@ export const typeDefs = gql`
     LAST_ATTEMPT
   }
 
+  type MutationResponse {
+    success: Boolean!
+    message: String
+    code: String
+  }
+
+  type LeadEdge {
+    node: Lead!
+    cursor: String!
+  }
+
+  type PageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
+    startCursor: String
+    endCursor: String
+  }
+
+  type LeadConnection {
+    edges: [LeadEdge!]!
+    pageInfo: PageInfo!
+    totalCount: Int!
+  }
+
   type Lead {
     id: ID!
     name: String!
@@ -40,20 +67,20 @@ export const typeDefs = gql`
     cpf: String!
     source: String!
     status: LeadStatus!
-    createdAt: String!
-    updatedAt: String!
+    createdAt: DateTime!
+    updatedAt: DateTime!
     patient: Patient
     appointments: [Appointment!]!
   }
 
   type Patient {
     id: ID!
-    leadId: String!
-    dateOfBirth: String!
+    leadId: ID!
+    dateOfBirth: DateTime!
     medicalRecord: String
     lead: Lead!
-    createdAt: String!
-    updatedAt: String!
+    createdAt: DateTime!
+    updatedAt: DateTime!
   }
 
   type Surgeon {
@@ -66,13 +93,13 @@ export const typeDefs = gql`
     isActive: Boolean!
     appointments: [Appointment!]!
     availability: [AvailabilitySlot!]!
-    createdAt: String!
-    updatedAt: String!
+    createdAt: DateTime!
+    updatedAt: DateTime!
   }
 
   type AvailabilitySlot {
     id: ID!
-    surgeonId: String!
+    surgeonId: ID!
     dayOfWeek: Int!
     startTime: String!
     endTime: String!
@@ -81,18 +108,18 @@ export const typeDefs = gql`
 
   type Appointment {
     id: ID!
-    patientId: String!
-    surgeonId: String!
+    patientId: ID!
+    surgeonId: ID!
     procedure: String!
-    scheduledAt: String!
+    scheduledAt: DateTime!
     status: AppointmentStatus!
     notes: String
     patient: Lead!
     surgeon: Surgeon!
     auditLogs: [AuditLog!]!
     notifications: [Notification!]!
-    createdAt: String!
-    updatedAt: String!
+    createdAt: DateTime!
+    updatedAt: DateTime!
   }
 
   type User {
@@ -102,8 +129,8 @@ export const typeDefs = gql`
     role: UserRole!
     isActive: Boolean!
     auditLogs: [AuditLog!]!
-    createdAt: String!
-    updatedAt: String!
+    createdAt: DateTime!
+    updatedAt: DateTime!
   }
 
   type AuditLog {
@@ -116,17 +143,17 @@ export const typeDefs = gql`
     reason: String
     userId: String
     appointmentId: String
-    createdAt: String!
+    createdAt: DateTime!
   }
 
   type Notification {
     id: ID!
-    appointmentId: String!
+    appointmentId: ID!
     type: NotificationType!
     status: String!
-    sentAt: String
+    sentAt: DateTime
     errorMessage: String
-    createdAt: String!
+    createdAt: DateTime!
   }
 
   input CreateLeadInput {
@@ -138,16 +165,16 @@ export const typeDefs = gql`
   }
 
   input CreatePatientInput {
-    leadId: String!
-    dateOfBirth: String!
+    leadId: ID!
+    dateOfBirth: DateTime!
     medicalRecord: String
   }
 
   input CreateAppointmentInput {
-    patientId: String!
-    surgeonId: String!
+    patientId: ID!
+    surgeonId: ID!
     procedure: String!
-    scheduledAt: String!
+    scheduledAt: DateTime!
     notes: String
   }
 
@@ -188,7 +215,7 @@ export const typeDefs = gql`
   }
 
   type Query {
-    leads(status: LeadStatus): [Lead!]!
+    leads(status: LeadStatus, first: Int, after: String): LeadConnection
     lead(id: ID!): Lead
     leadByCpf(cpf: String!): Lead
     patients: [Patient!]!

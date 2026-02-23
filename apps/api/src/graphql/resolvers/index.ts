@@ -1,37 +1,64 @@
 import { prisma, checkUniqueness } from '@crmed/database';
 import { LeadStatus, AppointmentStatus } from '@prisma/client';
+import { DateTimeScalar, IDScalar } from '../scalars';
+
+const encodeBase64 = (id: string): string => {
+  return Buffer.from(id).toString('base64url');
+};
 
 export const resolvers = {
+  ID: IDScalar,
+  DateTime: DateTimeScalar,
   Query: {
-    leads: async (_: unknown, { status }: { status?: LeadStatus }) => {
-      return prisma.lead.findMany({
+    leads: async (_: unknown, { status, first, after }: { status?: LeadStatus; first?: number; after?: string }) => {
+      const limit = first || 20;
+      const cursor = after ? Buffer.from(after, 'base64url').toString('utf-8') : undefined;
+      
+      const leads = await prisma.lead.findMany({
         where: status ? { status } : undefined,
+        take: limit + 1,
+        cursor: cursor ? { id: cursor } : undefined,
+        skip: cursor ? 1 : 0,
         orderBy: { createdAt: 'desc' },
       });
-    },
 
+      const hasNextPage = leads.length > limit;
+      const edges = leads.slice(0, limit).map((lead) => ({
+        node: lead,
+        cursor: encodeBase64(lead.id),
+      }));
+
+      return {
+        edges,
+        pageInfo: {
+          hasNextPage,
+          hasPreviousPage: !!after,
+          startCursor: edges[0]?.cursor || null,
+          endCursor: edges[edges.length - 1]?.cursor || null,
+        },
+        totalCount: await prisma.lead.count({ where: status ? { status } : undefined }),
+      };
+    },
     lead: async (_: unknown, { id }: { id: string }) => {
-      return prisma.lead.findUnique({ where: { id } });
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      return prisma.lead.findUnique({ where: { id: decodedId } });
     },
-
     leadByCpf: async (_: unknown, { cpf }: { cpf: string }) => {
       return prisma.lead.findUnique({ where: { cpf } });
     },
-
     patients: async () => {
       return prisma.patient.findMany({
         include: { lead: true },
         orderBy: { createdAt: 'desc' },
       });
     },
-
     patient: async (_: unknown, { id }: { id: string }) => {
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.patient.findUnique({
-        where: { id },
+        where: { id: decodedId },
         include: { lead: true },
       });
     },
-
     appointments: async (_: unknown, { status }: { status?: AppointmentStatus }) => {
       return prisma.appointment.findMany({
         where: status ? { status } : undefined,
@@ -39,38 +66,35 @@ export const resolvers = {
         orderBy: { scheduledAt: 'asc' },
       });
     },
-
     appointment: async (_: unknown, { id }: { id: string }) => {
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.appointment.findUnique({
-        where: { id },
+        where: { id: decodedId },
         include: { patient: true, surgeon: true },
       });
     },
-
     surgeons: async () => {
       return prisma.surgeon.findMany({
         where: { isActive: true },
         include: { availability: true },
       });
     },
-
     surgeon: async (_: unknown, { id }: { id: string }) => {
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.surgeon.findUnique({
-        where: { id },
+        where: { id: decodedId },
         include: { availability: true },
       });
     },
-
     users: async () => {
       return prisma.user.findMany({
         where: { isActive: true },
       });
     },
-
     user: async (_: unknown, { id }: { id: string }) => {
-      return prisma.user.findUnique({ where: { id } });
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      return prisma.user.findUnique({ where: { id: decodedId } });
     },
-
     auditLogs: async (_: unknown, { entityType, entityId }: { entityType?: string; entityId?: string }) => {
       return prisma.auditLog.findMany({
         where: {
@@ -81,7 +105,6 @@ export const resolvers = {
       });
     },
   },
-
   Mutation: {
     createLead: async (_: unknown, { input }: { input: {
       name: string;
@@ -103,24 +126,24 @@ export const resolvers = {
         },
       });
     },
-
     updateLeadStatus: async (_: unknown, { input }: { input: {
       id: string;
       status: LeadStatus;
       reason?: string;
     }}) => {
-      const currentLead = await prisma.lead.findUnique({ where: { id: input.id } });
+      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      const currentLead = await prisma.lead.findUnique({ where: { id: decodedId } });
       if (!currentLead) throw new Error('Lead não encontrado');
 
       const updatedLead = await prisma.lead.update({
-        where: { id: input.id },
+        where: { id: decodedId },
         data: { status: input.status },
       });
 
       await prisma.auditLog.create({
         data: {
           entityType: 'Lead',
-          entityId: input.id,
+          entityId: decodedId,
           action: 'STATUS_CHANGE',
           oldValue: JSON.stringify(currentLead.status),
           newValue: JSON.stringify(input.status),
@@ -130,12 +153,13 @@ export const resolvers = {
 
       return updatedLead;
     },
-
     createPatient: async (_: unknown, { input }: { input: {
       leadId: string;
       dateOfBirth: string;
       medicalRecord?: string;
     }}) => {
+      const decodedLeadId = Buffer.from(input.leadId, 'base64url').toString('utf-8');
+      
       if (input.medicalRecord) {
         const existing = await prisma.patient.findUnique({
           where: { medicalRecord: input.medicalRecord },
@@ -145,14 +169,13 @@ export const resolvers = {
 
       return prisma.patient.create({
         data: {
-          leadId: input.leadId,
+          leadId: decodedLeadId,
           dateOfBirth: new Date(input.dateOfBirth),
           medicalRecord: input.medicalRecord,
         },
         include: { lead: true },
       });
     },
-
     createAppointment: async (_: unknown, { input }: { input: {
       patientId: string;
       surgeonId: string;
@@ -160,47 +183,48 @@ export const resolvers = {
       scheduledAt: string;
       notes?: string;
     }}) => {
+      const decodedPatientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
+      const decodedSurgeonId = Buffer.from(input.surgeonId, 'base64url').toString('utf-8');
+      
       return prisma.appointment.create({
         data: {
-          patientId: input.patientId,
-          surgeonId: input.surgeonId,
+          patientId: decodedPatientId,
+          surgeonId: decodedSurgeonId,
           procedure: input.procedure,
           scheduledAt: new Date(input.scheduledAt),
           notes: input.notes,
-          status: AppointmentStatus.SCHEDULED,
         },
         include: { patient: true, surgeon: true },
       });
     },
-
     updateAppointmentStatus: async (_: unknown, { input }: { input: {
       id: string;
       status: AppointmentStatus;
       reason?: string;
     }}) => {
-      const current = await prisma.appointment.findUnique({ where: { id: input.id } });
+      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
       if (!current) throw new Error('Agendamento não encontrado');
 
       const updated = await prisma.appointment.update({
-        where: { id: input.id },
+        where: { id: decodedId },
         data: { status: input.status },
       });
 
       await prisma.auditLog.create({
         data: {
           entityType: 'Appointment',
-          entityId: input.id,
+          entityId: decodedId,
           action: 'STATUS_CHANGE',
           oldValue: JSON.stringify(current.status),
           newValue: JSON.stringify(input.status),
           reason: input.reason || 'Alteração de status',
-          appointmentId: input.id,
+          appointmentId: decodedId,
         },
       });
 
       return updated;
     },
-
     createSurgeon: async (_: unknown, { input }: { input: {
       name: string;
       specialty: string;
@@ -215,82 +239,21 @@ export const resolvers = {
         throw new Error('RN01_VIOLATION: CRM ou e-mail já cadastrado');
       }
 
-      return prisma.surgeon.create({
-        data: input,
-      });
+      return prisma.surgeon.create({ data: input });
     },
-
     createUser: async (_: unknown, { input }: { input: {
       email: string;
       name: string;
       role: string;
     }}) => {
-      const existing = await prisma.user.findUnique({ where: { email: input.email } });
+      const existing = await prisma.user.findUnique({
+        where: { email: input.email },
+      });
       if (existing) {
         throw new Error('RN01_VIOLATION: E-mail já cadastrado');
       }
 
-      return prisma.user.create({
-        data: {
-          email: input.email,
-          name: input.name,
-          role: input.role as any,
-        },
-      });
-    },
-  },
-
-  Lead: {
-    patient: async (parent: { id: string }) => {
-      return prisma.patient.findUnique({ where: { leadId: parent.id } });
-    },
-    appointments: async (parent: { id: string }) => {
-      return prisma.appointment.findMany({ where: { patientId: parent.id } });
-    },
-  },
-
-  Patient: {
-    lead: async (parent: { leadId: string }) => {
-      return prisma.lead.findUnique({ where: { id: parent.leadId } });
-    },
-  },
-
-  Appointment: {
-    patient: async (parent: { patientId: string }) => {
-      return prisma.lead.findUnique({ where: { id: parent.patientId } });
-    },
-    surgeon: async (parent: { surgeonId: string }) => {
-      return prisma.surgeon.findUnique({ where: { id: parent.surgeonId } });
-    },
-    auditLogs: async (parent: { id: string }) => {
-      return prisma.auditLog.findMany({
-        where: { appointmentId: parent.id },
-        orderBy: { createdAt: 'desc' },
-      });
-    },
-    notifications: async (parent: { id: string }) => {
-      return prisma.notification.findMany({
-        where: { appointmentId: parent.id },
-        orderBy: { createdAt: 'desc' },
-      });
-    },
-  },
-
-  Surgeon: {
-    appointments: async (parent: { id: string }) => {
-      return prisma.appointment.findMany({ where: { surgeonId: parent.id } });
-    },
-    availability: async (parent: { id: string }) => {
-      return prisma.availabilitySlot.findMany({ where: { surgeonId: parent.id } });
-    },
-  },
-
-  User: {
-    auditLogs: async (parent: { id: string }) => {
-      return prisma.auditLog.findMany({
-        where: { userId: parent.id },
-        orderBy: { createdAt: 'desc' },
-      });
+      return prisma.user.create({ data: input });
     },
   },
 };

@@ -149,22 +149,112 @@ A API estará disponível em: `http://localhost:3001`
 
 Acesse o GraphQL Playground em: `http://localhost:3001/graphql`
 
-### Endpoints GraphQL
+### Padrões de Resposta
 
-<details>
-<summary>Ver exemplos de Queries e Mutations</summary>
+A API segue padrões de mercado profissionais:
 
-**Queries:**
+| Recurso | Formato |
+| :--- | :--- |
+| **IDs** | Base64 URL-safe (ex: `Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ`) |
+| **Datas** | ISO 8601 (ex: `2026-02-23T01:42:12.245Z`) |
+| **Listas** | Paginação cursor-based com PageInfo |
+
+### Estrutura de Resposta com Paginação
+
 ```graphql
-# Listar leads (opcional: filtrar por status)
+{
+  "leads": {
+    "edges": [
+      {
+        "node": { ... },
+        "cursor": "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ"
+      }
+    ],
+    "pageInfo": {
+      "hasNextPage": true,
+      "hasPreviousPage": false,
+      "startCursor": "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ",
+      "endCursor": "Y21seWk4a202MDAwMHowNW04b3NnZjFzZA"
+    },
+    "totalCount": 42
+  }
+}
+```
+
+### Queries
+
+```graphql
+# Listar leads com paginação
 query GetLeads {
-  leads(status: NEW) {
+  leads(first: 10) {
+    edges {
+      node {
+        id
+        name
+        email
+        phone
+        cpf
+        source
+        status
+        createdAt
+        updatedAt
+      }
+      cursor
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    totalCount
+  }
+}
+
+# Paginação - buscar próxima página
+query GetNextPage {
+  leads(first: 10, after: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ") {
+    edges {
+      node {
+        id
+        name
+      }
+      cursor
+    }
+    pageInfo {
+      hasNextPage
+    }
+  }
+}
+
+# Filtrar leads por status
+query GetLeadsByStatus {
+  leads(status: NEW, first: 5) {
+    edges {
+      node {
+        id
+        name
+        status
+      }
+    }
+  }
+}
+
+# Buscar lead por ID (use o ID base64)
+query GetLead {
+  lead(id: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ") {
     id
     name
     email
     phone
     status
     createdAt
+    updatedAt
+    patient {
+      id
+      dateOfBirth
+      medicalRecord
+    }
   }
 }
 
@@ -177,6 +267,20 @@ query GetLeadByCpf {
   }
 }
 
+# Listar pacientes
+query GetPatients {
+  patients {
+    id
+    name
+    dateOfBirth
+    medicalRecord
+    lead {
+      name
+      email
+    }
+  }
+}
+
 # Listar cirurgiões ativos
 query GetSurgeons {
   surgeons {
@@ -184,7 +288,11 @@ query GetSurgeons {
     name
     specialty
     crm
+    email
+    phone
+    isActive
     availability {
+      id
       dayOfWeek
       startTime
       endTime
@@ -199,13 +307,44 @@ query GetAppointments {
     procedure
     scheduledAt
     status
-    patient { name }
-    surgeon { name }
+    notes
+    patient {
+      id
+      name
+    }
+    surgeon {
+      id
+      name
+    }
+  }
+}
+
+# Listar usuários
+query GetUsers {
+  users {
+    id
+    name
+    email
+    role
+    isActive
+  }
+}
+
+# Listar logs de auditoria
+query GetAuditLogs {
+  auditLogs(entityType: "Lead", entityId: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ") {
+    id
+    action
+    oldValue
+    newValue
+    reason
+    createdAt
   }
 }
 ```
 
-**Mutations:**
+### Mutations
+
 ```graphql
 # Criar lead
 mutation CreateLead {
@@ -218,46 +357,65 @@ mutation CreateLead {
   }) {
     id
     name
+    email
     status
+    createdAt
+    updatedAt
   }
 }
 
 # Atualizar status do lead
 mutation UpdateLeadStatus {
   updateLeadStatus(input: {
-    id: "lead-id"
+    id: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ"
     status: CONTACTED
     reason: "Contato realizado com sucesso"
   }) {
     id
     status
+    updatedAt
+  }
+}
+
+# Criar paciente (após conversão do lead)
+mutation CreatePatient {
+  createPatient(input: {
+    leadId: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ"
+    dateOfBirth: "1990-05-15T00:00:00.000Z"
+    medicalRecord: "PRONT-001"
+  }) {
+    id
+    dateOfBirth
+    medicalRecord
   }
 }
 
 # Criar agendamento
 mutation CreateAppointment {
   createAppointment(input: {
-    patientId: "patient-id"
-    surgeonId: "surgeon-id"
+    patientId: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ"
+    surgeonId: "Y21seWs4a202MDAwMHowNW04b3NnZjFzZA"
     procedure: "Cirurgia Plástica"
-    scheduledAt: "2026-03-15T14:00:00Z"
+    scheduledAt: "2026-03-15T14:00:00.000Z"
     notes: "Paciente chegou pelo Instagram"
   }) {
     id
     status
     scheduledAt
+    createdAt
   }
 }
 
 # Atualizar status do agendamento
 mutation UpdateAppointmentStatus {
   updateAppointmentStatus(input: {
-    id: "appointment-id"
+    id: "Y21seWE1cHTUwMDAwMDF2bTBhdjQxdmY5NQ"
     status: CONFIRMED
     reason: "Paciente confirmou presença"
   }) {
     id
     status
+    updatedAt
   }
 }
 
@@ -273,10 +431,42 @@ mutation CreateSurgeon {
     id
     name
     specialty
+    crm
+    createdAt
+  }
+}
+
+# Criar usuário do sistema
+mutation CreateUser {
+  createUser(input: {
+    name: "Maria Silva"
+    email: "maria@hospital.com"
+    role: CALL_CENTER
+  }) {
+    id
+    name
+    email
+    role
+    createdAt
   }
 }
 ```
-</details>
+
+### Enums Disponíveis
+
+```graphql
+# LeadStatus
+NEW, CONTACTED, QUALIFIED, CONVERTED, LOST
+
+# AppointmentStatus
+SCHEDULED, CONFIRMED, COMPLETED, CANCELLED, NO_SHOW
+
+# UserRole
+ADMIN, SURGEON, CALL_CENTER, RECEPTION, SALES
+
+# NotificationType
+CONFIRMATION, REMINDER_2_DAYS, REMINDER_1_DAY, LAST_ATTEMPT
+```
 
 ### Schema GraphQL
 
