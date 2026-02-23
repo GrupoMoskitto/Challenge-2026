@@ -5,8 +5,8 @@
   "private": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "infra:up": "docker-compose up -d",
-    "infra:down": "docker-compose down",
+    "infra:up": "cd infra/docker && docker-compose up -d",
+    "infra:down": "cd infra/docker && docker-compose down",
     "dev": "turbo dev",
     "build": "turbo build"
   },
