@@ -35,6 +35,56 @@ export const typeDefs = gql`
     LAST_ATTEMPT
   }
 
+  enum ContactType {
+    WHATSAPP
+    CALL
+    EMAIL
+  }
+
+  enum ContactDirection {
+    INBOUND
+    OUTBOUND
+  }
+
+  enum ContactStatus {
+    SENT
+    DELIVERED
+    READ
+    FAILED
+    ANSWERED
+    MISSED
+  }
+
+  enum DocumentType {
+    CONTRACT
+    TERM
+    EXAM
+    OTHER
+  }
+
+  enum DocumentStatus {
+    PENDING
+    SIGNED
+    UPLOADED
+  }
+
+  enum PostOpType {
+    RETURN
+    REPAIR
+  }
+
+  enum PostOpStatus {
+    SCHEDULED
+    COMPLETED
+    PENDING
+  }
+
+  enum MessageChannel {
+    WHATSAPP
+    SMS
+    EMAIL
+  }
+
   type MutationResponse {
     success: Boolean!
     message: String
@@ -66,11 +116,17 @@ export const typeDefs = gql`
     phone: String!
     cpf: String!
     source: String!
+    origin: String
+    procedure: String
+    preferredDoctor: String
+    whatsappActive: Boolean!
+    notes: String
     status: LeadStatus!
     createdAt: DateTime!
     updatedAt: DateTime!
     patient: Patient
     appointments: [Appointment!]!
+    contacts: [Contact!]!
   }
 
   type Patient {
@@ -78,7 +134,11 @@ export const typeDefs = gql`
     leadId: ID!
     dateOfBirth: DateTime!
     medicalRecord: String
+    address: String
     lead: Lead!
+    contacts: [Contact!]!
+    documents: [Document!]!
+    postOps: [PostOp!]!
     createdAt: DateTime!
     updatedAt: DateTime!
   }
@@ -156,18 +216,70 @@ export const typeDefs = gql`
     createdAt: DateTime!
   }
 
+  type Contact {
+    id: ID!
+    leadId: ID!
+    date: DateTime!
+    type: ContactType!
+    direction: ContactDirection!
+    status: ContactStatus!
+    message: String!
+    createdAt: DateTime!
+  }
+
+  type Document {
+    id: ID!
+    patientId: ID!
+    name: String!
+    type: DocumentType!
+    date: DateTime!
+    status: DocumentStatus!
+    createdAt: DateTime!
+  }
+
+  type PostOp {
+    id: ID!
+    patientId: ID!
+    date: DateTime!
+    type: PostOpType!
+    description: String!
+    status: PostOpStatus!
+    createdAt: DateTime!
+  }
+
+  type MessageTemplate {
+    id: ID!
+    name: String!
+    channel: MessageChannel!
+    content: String!
+    triggerDays: Int!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+  }
+
+  type AuthPayload {
+    token: String!
+    user: User!
+  }
+
   input CreateLeadInput {
     name: String!
     email: String!
     phone: String!
     cpf: String!
     source: String!
+    origin: String
+    procedure: String
+    preferredDoctor: String
+    whatsappActive: Boolean
+    notes: String
   }
 
   input CreatePatientInput {
     leadId: ID!
     dateOfBirth: DateTime!
     medicalRecord: String
+    address: String
   }
 
   input CreateAppointmentInput {
@@ -190,6 +302,12 @@ export const typeDefs = gql`
     email: String!
     name: String!
     role: UserRole!
+    password: String!
+  }
+
+  input LoginInput {
+    email: String!
+    password: String!
   }
 
   input UpdateLeadStatusInput {
@@ -198,34 +316,139 @@ export const typeDefs = gql`
     reason: String
   }
 
+  input UpdateLeadInput {
+    id: ID!
+    name: String
+    email: String
+    phone: String
+    cpf: String
+    source: String
+    origin: String
+    procedure: String
+    preferredDoctor: String
+    whatsappActive: Boolean
+    notes: String
+    status: LeadStatus
+  }
+
   input UpdateAppointmentStatusInput {
     id: ID!
     status: AppointmentStatus!
     reason: String
   }
 
+  input CreateContactInput {
+    leadId: ID!
+    date: DateTime!
+    type: ContactType!
+    direction: ContactDirection!
+    status: ContactStatus!
+    message: String!
+  }
+
+  input CreateDocumentInput {
+    patientId: ID!
+    name: String!
+    type: DocumentType!
+    date: DateTime!
+    status: DocumentStatus
+  }
+
+  input CreatePostOpInput {
+    patientId: ID!
+    date: DateTime!
+    type: PostOpType!
+    description: String!
+    status: PostOpStatus
+  }
+
+  input CreateMessageTemplateInput {
+    name: String!
+    channel: MessageChannel!
+    content: String!
+    triggerDays: Int
+  }
+
   type Mutation {
+    # Auth
+    login(input: LoginInput!): AuthPayload!
+    register(input: CreateUserInput!): AuthPayload!
+
+    # Leads
     createLead(input: CreateLeadInput!): Lead!
+    updateLead(input: UpdateLeadInput!): Lead!
     updateLeadStatus(input: UpdateLeadStatusInput!): Lead!
+    deleteLead(id: ID!): DeleteResult!
+
+    # Patients
     createPatient(input: CreatePatientInput!): Patient!
+
+    # Appointments
     createAppointment(input: CreateAppointmentInput!): Appointment!
     updateAppointmentStatus(input: UpdateAppointmentStatusInput!): Appointment!
+
+    # Surgeons
     createSurgeon(input: CreateSurgeonInput!): Surgeon!
+
+    # Users
     createUser(input: CreateUserInput!): User!
+
+    # Contacts
+    createContact(input: CreateContactInput!): Contact!
+
+    # Documents
+    createDocument(input: CreateDocumentInput!): Document!
+
+    # PostOps
+    createPostOp(input: CreatePostOpInput!): PostOp!
+
+    # Message Templates
+    createMessageTemplate(input: CreateMessageTemplateInput!): MessageTemplate!
   }
 
   type Query {
+    # Auth
+    me: User
+
+    # Leads
     leads(status: LeadStatus, first: Int, after: String): LeadConnection
     lead(id: ID!): Lead
     leadByCpf(cpf: String!): Lead
+
+    # Patients
     patients: [Patient!]!
     patient(id: ID!): Patient
+
+    # Appointments
     appointments(status: AppointmentStatus): [Appointment!]!
     appointment(id: ID!): Appointment
+    appointmentsByDate(date: DateTime!): [Appointment!]!
+    appointmentsBySurgeon(surgeonId: ID!, startDate: DateTime, endDate: DateTime): [Appointment!]!
+
+    # Surgeons
     surgeons: [Surgeon!]!
     surgeon(id: ID!): Surgeon
+    availableSurgeons(date: DateTime!): [Surgeon!]!
+
+    # Users
     users: [User!]!
     user(id: ID!): User
+
+    # Audit Logs
     auditLogs(entityType: String, entityId: String): [AuditLog!]!
+
+    # Contacts
+    contactsByLead(leadId: ID!): [Contact!]!
+
+    # Documents
+    documentsByPatient(patientId: ID!): [Document!]!
+
+    # PostOps
+    postOpsByPatient(patientId: ID!): [PostOp!]!
+    upcomingPostOps(days: Int): [PostOp!]!
+
+    # Message Templates
+    messageTemplates: [MessageTemplate!]!
+    messageTemplate(id: ID!): MessageTemplate
   }
 `;
