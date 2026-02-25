@@ -135,7 +135,7 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
 
 ## API GraphQL
 
-O projeto utiliza **Apollo Server** para a API GraphQL.
+O projeto utiliza **Apollo Server** para a API GraphQL, fornecendo uma interface unificada para todas as operações do sistema.
 
 ### Iniciar a API
 
@@ -181,12 +181,74 @@ A API segue padrões de mercado profissionais:
 }
 ```
 
-### Queries
+### Queries Principais
+
+<details>
+<summary><strong>Dashboard e Estatísticas</strong></summary>
 
 ```graphql
-# Listar leads com paginação
-query GetLeads {
-  leads(first: 10) {
+# Estatísticas do dashboard (KPIs, leads, consultas)
+query GetDashboardStats {
+  leads {
+    totalCount
+    edges {
+      node {
+        id
+        status
+        origin
+        createdAt
+      }
+    }
+  }
+  appointments(status: SCHEDULED) {
+    id
+    scheduledAt
+    procedure
+    patient {
+      name
+    }
+    surgeon {
+      name
+    }
+  }
+  surgeons {
+    id
+    name
+    specialty
+  }
+}
+
+# Consultas por data específica
+query GetAppointmentsByDate($date: DateTime!) {
+  appointmentsByDate(date: $date) {
+    id
+    procedure
+    scheduledAt
+    status
+    notes
+    patient {
+      id
+      name
+      email
+      phone
+    }
+    surgeon {
+      id
+      name
+      specialty
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Gestão de Leads</strong></summary>
+
+```graphql
+# Listar leads com paginação e filtros
+query GetLeads($status: LeadStatus, $first: Int, $after: String) {
+  leads(status: $status, first: $first, after: $after) {
     edges {
       node {
         id
@@ -195,6 +257,10 @@ query GetLeads {
         phone
         cpf
         source
+        origin
+        procedure
+        whatsappActive
+        notes
         status
         createdAt
         updatedAt
@@ -204,83 +270,122 @@ query GetLeads {
     pageInfo {
       hasNextPage
       hasPreviousPage
-      startCursor
       endCursor
     }
     totalCount
   }
 }
 
-# Paginação - buscar próxima página
-query GetNextPage {
-  leads(first: 10, after: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ") {
-    edges {
-      node {
-        id
-        name
-      }
-      cursor
-    }
-    pageInfo {
-      hasNextPage
-    }
-  }
-}
-
-# Filtrar leads por status
-query GetLeadsByStatus {
-  leads(status: NEW, first: 5) {
-    edges {
-      node {
-        id
-        name
-        status
-      }
-    }
-  }
-}
-
-# Buscar lead por ID (use o ID base64)
-query GetLead {
-  lead(id: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ") {
+# Buscar lead específico por ID
+query GetLead($id: ID!) {
+  lead(id: $id) {
     id
     name
     email
     phone
+    cpf
+    source
+    origin
+    procedure
+    whatsappActive
+    notes
     status
     createdAt
     updatedAt
-    patient {
+    contacts {
       id
-      dateOfBirth
-      medicalRecord
+      date
+      type
+      direction
+      status
+      message
     }
   }
 }
 
 # Buscar lead por CPF
-query GetLeadByCpf {
-  leadByCpf(cpf: "12345678900") {
+query GetLeadByCpf($cpf: String!) {
+  leadByCpf(cpf: $cpf) {
     id
     name
+    email
     status
+    createdAt
   }
 }
+```
+</details>
 
-# Listar pacientes
+<details>
+<summary><strong>Gestão de Pacientes</strong></summary>
+
+```graphql
+# Listar todos os pacientes
 query GetPatients {
   patients {
     id
-    name
     dateOfBirth
     medicalRecord
+    address
     lead {
+      id
       name
       email
+      phone
+      cpf
+      status
     }
   }
 }
 
+# Buscar paciente específico
+query GetPatient($id: ID!) {
+  patient(id: $id) {
+    id
+    dateOfBirth
+    medicalRecord
+    address
+    lead {
+      id
+      name
+      email
+      phone
+      cpf
+      status
+      origin
+      procedure
+      contacts {
+        id
+        date
+        type
+        direction
+        status
+        message
+      }
+    }
+    documents {
+      id
+      name
+      type
+      date
+      status
+    }
+    postOps {
+      id
+      date
+      type
+      description
+      status
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Gestão de Cirurgiões</strong></summary>
+
+```graphql
 # Listar cirurgiões ativos
 query GetSurgeons {
   surgeons {
@@ -299,10 +404,16 @@ query GetSurgeons {
     }
   }
 }
+```
+</details>
 
-# Listar agendamentos
-query GetAppointments {
-  appointments(status: SCHEDULED) {
+<details>
+<summary><strong>Gestão de Agendamentos</strong></summary>
+
+```graphql
+# Listar agendamentos com filtros
+query GetAppointments($status: AppointmentStatus) {
+  appointments(status: $status) {
     id
     procedure
     scheduledAt
@@ -311,17 +422,252 @@ query GetAppointments {
     patient {
       id
       name
+      email
+      phone
     }
     surgeon {
+      id
+      name
+      specialty
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Gestão de Usuários</strong></summary>
+
+```graphql
+# Listar usuários do sistema
+query GetUsers {
+  users {
+    id
+    name
+    email
+    role
+    isActive
+    createdAt
+  }
+}
+
+# Buscar usuário atual (autenticação)
+query GetMe {
+  me {
+    id
+    name
+    email
+    role
+    isActive
+    createdAt
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Auditoria e Logs</strong></summary>
+
+```graphql
+# Logs de auditoria por entidade
+query GetAuditLogs($entityType: String, $entityId: String) {
+  auditLogs(entityType: $entityType, entityId: $entityId) {
+    id
+    entityType
+    entityId
+    action
+    oldValue
+    newValue
+    reason
+    createdAt
+    user {
       id
       name
     }
   }
 }
+```
+</details>
 
-# Listar usuários
-query GetUsers {
-  users {
+<details>
+<summary><strong>Templates de Mensagens</strong></summary>
+
+```graphql
+# Listar templates de mensagens automatizadas
+query GetMessageTemplates {
+  messageTemplates {
+    id
+    name
+    channel
+    content
+    triggerDays
+  }
+}
+```
+</details>
+
+### Mutations Principais
+
+<details>
+<summary><strong>Operações com Leads</strong></summary>
+
+```graphql
+# Criar novo lead
+mutation CreateLead($input: CreateLeadInput!) {
+  createLead(input: $input) {
+    id
+    name
+    email
+    phone
+    cpf
+    source
+    origin
+    procedure
+    whatsappActive
+    notes
+    status
+    createdAt
+  }
+}
+
+# Atualizar status do lead
+mutation UpdateLeadStatus($input: UpdateLeadStatusInput!) {
+  updateLeadStatus(input: $input) {
+    id
+    status
+    updatedAt
+  }
+}
+
+# Atualizar lead completo
+mutation UpdateLead($input: UpdateLeadInput!) {
+  updateLead(input: $input) {
+    id
+    name
+    email
+    phone
+    cpf
+    source
+    origin
+    procedure
+    whatsappActive
+    notes
+    status
+    updatedAt
+  }
+}
+
+# Excluir lead
+mutation DeleteLead($id: ID!) {
+  deleteLead(id: $id) {
+    success
+    message
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Operações com Pacientes</strong></summary>
+
+```graphql
+# Criar paciente (conversão de lead)
+mutation CreatePatient($input: CreatePatientInput!) {
+  createPatient(input: $input) {
+    id
+    dateOfBirth
+    medicalRecord
+    address
+  }
+}
+
+# Atualizar paciente
+mutation UpdatePatient($input: UpdatePatientInput!) {
+  updatePatient(input: $input) {
+    id
+    dateOfBirth
+    medicalRecord
+    address
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Operações com Agendamentos</strong></summary>
+
+```graphql
+# Criar agendamento
+mutation CreateAppointment($input: CreateAppointmentInput!) {
+  createAppointment(input: $input) {
+    id
+    procedure
+    scheduledAt
+    status
+  }
+}
+
+# Atualizar status do agendamento
+mutation UpdateAppointmentStatus($input: UpdateAppointmentStatusInput!) {
+  updateAppointmentStatus(input: $input) {
+    id
+    status
+    updatedAt
+  }
+}
+
+# Atualizar agendamento completo
+mutation UpdateAppointment($input: UpdateAppointmentInput!) {
+  updateAppointment(input: $input) {
+    id
+    procedure
+    scheduledAt
+    status
+    notes
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Operações com Cirurgiões</strong></summary>
+
+```graphql
+# Criar cirurgião
+mutation CreateSurgeon($input: CreateSurgeonInput!) {
+  createSurgeon(input: $input) {
+    id
+    name
+    specialty
+    crm
+    email
+    phone
+    isActive
+  }
+}
+
+# Atualizar cirurgião
+mutation UpdateSurgeon($input: UpdateSurgeonInput!) {
+  updateSurgeon(input: $input) {
+    id
+    name
+    specialty
+    crm
+    email
+    phone
+    isActive
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Operações com Usuários</strong></summary>
+
+```graphql
+# Criar usuário do sistema
+mutation CreateUser($input: CreateUserInput!) {
+  createUser(input: $input) {
     id
     name
     email
@@ -330,127 +676,36 @@ query GetUsers {
   }
 }
 
-# Listar logs de auditoria
-query GetAuditLogs {
-  auditLogs(entityType: "Lead", entityId: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ") {
-    id
-    action
-    oldValue
-    newValue
-    reason
-    createdAt
-  }
-}
-```
-
-### Mutations
-
-```graphql
-# Criar lead
-mutation CreateLead {
-  createLead(input: {
-    name: "João Silva"
-    email: "joao@email.com"
-    phone: "11999999999"
-    cpf: "12345678900"
-    source: "Instagram"
-  }) {
-    id
-    name
-    email
-    status
-    createdAt
-    updatedAt
-  }
-}
-
-# Atualizar status do lead
-mutation UpdateLeadStatus {
-  updateLeadStatus(input: {
-    id: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ"
-    status: CONTACTED
-    reason: "Contato realizado com sucesso"
-  }) {
-    id
-    status
-    updatedAt
-  }
-}
-
-# Criar paciente (após conversão do lead)
-mutation CreatePatient {
-  createPatient(input: {
-    leadId: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ"
-    dateOfBirth: "1990-05-15T00:00:00.000Z"
-    medicalRecord: "PRONT-001"
-  }) {
-    id
-    dateOfBirth
-    medicalRecord
-  }
-}
-
-# Criar agendamento
-mutation CreateAppointment {
-  createAppointment(input: {
-    patientId: "Y21seWloZDA1MDAwMDEybTBhdjQxdmY5NQ"
-    surgeonId: "Y21seWs4a202MDAwMHowNW04b3NnZjFzZA"
-    procedure: "Cirurgia Plástica"
-    scheduledAt: "2026-03-15T14:00:00.000Z"
-    notes: "Paciente chegou pelo Instagram"
-  }) {
-    id
-    status
-    scheduledAt
-    createdAt
-  }
-}
-
-# Atualizar status do agendamento
-mutation UpdateAppointmentStatus {
-  updateAppointmentStatus(input: {
-    id: "Y21seWE1cHTUwMDAwMDF2bTBhdjQxdmY5NQ"
-    status: CONFIRMED
-    reason: "Paciente confirmou presença"
-  }) {
-    id
-    status
-    updatedAt
-  }
-}
-
-# Criar cirurgião
-mutation CreateSurgeon {
-  createSurgeon(input: {
-    name: "Dr. Carlos Santos"
-    specialty: "Cirurgia Plástica"
-    crm: "123456-SP"
-    email: "carlos@hospital.com"
-    phone: "11988887777"
-  }) {
-    id
-    name
-    specialty
-    crm
-    createdAt
-  }
-}
-
-# Criar usuário do sistema
-mutation CreateUser {
-  createUser(input: {
-    name: "Maria Silva"
-    email: "maria@hospital.com"
-    role: CALL_CENTER
-  }) {
+# Atualizar usuário
+mutation UpdateUser($input: UpdateUserInput!) {
+  updateUser(input: $input) {
     id
     name
     email
     role
-    createdAt
+    isActive
   }
 }
 ```
+</details>
+
+<details>
+<summary><strong>Operações com Contatos</strong></summary>
+
+```graphql
+# Registrar contato com paciente
+mutation CreateContact($input: CreateContactInput!) {
+  createContact(input: $input) {
+    id
+    date
+    type
+    direction
+    status
+    message
+  }
+}
+```
+</details>
 
 ### Enums Disponíveis
 
@@ -464,28 +719,68 @@ SCHEDULED, CONFIRMED, COMPLETED, CANCELLED, NO_SHOW
 # UserRole
 ADMIN, SURGEON, CALL_CENTER, RECEPTION, SALES
 
-# NotificationType
-CONFIRMATION, REMINDER_2_DAYS, REMINDER_1_DAY, LAST_ATTEMPT
+# ContactType
+WHATSAPP, CALL, EMAIL
+
+# ContactDirection
+INBOUND, OUTBOUND
+
+# ContactStatus
+READ, DELIVERED, SENT, ANSWERED, FAILED, MISSED
+
+# DocumentType
+CONTRACT, TERM, EXAM, OTHER
+
+# DocumentStatus
+PENDING, SIGNED, UPLOADED
+
+# PostOpType
+RETURN, FOLLOW_UP
+
+# PostOpStatus
+SCHEDULED, COMPLETED, CANCELLED
 ```
 
 ### Schema GraphQL
 
 O schema inclui os seguintes tipos principais:
-- **Lead** - Potenciais pacientes
-- **Patient** - Pacientes cadastrados (após conversão)
-- **Surgeon** - Cirurgiões do hospital
-- **Appointment** - Agendamentos de cirurgias
-- **User** - Usuários do sistema (admin, call center, recepção, etc.)
-- **AuditLog** - Logs de auditoria (RN06)
-- **Notification** - Notificações de lembretes
+- **Lead** - Potenciais pacientes com dados de contato e status
+- **Patient** - Pacientes cadastrados após conversão de leads
+- **Surgeon** - Cirurgiões com especialidades e horários de disponibilidade
+- **Appointment** - Agendamentos de cirurgias e consultas
+- **User** - Usuários do sistema com diferentes roles de acesso
+- **Contact** - Histórico de interações (WhatsApp, ligações, e-mails)
+- **Document** - Documentos do paciente (contratos, exames, termos)
+- **PostOp** - Acompanhamento pós-operatório
+- **AuditLog** - Logs de auditoria para rastreabilidade (RN06)
+- **MessageTemplate** - Templates para mensagens automatizadas
+- **AvailabilitySlot** - Horários de disponibilidade dos cirurgiões
 
 ### Portas dos Serviços
 
 | Serviço | Porta |
 | :--- | :--- |
 | API GraphQL | 3001 |
-| Web (Next.js) | 3000 |
+| Web (React/Vite) | 8080 |
 | Workers | 3002 |
+
+---
+
+## Interface Frontend
+
+O frontend é uma aplicação React desenvolvida com Vite, TypeScript e Tailwind CSS, oferecendo uma interface moderna e responsiva para os colaboradores do hospital.
+
+### Principais Funcionalidades
+
+- **Dashboard**: Visão geral com KPIs, gráficos de conversão e consultas agendadas
+- **Gestão de Leads**: Sistema kanban para acompanhar o funil de vendas
+- **Agenda Médica**: Controle de horários dos cirurgiões e agendamentos
+- **Pacientes**: Visualização detalhada do histórico e acompanhamento
+- **Configurações**: Gerenciamento de usuários e templates de mensagens
+
+### Autenticação
+
+Sistema de login seguro com JWT para controle de acesso baseado em roles (Admin, Cirurgião, Call Center, Recepção, Vendas).
 
 ---
 
