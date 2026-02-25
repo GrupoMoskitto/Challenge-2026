@@ -6,12 +6,15 @@
   "scripts": {
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5"
   },
   "devDependencies": {
-    "prisma": "^5"
+    "bcryptjs": "^2.4.3",
+    "prisma": "^5",
+    "tsx": "^4"
   }
 }

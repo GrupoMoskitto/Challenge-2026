@@ -32,18 +32,24 @@ enum UserRole {
 }
 
 model Lead {
-  id        String     @id @default(cuid())
-  name      String
-  email     String     @unique
-  phone     String
-  cpf       String     @unique
-  source    String
-  status    LeadStatus @default(NEW)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id               String     @id @default(cuid())
+  name             String
+  email            String     @unique
+  phone            String
+  cpf              String     @unique
+  source           String
+  origin           String?    // Instagram, TikTok, Google Ads, Indicação, Site
+  procedure        String?    // Procedimento de interesse
+  preferredDoctor  String?    // ID do médico preferido
+  whatsappActive  Boolean    @default(false)
+  notes            String?
+  status           LeadStatus @default(NEW)
+  createdAt        DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
-  patient   Patient?
-  appointments Appointment[]
+  patient        Patient?
+  appointments   Appointment[]
+  contacts       Contact[]
 
   @@index([cpf])
   @@index([email])
@@ -52,15 +58,19 @@ model Lead {
 }
 
 model Patient {
-  id           String   @id @default(cuid())
-  leadId       String   @unique
-  dateOfBirth  DateTime
-  medicalRecord String? @unique
+  id            String   @id @default(cuid())
+  leadId        String   @unique
+  dateOfBirth   DateTime
+  medicalRecord String?  @unique
+  address       String?  // Endereço completo
 
-  lead         Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  documents     Document[]
+  postOps       PostOp[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([leadId])
 }
@@ -128,6 +138,7 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String
+  password  String
   role      UserRole @default(CALL_CENTER)
   isActive  Boolean  @default(true)
 
@@ -191,4 +202,113 @@ model Notification {
   @@index([appointmentId])
   @@index([status])
   @@index([type])
+}
+
+enum ContactType {
+  WHATSAPP
+  CALL
+  EMAIL
+}
+
+enum ContactDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ContactStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  ANSWERED
+  MISSED
+}
+
+model Contact {
+  id          String          @id @default(cuid())
+  leadId      String
+  date        DateTime
+  type        ContactType
+  direction   ContactDirection
+  status      ContactStatus
+  message     String
+
+  lead        Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime        @default(now())
+
+  @@index([leadId])
+  @@index([date])
+}
+
+enum DocumentType {
+  CONTRACT
+  TERM
+  EXAM
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING
+  SIGNED
+  UPLOADED
+}
+
+model Document {
+  id        String          @id @default(cuid())
+  patientId String
+  name      String
+  type      DocumentType
+  date      DateTime
+  status    DocumentStatus  @default(PENDING)
+
+  patient   Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime        @default(now())
+
+  @@index([patientId])
+}
+
+enum PostOpType {
+  RETURN
+  REPAIR
+}
+
+enum PostOpStatus {
+  SCHEDULED
+  COMPLETED
+  PENDING
+}
+
+model PostOp {
+  id          String        @id @default(cuid())
+  patientId   String
+  date        DateTime
+  type        PostOpType
+  description String
+  status      PostOpStatus @default(SCHEDULED)
+
+  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime     @default(now())
+
+  @@index([patientId])
+  @@index([date])
+}
+
+enum MessageChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+model MessageTemplate {
+  id           String         @id @default(cuid())
+  name         String         @unique
+  channel      MessageChannel
+  content      String
+  triggerDays  Int            @default(0)
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 }
