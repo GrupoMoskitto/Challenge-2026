@@ -8,6 +8,14 @@ API GraphQL para o sistema de gestão de pacientes e jornada do cliente do Hospi
 
 ---
 
+# Rodar local
+
+```bash
+cd apps/api
+npm install
+npm run dev
+``
+
 ## Autenticação
 
 ### Login
