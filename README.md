@@ -25,7 +25,7 @@ O sistema atua como o cérebro operacional do hospital, gerenciando desde a entr
 | :--- | :--- |
 | **Backend** | Node.js + TypeScript |
 | **API** | GraphQL & RESTful API |
-| **Frontend** | React / Next.js (Interface Interna) |
+| **Frontend** | React + Vite (Interface Interna) |
 | **Banco de Dados** | PostgreSQL + Prisma ORM |
 | **Mensageria/Jobs** | Redis + BullMQ |
 | **WhatsApp** | Evolution API + Typebot |
@@ -148,6 +148,25 @@ A API estará disponível em: `http://localhost:3001`
 ### Playground GraphQL
 
 Acesse o GraphQL Playground em: `http://localhost:3001/graphql`
+
+## Frontend
+
+O frontend é uma aplicação React desenvolvida com Vite, fornecendo a interface interna para colaboradores e médicos do hospital.
+
+### Iniciar o Frontend
+
+```bash
+pnpm --filter @crmed/web dev
+```
+
+O frontend estará disponível em: `http://localhost:3000`
+
+### Funcionalidades Principais
+
+- Dashboard com estatísticas e KPIs
+- Gestão de leads e pacientes
+- Agenda de consultas
+- Configurações do sistema
 
 ### Padrões de Resposta
 

@@ -91,6 +91,11 @@ export const typeDefs = gql`
     code: String
   }
 
+  type DeleteResult {
+    success: Boolean!
+    message: String
+  }
+
   type LeadEdge {
     node: Lead!
     cursor: String!
