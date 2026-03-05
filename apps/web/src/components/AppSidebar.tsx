@@ -37,22 +37,14 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        "flex flex-col h-screen bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out shrink-0",
+        "flex flex-col h-screen text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out shrink-0",
+        "bg-gradient-to-b from-[hsl(220,40%,10%)] via-[hsl(220,35%,12%)] to-[hsl(220,40%,10%)]",
         collapsed ? "w-16" : "w-60"
       )}
     >
       {/* Logo */}
-      <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-2 overflow-hidden">
-          {!collapsed && (
-            <img src="/logo.svg" alt="Hospital São Rafael" className="h-8 w-auto object-contain" />
-          )}
-          {collapsed && (
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-              <span className="text-primary-foreground font-bold text-xs">HSR</span>
-            </div>
-          )}
-        </div>
+      <div className="flex items-center justify-center h-16 px-4 border-b border-white/10">
+        <img src="/logo.svg" alt="Hospital São Rafael" className={collapsed ? "h-8 w-auto object-contain" : "h-9 w-auto object-contain"} />
       </div>
 
       {/* Nav Items */}
@@ -67,15 +59,14 @@ export function AppSidebar() {
               to={item.url}
               end={item.url === "/"}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground"
+                  ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-white border-l-2 border-cyan-400"
+                  : "text-white/70 hover:bg-white/5 hover:text-white"
               )}
-              activeClassName="bg-sidebar-primary text-sidebar-primary-foreground"
+              activeClassName="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-white border-l-2 border-cyan-400"
             >
-              <item.icon className="h-5 w-5 shrink-0" />
+              <item.icon className={cn("h-5 w-5 shrink-0", isActive && "text-cyan-400")} />
               {!collapsed && <span>{item.title}</span>}
             </NavLink>
           );
@@ -87,7 +78,7 @@ export function AppSidebar() {
         <Button
           variant="ghost"
           className={cn(
-            "w-full justify-start text-red-400 hover:text-red-500 hover:bg-red-50",
+            "w-full justify-start text-white/60 hover:text-white hover:bg-white/10",
             collapsed && "justify-center px-0"
           )}
           onClick={handleLogout}
@@ -100,12 +91,12 @@ export function AppSidebar() {
       {/* Collapse Toggle */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center justify-center h-12 border-t border-sidebar-border hover:bg-sidebar-accent transition-colors"
+        className="flex items-center justify-center h-12 border-t border-white/10 hover:bg-white/5 transition-colors"
       >
         {collapsed ? (
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 text-white/60" />
         ) : (
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4 text-white/60" />
         )}
       </button>
     </aside>
