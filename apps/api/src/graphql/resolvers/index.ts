@@ -289,28 +289,41 @@ export const resolvers = {
       status: LeadStatus;
       reason?: string;
     }}, context: Context) => {
-      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
-      const currentLead = await prisma.lead.findUnique({ where: { id: decodedId } });
-      if (!currentLead) throw new Error('Lead não encontrado');
+      // ID já vem como texto puro do frontend
+      const leadId = input.id;
+      console.log('=== updateLeadStatus called ===');
+      console.log('input:', JSON.stringify(input));
+      console.log('leadId:', leadId);
+      
+      try {
+        const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
+        console.log('currentLead:', currentLead);
+        if (!currentLead) {
+          throw new Error('Lead não encontrado');
+        }
 
-      const updatedLead = await prisma.lead.update({
-        where: { id: decodedId },
-        data: { status: input.status },
-      });
+        const updatedLead = await prisma.lead.update({
+          where: { id: leadId },
+          data: { status: input.status },
+        });
 
-      await prisma.auditLog.create({
-        data: {
-          entityType: 'Lead',
-          entityId: decodedId,
-          action: 'STATUS_CHANGE',
-          oldValue: JSON.stringify(currentLead.status),
-          newValue: JSON.stringify(input.status),
-          reason: input.reason || 'Alteração de status',
-          userId: context.user?.userId,
-        },
-      });
+        await prisma.auditLog.create({
+          data: {
+            entityType: 'Lead',
+            entityId: leadId,
+            action: 'STATUS_CHANGE',
+            oldValue: JSON.stringify(currentLead.status),
+            newValue: JSON.stringify(input.status),
+            reason: input.reason || 'Alteração de status',
+            userId: context.user?.userId,
+          },
+        });
 
-      return updatedLead;
+        return updatedLead;
+      } catch (error) {
+        console.error('updateLeadStatus error:', error);
+        throw error;
+      }
     },
     updateLead: async (_: unknown, { input }: { input: {
       id: string;
@@ -326,8 +339,8 @@ export const resolvers = {
       notes?: string;
       status?: LeadStatus;
     }}, context: Context) => {
-      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
-      const currentLead = await prisma.lead.findUnique({ where: { id: decodedId } });
+      const leadId = input.id;
+      const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
       if (!currentLead) throw new Error('Lead não encontrado');
 
       const updateData: any = {};
@@ -344,18 +357,17 @@ export const resolvers = {
       if (input.status !== undefined) updateData.status = input.status;
 
       const updatedLead = await prisma.lead.update({
-        where: { id: decodedId },
+        where: { id: leadId },
         data: updateData,
       });
 
       return updatedLead;
     },
     deleteLead: async (_: unknown, { id }: { id: string }, context: Context) => {
-      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
-      const existingLead = await prisma.lead.findUnique({ where: { id: decodedId } });
+      const existingLead = await prisma.lead.findUnique({ where: { id } });
       if (!existingLead) throw new Error('Lead não encontrado');
 
-      await prisma.lead.delete({ where: { id: decodedId } });
+      await prisma.lead.delete({ where: { id } });
 
       return { success: true, message: 'Lead excluído com sucesso' };
     },

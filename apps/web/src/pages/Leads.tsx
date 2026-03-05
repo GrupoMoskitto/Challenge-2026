@@ -115,25 +115,32 @@ const Leads = () => {
       lead.phone.includes(search)
   );
 
-  const handleDragStart = (leadId: string) => setDraggedLead(leadId);
+  const handleDragStart = (leadId: string, e: React.DragEvent) => {
+    e.stopPropagation();
+    setDraggedLead(leadId);
+  };
 
   const handleDragOver = (e: React.DragEvent, status: string) => {
     e.preventDefault();
     setDragOverColumn(status);
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
     setDragOverColumn(null);
   };
 
   const handleDrop = async (e: React.DragEvent, status: string) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOverColumn(null);
     
     if (!draggedLead) return;
     
+    console.log('Dropping lead:', draggedLead, 'to status:', status);
+    
     try {
-      await updateStatus({
+      const result = await updateStatus({
         variables: {
           input: {
             id: draggedLead,
@@ -141,9 +148,20 @@ const Leads = () => {
           },
         },
       });
-      refetch();
-    } catch (error) {
+      console.log('Update result:', result);
+      console.log('Updated lead:', result.data?.updateLeadStatus);
+      if (result.data?.updateLeadStatus) {
+        refetch();
+      }
+    } catch (error: any) {
       console.error('Error updating lead status:', error);
+      if (error.networkError) {
+        console.error('Network error:', error.networkError);
+      }
+      if (error.graphQLErrors) {
+        console.error('GraphQL errors:', error.graphQLErrors);
+      }
+      alert(error.message || 'Erro ao atualizar status');
     }
     setDraggedLead(null);
   };
@@ -459,7 +477,7 @@ const Leads = () => {
               dragOverColumn === status ? "ring-2 ring-primary ring-opacity-50 bg-primary/5" : ""
             )}
             onDragOver={(e) => handleDragOver(e, status)}
-            onDragLeave={handleDragLeave}
+            onDragLeave={(e) => handleDragLeave(e)}
             onDrop={(e) => handleDrop(e, status)}
           >
             {/* Column Header */}
@@ -488,7 +506,7 @@ const Leads = () => {
                     status === 'LOST' && "border-l-red-500"
                   )}
                   draggable
-                  onDragStart={() => handleDragStart(lead.id)}
+                  onDragStart={(e) => handleDragStart(lead.id, e)}
                   onDragEnd={() => setDraggedLead(null)}
                 >
                   <CardContent className="p-0">
@@ -496,16 +514,16 @@ const Leads = () => {
                       <p className="font-medium text-sm truncate flex-1 text-slate-800 dark:text-slate-100">{lead.name}</p>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-slate-200 dark:hover:bg-slate-700">
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-slate-200 dark:hover:bg-slate-700" onClick={(e) => e.stopPropagation()}>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditClick(lead)} className="cursor-pointer">
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditClick(lead); }} className="cursor-pointer">
                             <Pencil className="h-4 w-4 mr-2" />
                             Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-500 cursor-pointer" onClick={() => handleDeleteClick(lead.id)}>
+                          <DropdownMenuItem className="text-red-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleDeleteClick(lead.id); }}>
                             <Trash2 className="h-4 w-4 mr-2" />
                             Excluir
                           </DropdownMenuItem>
