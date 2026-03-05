@@ -122,6 +122,21 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
 | `pnpm --filter @crmed/workers dev` | Inicia apenas os workers |
 | `pnpm infra:up` | Sobe containers Docker |
 | `pnpm infra:down` | Para containers Docker |
+| `pnpm infra:postgres` | Inicia PostgreSQL via Docker |
+| `pnpm infra:db:setup` | Sobe PostgreSQL + gera Prisma + executa migrações |
+| `pnpm infra:dev` | Setup completo (infra + dev) para desenvolvimento rápido |
+
+### Portas em Execução (Testes Locais)
+
+| Serviço | Porta | Descrição |
+| :--- | :--- | :--- |
+| PostgreSQL | 5432 | Banco de dados principal |
+| Redis | 6379 | Filas e cache |
+| LocalStack | 4566 | Simulação AWS (S3, SES, Lambda) |
+| API GraphQL | 3001 | Backend GraphQL/REST |
+| API (Docker) | 3001 | API via Docker |
+| Web | 3000 | Frontend Next.js |
+| Workers | 3002 | BullMQ Workers |
 
 ### Variáveis de Ambiente
 
@@ -774,14 +789,6 @@ O schema inclui os seguintes tipos principais:
 - **AuditLog** - Logs de auditoria para rastreabilidade (RN06)
 - **MessageTemplate** - Templates para mensagens automatizadas
 - **AvailabilitySlot** - Horários de disponibilidade dos cirurgiões
-
-### Portas dos Serviços
-
-| Serviço | Porta |
-| :--- | :--- |
-| API GraphQL | 3001 |
-| Web (React/Vite) | 8080 |
-| Workers | 3002 |
 
 ---
 
