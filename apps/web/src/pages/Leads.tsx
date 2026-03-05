@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, X } from "lucide-react";
+import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, Filter } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_LEADS, UPDATE_LEAD_STATUS, CREATE_LEAD, UPDATE_LEAD, DELETE_LEAD } from "@/lib/queries";
 import { validateCPF, validatePhone, validateEmail, sanitizeInput } from "@/lib/validation";
@@ -42,6 +42,9 @@ const statusLabels: Record<string, string> = {
   CONVERTED: 'Convertido',
   LOST: 'Perdido',
 };
+
+const filterOrigins = ['Todas', 'Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Facebook', 'Outro'];
+const filterProcedures = ['Todos', 'Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Outro'];
 
 interface Lead {
   id: string;
@@ -85,6 +88,9 @@ const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominopl
 
 const Leads = () => {
   const [search, setSearch] = useState("");
+  const [filterOrigins, setFilterOrigins] = useState<string[]>([]);
+  const [filterProcedures, setFilterProcedures] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -108,12 +114,35 @@ const Leads = () => {
 
   const allLeads: Lead[] = data?.leads?.edges?.map((e: any) => e.node) || [];
 
+  const hasActiveFilters = filterOrigins.length > 0 || filterProcedures.length > 0 || search;
+
   const filteredLeads = allLeads.filter(
     (lead) =>
-      lead.name.toLowerCase().includes(search.toLowerCase()) ||
-      lead.cpf.includes(search) ||
-      lead.phone.includes(search)
+      (search === "" ||
+        lead.name.toLowerCase().includes(search.toLowerCase()) ||
+        lead.cpf.includes(search) ||
+        lead.phone.includes(search)) &&
+      (filterOrigins.length === 0 || filterOrigins.includes(lead.origin || "")) &&
+      (filterProcedures.length === 0 || filterProcedures.includes(lead.procedure || ""))
   );
+
+  const toggleOrigin = (origin: string) => {
+    setFilterOrigins(prev => 
+      prev.includes(origin) ? prev.filter(o => o !== origin) : [...prev, origin]
+    );
+  };
+
+  const toggleProcedure = (procedure: string) => {
+    setFilterProcedures(prev => 
+      prev.includes(procedure) ? prev.filter(p => p !== procedure) : [...prev, procedure]
+    );
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setFilterOrigins([]);
+    setFilterProcedures([]);
+  };
 
   const handleDragStart = (leadId: string, e: React.DragEvent) => {
     e.stopPropagation();
@@ -312,7 +341,8 @@ const Leads = () => {
       <AppLayout title="Gestão de Leads">
         <div className="flex items-center gap-3 mb-6">
           <Skeleton className="h-10 w-72" />
-          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-10 w-36" />
+          <Skeleton className="h-10 w-32 ml-auto" />
         </div>
         <div className="grid grid-cols-5 gap-4">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -341,9 +371,59 @@ const Leads = () => {
           />
         </div>
         
+        <DropdownMenu open={showFilters} onOpenChange={setShowFilters}>
+          <DropdownMenuTrigger asChild>
+            <Button variant={hasActiveFilters ? "default" : "outline"} className={hasActiveFilters ? "bg-blue-600 hover:bg-blue-700" : ""}>
+              <Filter className="h-4 w-4 mr-2" />
+              Filtros {hasActiveFilters && `( ${filterOrigins.length + filterProcedures.length} )`}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72">
+            <div className="p-3 space-y-3">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-slate-500">Origem</Label>
+                <div className="flex flex-wrap gap-1">
+                  {origins.map((origin) => (
+                    <Button
+                      key={origin}
+                      variant={filterOrigins.includes(origin) ? "default" : "outline"}
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => toggleOrigin(origin)}
+                    >
+                      {origin}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-slate-500">Procedimento</Label>
+                <div className="flex flex-wrap gap-1">
+                  {procedures.map((proc) => (
+                    <Button
+                      key={proc}
+                      variant={filterProcedures.includes(proc) ? "default" : "outline"}
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => toggleProcedure(proc)}
+                    >
+                      {proc}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full text-slate-500">
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">
+            <Button className="bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 ml-auto">
               <Plus className="h-4 w-4 mr-2" />
               Novo Lead
             </Button>
