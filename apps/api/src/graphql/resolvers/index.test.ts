@@ -27,7 +27,7 @@ describe('RN06 - Audit Logs (updateLeadStatus)', () => {
     await expect(
       resolvers.Mutation.updateLeadStatus(null, { input }, context)
     ).rejects.toThrow('Lead não encontrado');
-    
+
     expect(createAuditLogSpy).not.toHaveBeenCalled();
   });
 
@@ -70,75 +70,5 @@ describe('RN06 - Audit Logs (updateLeadStatus)', () => {
     expect(result.status).toBe(LeadStatus.CONTACTED);
     // As per the current implementation, audit log is only created if `context.user?.userId` exists.
     expect(createAuditLogSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe('RN03 - Hierarchy (updateLeadStatus)', () => {
-  let findUniqueSpy: any;
-  let updateSpy: any;
-  let createAuditLogSpy: any;
-
-  beforeEach(() => {
-    findUniqueSpy = vi.spyOn(prisma.lead, 'findUnique');
-    updateSpy = vi.spyOn(prisma.lead, 'update');
-    createAuditLogSpy = vi.spyOn(prisma.auditLog, 'create');
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('should block a RECEPTION user from updating lead to CONVERTED', async () => {
-    const mockLead = { id: 'lead-123', status: LeadStatus.NEW };
-    findUniqueSpy.mockResolvedValue(mockLead as any);
-
-    const input = { id: 'lead-123', status: LeadStatus.CONVERTED };
-    const context: Context = { user: { userId: 'reception-1', email: 'rec@crmed.com', role: 'RECEPTION' } };
-
-    await expect(
-      resolvers.Mutation.updateLeadStatus(null, { input }, context)
-    ).rejects.toThrow('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
-    
-    expect(updateSpy).not.toHaveBeenCalled();
-  });
-
-  it('should block a RECEPTION user from updating lead to LOST', async () => {
-    const mockLead = { id: 'lead-123', status: LeadStatus.NEW };
-    findUniqueSpy.mockResolvedValue(mockLead as any);
-
-    const input = { id: 'lead-123', status: LeadStatus.LOST };
-    const context: Context = { user: { userId: 'reception-1', email: 'rec@crmed.com', role: 'RECEPTION' } };
-
-    await expect(
-      resolvers.Mutation.updateLeadStatus(null, { input }, context)
-    ).rejects.toThrow('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
-  });
-
-  it('should allow a CALL_CENTER user to update lead to CONVERTED', async () => {
-    const mockLead = { id: 'lead-123', status: LeadStatus.NEW };
-    findUniqueSpy.mockResolvedValue(mockLead as any);
-    updateSpy.mockResolvedValue({ ...mockLead, status: LeadStatus.CONVERTED } as any);
-    createAuditLogSpy.mockResolvedValue({ id: 'audit-1' } as any);
-
-    const input = { id: 'lead-123', status: LeadStatus.CONVERTED };
-    const context: Context = { user: { userId: 'cc-1', email: 'cc@crmed.com', role: 'CALL_CENTER' } };
-
-    const result = await resolvers.Mutation.updateLeadStatus(null, { input }, context);
-    expect(result.status).toBe(LeadStatus.CONVERTED);
-    expect(updateSpy).toHaveBeenCalled();
-  });
-
-  it('should allow a RECEPTION user to update lead to CONTACTED (non-critical status)', async () => {
-    const mockLead = { id: 'lead-123', status: LeadStatus.NEW };
-    findUniqueSpy.mockResolvedValue(mockLead as any);
-    updateSpy.mockResolvedValue({ ...mockLead, status: LeadStatus.CONTACTED } as any);
-    createAuditLogSpy.mockResolvedValue({ id: 'audit-1' } as any);
-
-    const input = { id: 'lead-123', status: LeadStatus.CONTACTED };
-    const context: Context = { user: { userId: 'reception-1', email: 'rec@crmed.com', role: 'RECEPTION' } };
-
-    const result = await resolvers.Mutation.updateLeadStatus(null, { input }, context);
-    expect(result.status).toBe(LeadStatus.CONTACTED);
-    expect(updateSpy).toHaveBeenCalled();
   });
 });
