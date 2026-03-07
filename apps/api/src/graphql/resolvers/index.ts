@@ -336,6 +336,16 @@ export const resolvers = {
           throw new Error('Lead não encontrado');
         }
 
+        // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
+        const criticalStatuses: LeadStatus[] = [LeadStatus.CONVERTED, LeadStatus.LOST];
+        if (
+          criticalStatuses.includes(input.status) &&
+          context.user &&
+          context.user.role === 'RECEPTION'
+        ) {
+          throw new Error('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
+        }
+
         const updatedLead = await prisma.lead.update({
           where: { id: leadId },
           data: { status: input.status },
@@ -397,7 +407,19 @@ export const resolvers = {
       if (input.preferredDoctor !== undefined) updateData.preferredDoctor = input.preferredDoctor;
       if (input.whatsappActive !== undefined) updateData.whatsappActive = input.whatsappActive;
       if (input.notes !== undefined) updateData.notes = input.notes;
-      if (input.status !== undefined) updateData.status = input.status;
+      
+      if (input.status !== undefined) {
+        // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
+        const criticalStatuses: LeadStatus[] = [LeadStatus.CONVERTED, LeadStatus.LOST];
+        if (
+          criticalStatuses.includes(input.status) &&
+          context.user &&
+          context.user.role === 'RECEPTION'
+        ) {
+          throw new Error('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
+        }
+        updateData.status = input.status;
+      }
 
       const updatedLead = await prisma.lead.update({
         where: { id: leadId },
