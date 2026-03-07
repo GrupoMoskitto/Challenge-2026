@@ -18,7 +18,7 @@ function generateValidCPF(): string {
   for (let i = 0; i < 9; i++) {
     sum1 += digits[i] * (10 - i);
   }
-  let rem1 = sum1 % 11;
+  const rem1 = sum1 % 11;
   const vd1 = rem1 < 2 ? 0 : 11 - rem1;
   digits.push(vd1);
   
@@ -26,7 +26,7 @@ function generateValidCPF(): string {
   for (let i = 0; i < 10; i++) {
     sum2 += digits[i] * (11 - i);
   }
-  let rem2 = sum2 % 11;
+  const rem2 = sum2 % 11;
   const vd2 = rem2 < 2 ? 0 : 11 - rem2;
   digits.push(vd2);
   
