@@ -25,7 +25,6 @@ describe('RN06 - Audit Logs (updateLeadStatus)', () => {
     const context: Context = { user: { userId: 'admin', email: 'a@a.com', role: 'ADMIN' } };
 
     await expect(
-      // @ts-ignore
       resolvers.Mutation.updateLeadStatus(null, { input }, context)
     ).rejects.toThrow('Lead não encontrado');
     
@@ -41,7 +40,6 @@ describe('RN06 - Audit Logs (updateLeadStatus)', () => {
     const input = { id: 'lead-123', status: LeadStatus.CONTACTED, reason: 'Test reason' };
     const context: Context = { user: { userId: 'user-789', email: 'test@crmed.com', role: 'CALL_CENTER' } };
 
-    // @ts-ignore
     const result = await resolvers.Mutation.updateLeadStatus(null, { input }, context);
 
     expect(result.status).toBe(LeadStatus.CONTACTED);
@@ -67,7 +65,6 @@ describe('RN06 - Audit Logs (updateLeadStatus)', () => {
     const input = { id: 'lead-123', status: LeadStatus.CONTACTED };
     const context: Context = {}; // No user
 
-    // @ts-ignore
     const result = await resolvers.Mutation.updateLeadStatus(null, { input }, context);
 
     expect(result.status).toBe(LeadStatus.CONTACTED);
