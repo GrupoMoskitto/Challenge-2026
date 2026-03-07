@@ -11,7 +11,8 @@
     "infra:db:setup": "pnpm infra:postgres && sleep 5 && pnpm --filter @crmed/database db:generate && pnpm --filter @crmed/database db:migrate",
     "infra:dev": "pnpm infra:db:setup && pnpm dev",
     "dev": "turbo dev",
-    "build": "turbo build"
+    "build": "turbo build",
+    "lint": "turbo lint"
   },
   "keywords": [],
   "author": "Grupo Moskitto",

@@ -7,13 +7,16 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@prisma/client": "^5"
   },
   "devDependencies": {
+    "@crmed/config": "workspace:*",
     "bcryptjs": "^2.4.3",
+    "eslint": "^9.14.0",
     "prisma": "^5",
     "tsx": "^4"
   }

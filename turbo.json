@@ -9,6 +9,10 @@
       "cache": false,
       "persistent": true
     },
+    "lint": {
+      "dependsOn": ["^lint"],
+      "outputs": []
+    },
     "db:generate": {
       "cache": false,
       "persistent": true
