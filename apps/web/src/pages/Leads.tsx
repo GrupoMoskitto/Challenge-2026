@@ -251,7 +251,19 @@ const Leads = () => {
       setFormErrors({});
     } catch (error: any) {
       console.error('Error creating lead:', error);
-      setFormErrors({ submit: error.message || 'Erro ao criar lead' });
+      const errorMessage = error.message || 'Erro ao criar lead';
+      
+      const newErrors: Record<string, string> = {};
+      if (errorMessage.includes('RN01_VIOLATION: CPF já cadastrado')) {
+        newErrors.cpf = 'CPF já cadastrado';
+      } else if (errorMessage.includes('e-mail já cadastrado')) {
+        newErrors.email = 'E-mail já cadastrado';
+      } else if (errorMessage.includes('telefone já cadastrado')) {
+        newErrors.phone = 'Telefone já cadastrado';
+      } else {
+        newErrors.submit = errorMessage;
+      }
+      setFormErrors(newErrors);
     }
   };
 
@@ -317,7 +329,19 @@ const Leads = () => {
       setFormErrors({});
     } catch (error: any) {
       console.error('Error updating lead:', error);
-      setFormErrors({ submit: error.message || 'Erro ao atualizar lead' });
+      const errorMessage = error.message || 'Erro ao atualizar lead';
+      
+      const newErrors: Record<string, string> = {};
+      if (errorMessage.includes('RN01_VIOLATION: CPF já cadastrado')) {
+        newErrors.cpf = 'CPF já cadastrado';
+      } else if (errorMessage.includes('e-mail já cadastrado')) {
+        newErrors.email = 'E-mail já cadastrado';
+      } else if (errorMessage.includes('telefone já cadastrado')) {
+        newErrors.phone = 'Telefone já cadastrado';
+      } else {
+        newErrors.submit = errorMessage;
+      }
+      setFormErrors(newErrors);
     }
   };
 

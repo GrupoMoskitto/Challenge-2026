@@ -379,6 +379,13 @@ export const resolvers = {
       const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
       if (!currentLead) throw new Error('Lead não encontrado');
 
+      await checkUniqueness({
+        cpf: input.cpf,
+        email: input.email,
+        phone: input.phone,
+        excludeId: leadId,
+      });
+
       const updateData: any = {};
       if (input.name !== undefined) updateData.name = input.name;
       if (input.email !== undefined) updateData.email = input.email;

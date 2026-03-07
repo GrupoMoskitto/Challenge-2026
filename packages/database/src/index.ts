@@ -10,14 +10,20 @@ export async function checkUniqueness(data: {
   cpf?: string;
   email?: string;
   phone?: string;
+  excludeId?: string;
 }) {
   const existing = await prisma.lead.findFirst({
     where: {
-      OR: [
-        data.cpf ? { cpf: data.cpf } : {},
-        data.email ? { email: data.email } : {},
-        data.phone ? { phone: data.phone } : {},
-      ].filter((q) => Object.keys(q).length > 0),
+      AND: [
+        {
+          OR: [
+            data.cpf ? { cpf: data.cpf } : {},
+            data.email ? { email: data.email } : {},
+            data.phone ? { phone: data.phone } : {},
+          ].filter((q) => Object.keys(q).length > 0),
+        },
+        data.excludeId ? { id: { not: data.excludeId } } : {},
+      ],
     },
   });
 
