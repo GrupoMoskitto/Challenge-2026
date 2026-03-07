@@ -1,7 +1,7 @@
 import { prisma, checkUniqueness } from '@crmed/database';
 import { LeadStatus, AppointmentStatus } from '@prisma/client';
 import { DateTimeScalar, IDScalar } from '../scalars';
-import { hashPassword, comparePassword, generateToken, verifyToken } from '../../auth';
+import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyToken, verifyRefreshToken } from '../../auth';
 
 const encodeBase64 = (id: string): string => {
   return Buffer.from(id).toString('base64url');
@@ -240,7 +240,41 @@ export const resolvers = {
         role: user.role,
       });
       
-      return { token, user };
+      const refreshToken = generateRefreshToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      });
+      
+      return { token, refreshToken, user };
+    },
+    refreshToken: async (_: unknown, { token }: { token: string }) => {
+      const decoded = verifyRefreshToken(token);
+      if (!decoded) {
+        throw new Error('Refresh token inválido');
+      }
+      
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+      });
+      
+      if (!user || !user.isActive) {
+        throw new Error('Usuário não encontrado ou inativo');
+      }
+      
+      const newToken = generateToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      });
+      
+      const newRefreshToken = generateRefreshToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      });
+      
+      return { token: newToken, refreshToken: newRefreshToken };
     },
     register: async (_: unknown, { input }: { input: { email: string; name: string; role: string; password: string } }) => {
       const hashedPassword = await hashPassword(input.password);
@@ -307,17 +341,19 @@ export const resolvers = {
           data: { status: input.status },
         });
 
-        await prisma.auditLog.create({
-          data: {
-            entityType: 'Lead',
-            entityId: leadId,
-            action: 'STATUS_CHANGE',
-            oldValue: JSON.stringify(currentLead.status),
-            newValue: JSON.stringify(input.status),
-            reason: input.reason || 'Alteração de status',
-            userId: context.user?.userId,
-          },
-        });
+        if (context.user?.userId) {
+          await prisma.auditLog.create({
+            data: {
+              entityType: 'Lead',
+              entityId: leadId,
+              action: 'STATUS_CHANGE',
+              oldValue: JSON.stringify(currentLead.status),
+              newValue: JSON.stringify(input.status),
+              reason: input.reason || 'Alteração de status',
+              userId: context.user.userId,
+            },
+          });
+        }
 
         return updatedLead;
       } catch (error) {

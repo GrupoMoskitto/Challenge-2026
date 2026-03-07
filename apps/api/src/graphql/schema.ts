@@ -264,7 +264,13 @@ export const typeDefs = gql`
 
   type AuthPayload {
     token: String!
+    refreshToken: String!
     user: User!
+  }
+
+  type RefreshPayload {
+    token: String!
+    refreshToken: String!
   }
 
   input CreateLeadInput {
@@ -378,6 +384,7 @@ export const typeDefs = gql`
     # Auth
     login(input: LoginInput!): AuthPayload!
     register(input: CreateUserInput!): AuthPayload!
+    refreshToken(token: String!): RefreshPayload!
 
     # Leads
     createLead(input: CreateLeadInput!): Lead!
