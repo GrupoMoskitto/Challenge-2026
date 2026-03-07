@@ -11,6 +11,28 @@ function randomDate(start: Date, end: Date): Date {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
 }
 
+function generateValidCPF(): string {
+  const digits = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
+  
+  let sum1 = 0;
+  for (let i = 0; i < 9; i++) {
+    sum1 += digits[i] * (10 - i);
+  }
+  let rem1 = sum1 % 11;
+  const vd1 = rem1 < 2 ? 0 : 11 - rem1;
+  digits.push(vd1);
+  
+  let sum2 = 0;
+  for (let i = 0; i < 10; i++) {
+    sum2 += digits[i] * (11 - i);
+  }
+  let rem2 = sum2 % 11;
+  const vd2 = rem2 < 2 ? 0 : 11 - rem2;
+  digits.push(vd2);
+  
+  return `${digits[0]}${digits[1]}${digits[2]}.${digits[3]}${digits[4]}${digits[5]}.${digits[6]}${digits[7]}${digits[8]}-${digits[9]}${digits[10]}`;
+}
+
 async function main() {
   console.log('🌱 Starting seed...');
 
@@ -65,7 +87,7 @@ async function main() {
       data: {
         email: 'coordenadora@hsr.com.br',
         name: 'Ana Paula',
-        role: UserRole.COORDINATOR,
+        role: UserRole.RECEPTION,
         password: adminPassword,
         isActive: true,
       },
@@ -74,7 +96,7 @@ async function main() {
       data: {
         email: 'enfermeira@hsr.com.br',
         name: 'Carla Oliveira',
-        role: UserRole.NURSE,
+        role: UserRole.CALL_CENTER,
         password: adminPassword,
         isActive: true,
       },
@@ -194,7 +216,7 @@ async function main() {
         name: `${firstName} ${lastName}`,
         email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i}@email.com`,
         phone: `(71) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`,
-        cpf: `${String(Math.floor(Math.random() * 900) + 100)}.${String(Math.floor(Math.random() * 900) + 100)}.${String(Math.floor(Math.random() * 900) + 100)}-${String(Math.floor(Math.random() * 90) + 10)}`,
+        cpf: generateValidCPF(),
         source: randomElement(origins),
         origin: randomElement(origins),
         procedure: randomElement(procedures),
