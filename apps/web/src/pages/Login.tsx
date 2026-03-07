@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, gql } from '@apollo/client';
 import { Button } from '@/components/ui/button';
@@ -6,8 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { setAuthToken } from '@/lib/apollo';
 import { validateEmail, sanitizeInput } from '@/lib/validation';
-import { Loader2 } from 'lucide-react';
-import logoSvg from '/logo.svg?react';
+import { Loader2, Moon, Sun } from 'lucide-react';
 
 const LOGIN_MUTATION = gql`
   mutation Login($input: LoginInput!) {
@@ -35,6 +34,41 @@ interface LoginResponse {
       role: string;
     };
   };
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const stored = localStorage.getItem('theme');
+    if (stored === 'dark') return 'dark';
+    if (stored === 'light') return 'light';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+  }, [theme]);
+
+  const toggle = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    window.dispatchEvent(new CustomEvent('theme-transition'));
+  };
+
+  return (
+    <button
+      onClick={toggle}
+      className="absolute top-4 right-4 w-10 h-10 rounded-lg flex items-center justify-center hover:bg-accent transition-all duration-200"
+      aria-label="Alternar tema"
+    >
+      {theme === 'dark' ? (
+        <Sun className="h-5 w-5 text-yellow-400" />
+      ) : (
+        <Moon className="h-5 w-5 text-slate-600" />
+      )}
+    </button>
+  );
 }
 
 export default function Login() {
@@ -88,8 +122,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+      <ThemeToggle />
+      <Card className="w-full max-w-md bg-card">
         <CardHeader className="space-y-4 text-center">
           <div className="mx-auto w-20 h-20 flex items-center justify-center">
             <img src="/logo.svg" alt="Hospital São Rafael" className="w-full h-full object-contain" />
@@ -102,7 +137,7 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
                 {error}
               </div>
             )}
