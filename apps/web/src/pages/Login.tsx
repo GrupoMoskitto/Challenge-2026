@@ -13,6 +13,7 @@ const LOGIN_MUTATION = gql`
   mutation Login($input: LoginInput!) {
     login(input: $input) {
       token
+      refreshToken
       user {
         id
         name
@@ -26,6 +27,7 @@ const LOGIN_MUTATION = gql`
 interface LoginResponse {
   login: {
     token: string;
+    refreshToken: string;
     user: {
       id: string;
       name: string;
@@ -44,7 +46,7 @@ export default function Login() {
 
   const [login, { loading }] = useMutation<LoginResponse>(LOGIN_MUTATION, {
     onCompleted: (data) => {
-      setAuthToken(data.login.token);
+      setAuthToken(data.login.token, data.login.refreshToken);
       localStorage.setItem('user', JSON.stringify(data.login.user));
       setAttempts(0);
       navigate('/');

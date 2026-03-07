@@ -107,7 +107,21 @@ const Leads = () => {
     fetchPolicy: 'network-only',
   });
 
-  const [updateStatus] = useMutation(UPDATE_LEAD_STATUS);
+  const [updateStatus] = useMutation(UPDATE_LEAD_STATUS, {
+    update(cache, { data }) {
+      if (!data?.updateLeadStatus) return;
+      
+      const { updateLeadStatus } = data;
+      cache.modify({
+        id: cache.identify({ __typename: 'Lead', id: updateLeadStatus.id }),
+        fields: {
+          status() {
+            return updateLeadStatus.status;
+          },
+        },
+      });
+    },
+  });
   const [createLead, { loading: creating }] = useMutation(CREATE_LEAD);
   const [updateLead, { loading: updating }] = useMutation(UPDATE_LEAD);
   const [deleteLead, { loading: deleting }] = useMutation(DELETE_LEAD);
@@ -166,10 +180,8 @@ const Leads = () => {
     
     if (!draggedLead) return;
     
-    console.log('Dropping lead:', draggedLead, 'to status:', status);
-    
     try {
-      const result = await updateStatus({
+      await updateStatus({
         variables: {
           input: {
             id: draggedLead,
@@ -177,11 +189,6 @@ const Leads = () => {
           },
         },
       });
-      console.log('Update result:', result);
-      console.log('Updated lead:', result.data?.updateLeadStatus);
-      if (result.data?.updateLeadStatus) {
-        refetch();
-      }
     } catch (error: any) {
       console.error('Error updating lead status:', error);
       if (error.networkError) {
