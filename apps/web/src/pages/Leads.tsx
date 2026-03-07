@@ -369,12 +369,12 @@ const Leads = () => {
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome, CPF ou telefone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+            className="pl-9 bg-background"
           />
         </div>
         
@@ -388,7 +388,7 @@ const Leads = () => {
           <DropdownMenuContent align="end" className="w-72">
             <div className="p-3 space-y-3">
               <div className="space-y-2">
-                <Label className="text-xs font-medium text-slate-500">Origem</Label>
+                <Label className="text-xs font-medium">Origem</Label>
                 <div className="flex flex-wrap gap-1">
                   {origins.map((origin) => (
                     <Button
@@ -404,7 +404,7 @@ const Leads = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-medium text-slate-500">Procedimento</Label>
+                <Label className="text-xs font-medium">Procedimento</Label>
                 <div className="flex flex-wrap gap-1">
                   {procedures.map((proc) => (
                     <Button
@@ -420,7 +420,7 @@ const Leads = () => {
                 </div>
               </div>
               {hasActiveFilters && (
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full text-slate-500">
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full">
                   Limpar filtros
                 </Button>
               )}
@@ -430,7 +430,7 @@ const Leads = () => {
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 ml-auto">
+            <Button className="ml-auto">
               <Plus className="h-4 w-4 mr-2" />
               Novo Lead
             </Button>
@@ -568,23 +568,23 @@ const Leads = () => {
             onDrop={(e) => handleDrop(e, status)}
           >
             {/* Column Header */}
-            <div className={cn("flex items-center justify-between p-3 rounded-t-lg border-t-4 bg-slate-100 dark:bg-slate-800", color)}>
-              <span className="font-medium text-sm text-slate-700 dark:text-slate-200">{label}</span>
-              <Badge variant="secondary" className="text-xs bg-slate-200 dark:bg-slate-700">
+            <div className={cn("flex items-center justify-between p-3 rounded-t-lg border-t-4 bg-muted", color)}>
+              <span className="font-medium text-sm">{label}</span>
+              <Badge variant="secondary" className="text-xs">
                 {getLeadsByStatus(status).length}
               </Badge>
             </div>
 
             {/* Column Content */}
             <div className={cn(
-              "flex-1 p-2 space-y-2 rounded-b-lg min-h-[300px] transition-colors duration-200",
-              dragOverColumn === status ? "bg-slate-100 dark:bg-slate-800" : "bg-slate-50 dark:bg-slate-900/50"
+              "flex-1 p-2 space-y-2 rounded-b-lg min-h-[300px] transition-colors duration-200 bg-muted/50",
+              dragOverColumn === status ? "bg-muted" : ""
             )}>
               {getLeadsByStatus(status).map((lead) => (
                 <Card
                   key={lead.id}
                   className={cn(
-                    "p-3 cursor-move transition-all duration-200 border-l-4",
+                    "p-3 cursor-move transition-all duration-200 border-l-4 bg-card",
                     draggedLead === lead.id ? "opacity-50 scale-95" : "hover:shadow-md hover:-translate-y-0.5",
                     status === 'NEW' && "border-l-slate-500",
                     status === 'CONTACTED' && "border-l-blue-500",
@@ -598,10 +598,10 @@ const Leads = () => {
                 >
                   <CardContent className="p-0">
                     <div className="flex items-start justify-between mb-2">
-                      <p className="font-medium text-sm truncate flex-1 text-slate-800 dark:text-slate-100">{lead.name}</p>
+                      <p className="font-medium text-sm truncate flex-1">{lead.name}</p>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-slate-200 dark:hover:bg-slate-700" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-accent" onClick={(e) => e.stopPropagation()}>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -610,18 +610,18 @@ const Leads = () => {
                             <Pencil className="h-4 w-4 mr-2" />
                             Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleDeleteClick(lead.id); }}>
+                          <DropdownMenuItem className="text-destructive cursor-pointer" onClick={(e) => { e.stopPropagation(); handleDeleteClick(lead.id); }}>
                             <Trash2 className="h-4 w-4 mr-2" />
                             Excluir
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                       <Phone className="h-3 w-3" />
                       <span>{lead.phone}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                       <Mail className="h-3 w-3" />
                       <span className="truncate">{lead.email}</span>
                     </div>
@@ -630,7 +630,7 @@ const Leads = () => {
                         <MessageCircle className="h-4 w-4 text-green-500" />
                       )}
                       {lead.procedure && (
-                        <Badge variant="outline" className="text-xs bg-slate-50 dark:bg-slate-800">
+                        <Badge variant="outline" className="text-xs bg-background">
                           {lead.procedure}
                         </Badge>
                       )}

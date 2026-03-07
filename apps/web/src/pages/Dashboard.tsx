@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,12 +48,18 @@ const statusLabels: Record<string, string> = {
   LOST: "Perdido",
 };
 
-const statusColors: Record<string, string> = {
-  NEW: "#6B7280",
-  CONTACTED: "#3B82F6",
-  QUALIFIED: "#EAB308",
-  CONVERTED: "#22C55E",
-  LOST: "#EF4444",
+const getThemeColors = () => {
+  const isDark = document.documentElement.classList.contains('dark');
+  return {
+    NEW: isDark ? "#9CA3AF" : "#6B7280",
+    CONTACTED: isDark ? "#60A5FA" : "#3B82F6",
+    QUALIFIED: isDark ? "#FACC15" : "#EAB308",
+    CONVERTED: isDark ? "#4ADE80" : "#22C55E",
+    LOST: isDark ? "#F87171" : "#EF4444",
+    text: isDark ? "#E5E7EB" : "#374151",
+    grid: isDark ? "#374151" : "#E5E7EB",
+    background: isDark ? "#1F2937" : "#F9FAFB",
+  };
 };
 
 const originColors: Record<string, string> = {
@@ -89,6 +95,30 @@ const exportToCSV = (data: any[], filename: string) => {
 
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [themeColors, setThemeColors] = useState(getThemeColors);
+  
+  useEffect(() => {
+    const handleThemeChange = () => {
+      setThemeColors(getThemeColors());
+    };
+    
+    window.addEventListener('theme-transition', handleThemeChange);
+    const observer = new MutationObserver(handleThemeChange);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    
+    return () => {
+      window.removeEventListener('theme-transition', handleThemeChange);
+      observer.disconnect();
+    };
+  }, []);
+  
+  const statusColors = {
+    NEW: themeColors.NEW,
+    CONTACTED: themeColors.CONTACTED,
+    QUALIFIED: themeColors.QUALIFIED,
+    CONVERTED: themeColors.CONVERTED,
+    LOST: themeColors.LOST,
+  };
   
   const { data: statsData, loading: statsLoading } = useQuery(GET_DASHBOARD_STATS);
   const { data: leadsData, loading: leadsLoading, refetch: refetchLeads } = useQuery(GET_LEADS, {
