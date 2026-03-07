@@ -98,8 +98,12 @@ const authLink = setContext(async (_, { headers }) => {
 
 const securityLink = new ApolloLink((operation, forward) => {
   const token = getAccessToken();
+  const refreshToken = localStorage.getItem('refresh_token');
   
-  if (!token && operation.operationName !== 'Login' && operation.operationName !== 'Register') {
+  if (!token && !refreshToken && operation.operationName !== 'Login' && operation.operationName !== 'Register' && operation.operationName !== 'RefreshToken') {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
     window.location.href = '/login';
     return new Observable(() => {});
   }
