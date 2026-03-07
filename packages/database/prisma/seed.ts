@@ -3,6 +3,14 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+function randomElement<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function randomDate(start: Date, end: Date): Date {
+  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+}
+
 async function main() {
   console.log('🌱 Starting seed...');
 
@@ -22,8 +30,9 @@ async function main() {
 
   console.log('🧹 Cleaned existing data');
 
-  // Create Users
   const adminPassword = await bcrypt.hash('admin123', 10);
+
+  // Create Users
   const users = await Promise.all([
     prisma.user.create({
       data: {
@@ -48,6 +57,33 @@ async function main() {
         email: 'recepcao@hsr.com.br',
         name: 'João Silva',
         role: UserRole.RECEPTION,
+        password: adminPassword,
+        isActive: true,
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: 'coordenadora@hsr.com.br',
+        name: 'Ana Paula',
+        role: UserRole.COORDINATOR,
+        password: adminPassword,
+        isActive: true,
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: 'enfermeira@hsr.com.br',
+        name: 'Carla Oliveira',
+        role: UserRole.NURSE,
+        password: adminPassword,
+        isActive: true,
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: 'dr.matheus@hsr.com.br',
+        name: 'Dr. Matheus Oliveira',
+        role: UserRole.SURGEON,
         password: adminPassword,
         isActive: true,
       },
@@ -97,6 +133,26 @@ async function main() {
         isActive: true,
       },
     }),
+    prisma.surgeon.create({
+      data: {
+        name: 'Dra. Carla Souza',
+        specialty: 'Blefaroplastia',
+        crm: 'CRM/BA 56789',
+        email: 'carla.souza@hsr.com.br',
+        phone: '(71) 99999-0005',
+        isActive: true,
+      },
+    }),
+    prisma.surgeon.create({
+      data: {
+        name: 'Dr. Roberto Alves',
+        specialty: 'Otoplastia',
+        crm: 'CRM/BA 67890',
+        email: 'roberto.alves@hsr.com.br',
+        phone: '(71) 99999-0006',
+        isActive: true,
+      },
+    }),
   ]);
   console.log(`✅ Created ${surgeons.length} surgeons`);
 
@@ -118,283 +174,144 @@ async function main() {
   }
   console.log('✅ Created availability slots');
 
-  // Create Leads
-  const leads = await Promise.all([
-    prisma.lead.create({
+  // Lead data
+  const firstNames = ['Ana', 'Bruno', 'Carla', 'Daniel', 'Eduarda', 'Fernando', 'Gabriela', 'Henrique', 'Isabela', 'João', 'Karina', 'Leonardo', 'Marcos', 'Natalia', 'Octavio', 'Patricia', 'Ricardo', 'Sofia', 'Thiago', 'Ursula', 'Vinicius', 'William', 'Xavier', 'Yasmin', 'Zilda'];
+  const lastNames = ['Silva', 'Santos', 'Oliveira', 'Souza', 'Lima', 'Costa', 'Almeida', 'Nascimento', 'Mendes', 'Ferreira', 'Rodrigues', 'Carvalho', 'Araujo', 'Monteiro', 'Barbosa'];
+  const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Facebook', 'Orkut', 'LinkedIn', 'Radio', 'Tv'];
+  const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Mamoplastia + Abdominoplastia', 'Rinoplastia + Otoplastia', 'Próteses'];
+  const statuses = [LeadStatus.NEW, LeadStatus.NEW, LeadStatus.NEW, LeadStatus.CONTACTED, LeadStatus.CONTACTED, LeadStatus.QUALIFIED, LeadStatus.CONVERTED, LeadStatus.LOST];
+  const notes = ['', '', '', 'Interessado(a) no procedimento há anos', 'Já fez avaliação em outra clínica', 'Indicação de amigo(a)', 'Quer agendar para o próximo mês', ' Orçamento solicitado', 'Ligação não atendida', 'Número incorreto'];
+
+  // Create 60 leads
+  const leads = [];
+  for (let i = 0; i < 60; i++) {
+    const firstName = randomElement(firstNames);
+    const lastName = randomElement(lastNames);
+    const status = randomElement(statuses);
+    
+    const lead = await prisma.lead.create({
       data: {
-        name: 'Micaele Silva',
-        email: 'micaele@email.com',
-        phone: '(71) 99123-4567',
-        cpf: '123.456.789-00',
-        source: 'Instagram',
-        origin: 'Instagram',
-        procedure: 'Rinoplastia',
-        preferredDoctor: surgeons[0].id,
-        whatsappActive: true,
-        status: LeadStatus.NEW,
-        notes: 'Interesse em rinoplastia estrutural',
+        name: `${firstName} ${lastName}`,
+        email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i}@email.com`,
+        phone: `(71) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`,
+        cpf: `${String(Math.floor(Math.random() * 900) + 100)}.${String(Math.floor(Math.random() * 900) + 100)}.${String(Math.floor(Math.random() * 900) + 100)}-${String(Math.floor(Math.random() * 90) + 10)}`,
+        source: randomElement(origins),
+        origin: randomElement(origins),
+        procedure: randomElement(procedures),
+        preferredDoctor: randomElement(surgeons).id,
+        whatsappActive: Math.random() > 0.3,
+        status: status,
+        notes: randomElement(notes),
+        createdAt: randomDate(new Date('2026-01-01'), new Date('2026-03-07')),
       },
-    }),
-    prisma.lead.create({
-      data: {
-        name: 'Carlos Santos',
-        email: 'carlos@email.com',
-        phone: '(71) 98234-5678',
-        cpf: '234.567.890-11',
-        source: 'Google Ads',
-        origin: 'Google Ads',
-        procedure: 'Lipoaspiração',
-        preferredDoctor: surgeons[1].id,
-        whatsappActive: true,
-        status: LeadStatus.CONTACTED,
-        notes: 'Já realizou consulta em outra clínica',
-      },
-    }),
-    prisma.lead.create({
-      data: {
-        name: 'Ana Beatriz Rocha',
-        email: 'ana@email.com',
-        phone: '(71) 97345-6789',
-        cpf: '345.678.901-22',
-        source: 'TikTok',
-        origin: 'TikTok',
-        procedure: 'Abdominoplastia',
-        preferredDoctor: surgeons[2].id,
-        whatsappActive: false,
-        status: LeadStatus.QUALIFIED,
-        notes: '',
-      },
-    }),
-    prisma.lead.create({
-      data: {
-        name: 'Roberto Almeida',
-        email: 'roberto@email.com',
-        phone: '(71) 96456-7890',
-        cpf: '456.789.012-33',
-        source: 'Indicação',
-        origin: 'Indicação',
-        procedure: 'Blefaroplastia',
-        preferredDoctor: surgeons[0].id,
-        whatsappActive: true,
-        status: LeadStatus.CONVERTED,
-        notes: 'Indicação do Dr. Sandro',
-      },
-    }),
-    prisma.lead.create({
-      data: {
-        name: 'Juliana Ferreira',
-        email: 'juliana@email.com',
-        phone: '(71) 95567-8901',
-        cpf: '567.890.123-44',
-        source: 'Instagram',
-        origin: 'Instagram',
-        procedure: 'Mamoplastia',
-        preferredDoctor: surgeons[3].id,
-        whatsappActive: true,
-        status: LeadStatus.CONVERTED,
-        notes: 'Contrato assinado',
-      },
-    }),
-    prisma.lead.create({
-      data: {
-        name: 'Pedro Henrique Lima',
-        email: 'pedro@email.com',
-        phone: '(71) 94678-9012',
-        cpf: '678.901.234-55',
-        source: 'Google Ads',
-        origin: 'Google Ads',
-        procedure: 'Rinoplastia',
-        preferredDoctor: surgeons[0].id,
-        whatsappActive: false,
-        status: LeadStatus.NEW,
-        notes: '',
-      },
-    }),
-    prisma.lead.create({
-      data: {
-        name: 'Fernanda Dias',
-        email: 'fernanda@email.com',
-        phone: '(71) 93789-0123',
-        cpf: '789.012.345-66',
-        source: 'Site',
-        origin: 'Site',
-        procedure: 'Lipo HD',
-        preferredDoctor: surgeons[1].id,
-        whatsappActive: true,
-        status: LeadStatus.CONTACTED,
-        notes: 'Quer agendar para março',
-      },
-    }),
-    prisma.lead.create({
-      data: {
-        name: 'Marcos Vinícius',
-        email: 'marcos@email.com',
-        phone: '(71) 92890-1234',
-        cpf: '890.123.456-77',
-        source: 'TikTok',
-        origin: 'TikTok',
-        procedure: 'Otoplastia',
-        preferredDoctor: surgeons[2].id,
-        whatsappActive: true,
-        status: LeadStatus.QUALIFIED,
-        notes: '',
-      },
-    }),
-  ]);
+    });
+    leads.push(lead);
+  }
   console.log(`✅ Created ${leads.length} leads`);
 
-  // Create Patients with documents and postOps
-  const patient = await prisma.patient.create({
-    data: {
-      leadId: leads[4].id,
-      dateOfBirth: new Date('1990-05-15'),
-      medicalRecord: 'PR-2026-0001',
-      address: 'Rua das Flores, 123 - Pituba, Salvador/BA',
-      documents: {
-        create: [
-          {
-            name: 'Contrato de Prestação de Serviços',
-            type: DocumentType.CONTRACT,
-            date: new Date('2026-02-15'),
-            status: DocumentStatus.SIGNED,
-          },
-          {
-            name: 'Termo de Ciência - Peso',
-            type: DocumentType.TERM,
-            date: new Date('2026-02-15'),
-            status: DocumentStatus.SIGNED,
-          },
-          {
-            name: 'Exames Pré-Operatórios',
-            type: DocumentType.EXAM,
-            date: new Date('2026-02-20'),
-            status: DocumentStatus.UPLOADED,
-          },
-        ],
+  // Create 15 patients from converted leads
+  const convertedLeads = leads.filter(l => l.status === LeadStatus.CONVERTED);
+  const patientLeads = convertedLeads.slice(0, 15);
+  
+  const patients = [];
+  for (const lead of patientLeads) {
+    const patient = await prisma.patient.create({
+      data: {
+        leadId: lead.id,
+        dateOfBirth: randomDate(new Date('1970-01-01'), new Date('2005-12-31')),
+        medicalRecord: `PR-2026-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`,
+        address: `Rua ${randomElement(['das Flores', 'das Acácias', 'do Sol', 'da Lua', 'das Estrelas'])}, ${Math.floor(Math.random() * 500) + 1} - ${randomElement(['Pituba', 'Barra', 'Rio Vermelho', 'Pelourinho', 'Brotas'])}, Salvador/BA`,
+        documents: {
+          create: [
+            {
+              name: 'Contrato de Prestação de Serviços',
+              type: DocumentType.CONTRACT,
+              date: randomDate(new Date('2026-01-01'), new Date('2026-03-01')),
+              status: DocumentStatus.SIGNED,
+            },
+            {
+              name: 'Termo de Ciência',
+              type: DocumentType.TERM,
+              date: randomDate(new Date('2026-01-01'), new Date('2026-03-01')),
+              status: DocumentStatus.SIGNED,
+            },
+            {
+              name: 'Exames Pré-Operatórios',
+              type: DocumentType.EXAM,
+              date: randomDate(new Date('2026-01-01'), new Date('2026-03-01')),
+              status: Math.random() > 0.5 ? DocumentStatus.UPLOADED : DocumentStatus.PENDING,
+            },
+          ],
+        },
+        postOps: {
+          create: [
+            {
+              date: randomDate(new Date('2026-03-01'), new Date('2026-04-30')),
+              type: PostOpType.RETURN,
+              description: randomElement(['Retorno 7 dias', 'Retorno 15 dias', 'Retorno 30 dias']),
+              status: PostOpStatus.SCHEDULED,
+            },
+          ],
+        },
       },
-      postOps: {
-        create: [
-          {
-            date: new Date('2026-03-10'),
-            type: PostOpType.RETURN,
-            description: 'Retorno 15 dias pós-cirurgia',
-            status: PostOpStatus.SCHEDULED,
-          },
-          {
-            date: new Date('2026-04-25'),
-            type: PostOpType.RETURN,
-            description: 'Retorno 2 meses',
-            status: PostOpStatus.PENDING,
-          },
-        ],
-      },
-    },
-    include: {
-      lead: true,
-      documents: true,
-      postOps: true,
-    },
-  });
+    });
+    patients.push(patient);
 
-  // Create Contacts for the lead associated with the patient
-  await prisma.contact.createMany({
-    data: [
-      {
-        leadId: leads[4].id,
-        date: new Date('2026-02-10T10:30:00'),
-        type: ContactType.WHATSAPP,
-        direction: ContactDirection.OUTBOUND,
-        status: ContactStatus.READ,
-        message: 'Olá Juliana! Aqui é do Hospital São Rafael. Confirmamos seu interesse em Mamoplastia.',
-      },
-      {
-        leadId: leads[4].id,
-        date: new Date('2026-02-11T14:00:00'),
-        type: ContactType.CALL,
-        direction: ContactDirection.OUTBOUND,
-        status: ContactStatus.ANSWERED,
-        message: 'Ligação de 8min. Paciente confirmou interesse e agendou avaliação.',
-      },
-      {
-        leadId: leads[4].id,
-        date: new Date('2026-02-13T09:00:00'),
-        type: ContactType.WHATSAPP,
-        direction: ContactDirection.OUTBOUND,
-        status: ContactStatus.DELIVERED,
-        message: 'Lembrete: sua avaliação é amanhã às 14h com Dr. Sandro Lima.',
-      },
-      {
-        leadId: leads[4].id,
-        date: new Date('2026-02-15T16:00:00'),
-        type: ContactType.WHATSAPP,
-        direction: ContactDirection.INBOUND,
-        status: ContactStatus.READ,
-        message: 'Gostaria de confirmar o procedimento. Quando posso assinar o contrato?',
-      },
-    ],
-  });
-  console.log('✅ Created patient with contacts, documents, and postOps');
+    // Create contacts for this lead
+    await prisma.contact.createMany({
+      data: [
+        {
+          leadId: lead.id,
+          date: randomDate(new Date('2026-01-01'), new Date('2026-03-01')),
+          type: randomElement([ContactType.WHATSAPP, ContactType.CALL, ContactType.EMAIL]),
+          direction: ContactDirection.OUTBOUND,
+          status: randomElement([ContactStatus.DELIVERED, ContactStatus.READ, ContactStatus.ANSWERED]),
+          message: 'Olá! Gostaríamos de confirmar seu interesse no procedimento.',
+        },
+        {
+          leadId: lead.id,
+          date: randomDate(new Date('2026-01-01'), new Date('2026-03-01')),
+          type: randomElement([ContactType.WHATSAPP, ContactType.CALL]),
+          direction: Math.random() > 0.5 ? ContactDirection.INBOUND : ContactDirection.OUTBOUND,
+          status: randomElement([ContactStatus.DELIVERED, ContactStatus.READ, ContactStatus.ANSWERED]),
+          message: randomElement(['Sim, tenho interesse', 'Quero mais informações', 'Quando posso agendar?']),
+        },
+      ],
+    });
+  }
+  console.log(`✅ Created ${patients.length} patients with contacts and documents`);
 
-  // Create Appointments
-  const appointments = await Promise.all([
-    prisma.appointment.create({
+  // Create Appointments for patients
+  const appointments = [];
+  for (const patient of patients) {
+    const appointment = await prisma.appointment.create({
       data: {
-        patientId: leads[2].id,
-        surgeonId: surgeons[2].id,
-        procedure: 'Abdominoplastia',
-        scheduledAt: new Date('2026-02-24T08:00:00'),
-        status: AppointmentStatus.SCHEDULED,
+        patientId: patient.leadId,
+        surgeonId: randomElement(surgeons).id,
+        procedure: randomElement(procedures),
+        scheduledAt: randomDate(new Date('2026-03-01'), new Date('2026-06-30')),
+        status: randomElement([AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED]),
+        notes: Math.random() > 0.7 ? randomElement(['Avaliação inicial', 'Retorno', 'Pré-operatório', 'Pós-operatório']) : null,
       },
-    }),
-    prisma.appointment.create({
-      data: {
-        patientId: leads[7].id,
-        surgeonId: surgeons[2].id,
-        procedure: 'Otoplastia',
-        scheduledAt: new Date('2026-02-24T10:00:00'),
-        status: AppointmentStatus.SCHEDULED,
-      },
-    }),
-    prisma.appointment.create({
-      data: {
-        patientId: leads[3].id,
-        surgeonId: surgeons[0].id,
-        procedure: 'Blefaroplastia',
-        scheduledAt: new Date('2026-02-24T09:00:00'),
-        status: AppointmentStatus.SCHEDULED,
-        notes: 'Avaliação final',
-      },
-    }),
-    prisma.appointment.create({
-      data: {
-        patientId: leads[4].id,
-        surgeonId: surgeons[3].id,
-        procedure: 'Mamoplastia',
-        scheduledAt: new Date('2026-02-25T14:00:00'),
-        status: AppointmentStatus.SCHEDULED,
-        notes: 'Pré-operatório',
-      },
-    }),
-    prisma.appointment.create({
-      data: {
-        patientId: leads[0].id,
-        surgeonId: surgeons[0].id,
-        procedure: 'Rinoplastia',
-        scheduledAt: new Date('2026-02-25T08:00:00'),
-        status: AppointmentStatus.SCHEDULED,
-      },
-    }),
-    prisma.appointment.create({
-      data: {
-        patientId: leads[1].id,
-        surgeonId: surgeons[1].id,
-        procedure: 'Lipoaspiração',
-        scheduledAt: new Date('2026-02-26T10:00:00'),
-        status: AppointmentStatus.SCHEDULED,
-      },
-    }),
-  ]);
+    });
+    appointments.push(appointment);
+  }
   console.log(`✅ Created ${appointments.length} appointments`);
+
+  // Create some NEW/CONTACTED leads with appointments scheduled
+  const newLeads = leads.filter(l => l.status === LeadStatus.NEW || l.status === LeadStatus.CONTACTED);
+  for (let i = 0; i < Math.min(10, newLeads.length); i++) {
+    await prisma.appointment.create({
+      data: {
+        patientId: newLeads[i].id,
+        surgeonId: randomElement(surgeons).id,
+        procedure: randomElement(procedures),
+        scheduledAt: randomDate(new Date('2026-03-10'), new Date('2026-04-30')),
+        status: AppointmentStatus.SCHEDULED,
+      },
+    });
+  }
+  console.log('✅ Created additional appointments for new leads');
 
   // Create Message Templates
   await Promise.all([
@@ -430,6 +347,22 @@ async function main() {
         triggerDays: 1,
       },
     }),
+    prisma.messageTemplate.create({
+      data: {
+        name: 'Obrigado pela visita',
+        channel: MessageChannel.WHATSAPP,
+        content: 'Obrigado pela visita, {nome}! Foi um prazer atendê-lo. Em breve enviaremos o orçamento para {procedimento}.',
+        triggerDays: 1,
+      },
+    }),
+    prisma.messageTemplate.create({
+      data: {
+        name: 'Follow-up 7 dias',
+        channel: MessageChannel.WHATSAPP,
+        content: 'Olá {nome}! Já decidiu sobre o procedimento? Estamos à disposição para esclarecer qualquer dúvida.',
+        triggerDays: 7,
+      },
+    }),
   ]);
   console.log('✅ Created message templates');
 
@@ -437,20 +370,8 @@ async function main() {
   await Promise.all([
     prisma.auditLog.create({
       data: {
-        entityType: 'Appointment',
-        entityId: appointments[0].id,
-        action: 'STATUS_CHANGE',
-        oldValue: JSON.stringify(AppointmentStatus.SCHEDULED),
-        newValue: JSON.stringify(AppointmentStatus.CONFIRMED),
-        reason: 'Paciente confirmou presença',
-        userId: users[1].id,
-        appointmentId: appointments[0].id,
-      },
-    }),
-    prisma.auditLog.create({
-      data: {
         entityType: 'Lead',
-        entityId: leads[1].id,
+        entityId: leads[0].id,
         action: 'STATUS_CHANGE',
         oldValue: JSON.stringify(LeadStatus.NEW),
         newValue: JSON.stringify(LeadStatus.CONTACTED),
@@ -461,7 +382,18 @@ async function main() {
     prisma.auditLog.create({
       data: {
         entityType: 'Lead',
-        entityId: leads[3].id,
+        entityId: leads[1].id,
+        action: 'STATUS_CHANGE',
+        oldValue: JSON.stringify(LeadStatus.CONTACTED),
+        newValue: JSON.stringify(LeadStatus.QUALIFIED),
+        reason: 'Paciente demonstrou interesse Real',
+        userId: users[1].id,
+      },
+    }),
+    prisma.auditLog.create({
+      data: {
+        entityType: 'Lead',
+        entityId: leads[2].id,
         action: 'CONVERTED',
         oldValue: JSON.stringify(LeadStatus.QUALIFIED),
         newValue: JSON.stringify(LeadStatus.CONVERTED),
@@ -469,14 +401,34 @@ async function main() {
         userId: users[0].id,
       },
     }),
+    prisma.auditLog.create({
+      data: {
+        entityType: 'Lead',
+        entityId: leads[3].id,
+        action: 'STATUS_CHANGE',
+        oldValue: JSON.stringify(LeadStatus.NEW),
+        newValue: JSON.stringify(LeadStatus.LOST),
+        reason: 'Paciente não respondeu',
+        userId: users[1].id,
+      },
+    }),
   ]);
   console.log('✅ Created audit logs');
 
-  console.log('✅ Seed completed successfully!');
+  // Summary
+  console.log('');
+  console.log('📊 Seed Summary:');
+  console.log(`   - ${users.length} usuários`);
+  console.log(`   - ${surgeons.length} cirurgiões`);
+  console.log(`   - ${leads.length} leads`);
+  console.log(`   - ${patients.length} pacientes`);
+  console.log(`   - ${appointments.length + 10} agendamentos`);
   console.log('');
   console.log('📧 Login credentials:');
   console.log('   Email: admin@hsr.com.br');
   console.log('   Password: admin123');
+  console.log('');
+  console.log('✅ Seed completed successfully!');
 }
 
 main()
