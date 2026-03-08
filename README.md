@@ -808,6 +808,21 @@ O frontend é uma aplicação React desenvolvida com Vite, TypeScript e Tailwind
 
 Sistema de login seguro com JWT para controle de acesso baseado em roles (Admin, Cirurgião, Call Center, Recepção, Vendas).
 
+## Integração Contínua (CI/CD) e Testes Automatizados
+
+O projeto possui uma esteira de Integração Contínua (CI) configurada nativamente via **GitHub Actions**. A cada nova submissão de código, o pipeline assegura a qualidade da aplicação através das seguintes automações:
+
+- **Padronização (Linting):** Validação estática rigorosa das sintaxes através do ESLint (em formato *flat config* que engloba todo o monorepo pnpm).
+- **Testes de Unidade e Integração (Vitest):** Execução da suíte completa de testes do backend para garantir estabilidade à cada contribuição.
+
+### Validação das Regras de Negócio Críticas (RNs)
+
+A suíte de testes da API foi desenhada intencionalmente para assegurar o funcionamento das principais exigências operacionais do hospital:
+
+- **RN01 - Duplicidade Zero:** Testes de rejeição que evitam o agrupamento de contatos ou CPFs idênticos, impedindo a inserção ou alteração conflitante na base de dados (`@crmed/database`).
+- **RN03 - Hierarquia de Permissões:** Garantia de que atualizações transicionais nos fluxos (como os _status_ e as agendas) só aconteçam quando a *role* do usuário solicitante possuir de fato aquela permissão no GraphQL.
+- **RN06 - Registro de Auditoria:** Mapeamento em bateria apontando que qualquer manipulação com os pacientes resulta numa adição inalterável nos históricos e *logs* provididos pelos _resolvers_.
+
 ---
 
 Projeto desenvolvido pelo Grupo Moskitto para o Challenge FIAP / Hospital São Rafael.
