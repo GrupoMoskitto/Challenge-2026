@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const EVOLUTION_API_URL = process.env.LOCALSTACK_URL ? 'http://localhost:8080' : 'http://localhost:8080'; // Update this depending on Docker networking
+const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'crmed_evolution_api_token_123';
 const INSTANCE_NAME = 'crmed-whatsapp';
 
