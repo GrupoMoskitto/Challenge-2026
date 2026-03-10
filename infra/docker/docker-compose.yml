@@ -47,41 +47,6 @@ services:
       timeout: 5s
       retries: 5
 
-  evolution-api:
-    image: atendai/evolution-api:v2.2.3
-    ports:
-      - "8080:8080"
-    environment:
-      - SERVER_PORT=8080
-      - SERVER_URL=http://localhost:8080
-      - AUTHENTICATION_TYPE=apikey
-      - AUTHENTICATION_API_KEY=crmed_evolution_api_token_123
-      - DEL_INSTANCE=false
-      - QRCODE_LIMIT=30
-      - QRCODE_EXPIRESIN=45
-      - WEBHOOK_GLOBAL_ENABLED=false
-      - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://crmed:crmed123@postgres:5432/evolution
-      - DATABASE_SAVE_DATA_INSTANCE=true
-      - DATABASE_SAVE_DATA_NEW_MESSAGE=true
-      - DATABASE_SAVE_DATA_CONTACTS=true
-      - DATABASE_SAVE_DATA_CHATS=true
-      - CACHE_REDIS_ENABLED=true
-      - CACHE_REDIS_URI=redis://redis:6379
-      - CACHE_REDIS_PREFIX_KEY=evo
-      - CACHE_REDIS_SAVE_INSTANCES=false
-      - CONFIG_SESSION_PHONE_CLIENT=Evolution API
-      - CONFIG_SESSION_PHONE_NAME=Chrome
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - evolution_instances:/evolution/instances
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   api:
     build:
@@ -109,7 +74,7 @@ services:
       DATABASE_URL: postgresql://crmed:crmed123@postgres:5432/crmed
       REDIS_URL: redis://redis:6379
       LOCALSTACK_URL: http://localstack:4566
-      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://localhost:8080}
       EVOLUTION_API_KEY: crmed_evolution_api_token_123
     depends_on:
       postgres:
@@ -133,4 +98,3 @@ services:
 volumes:
   postgres_data:
   localstack_data:
-  evolution_instances:
