@@ -110,6 +110,10 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
    ```bash
    pnpm --filter @crmed/database db:migrate
    ```
+7. Popule o banco com dados sintéticos:
+   ```bash
+   pnpm --filter @crmed/database db:seed
+   ```
 
 ### Scripts Disponíveis
 
@@ -125,6 +129,8 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
 | `pnpm infra:postgres` | Inicia PostgreSQL via Docker |
 | `pnpm infra:db:setup` | Sobe PostgreSQL + gera Prisma + executa migrações |
 | `pnpm infra:dev` | Setup completo (infra + dev) para desenvolvimento rápido |
+
+> **Recomendação:** A maneira mais rápida e fácil de iniciar o projeto (incluindo alimentar o banco de dados de forma sintética) é utilizar a opção `pnpm infra:dev`.
 
 ### Portas em Execução (Testes Locais)
 
@@ -822,6 +828,27 @@ A suíte de testes da API foi desenhada intencionalmente para assegurar o funcio
 - **RN01 - Duplicidade Zero:** Testes de rejeição que evitam o agrupamento de contatos ou CPFs idênticos, impedindo a inserção ou alteração conflitante na base de dados (`@crmed/database`).
 - **RN03 - Hierarquia de Permissões:** Garantia de que atualizações transicionais nos fluxos (como os _status_ e as agendas) só aconteçam quando a *role* do usuário solicitante possuir de fato aquela permissão no GraphQL.
 - **RN06 - Registro de Auditoria:** Mapeamento em bateria apontando que qualquer manipulação com os pacientes resulta numa adição inalterável nos históricos e *logs* provididos pelos _resolvers_.
+
+---
+
+## Regras de Contribuição
+
+### Padrão de Commits
+Siga o padrão *Semantic Commits*, baseando-se no histórico recente do projeto. Utilize os seguintes prefixos conforme a natureza da sua alteração:
+- `feat`: Novas funcionalidades, implementações (ex: `feat(api): implement RN03 hierarchy constraints`)
+- `fix`: Correções de bugs (ex: `fix(auth): prevent infinite redirect loop`)
+- `docs`: Modificações na documentação (ex: `docs: adding ci/cd section`)
+- `test`: Adição ou ajuste de testes (ex: `test(rns): add vitest and unit tests`)
+- `chore`: Atualizações de ferramentas, configurações ou scripts (ex: `chore(eslint): setup monorepo linting flat config`)
+- `ci`: Modificações voltadas para integração contínua (ex: `ci(github): setup continuous integration pipeline`)
+
+### Padrão de Branch
+Crie as branches a partir das tarefas do projeto, utilizando o prefixo `MOSK-` seguido do número da tarefa, o tipo do commit e o nome da feature em inglês com palavras separadas por hífen:
+Formato: `MOSK-0000/tipo/tarefa-EM-INGLES`
+
+Exemplos:
+- `MOSK-0000/feat/add-login-screen`
+- `MOSK-0012/fix/dashboard-chart-tooltip`
 
 ---
 
