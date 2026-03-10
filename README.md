@@ -827,12 +827,17 @@ A imagem Docker oficial (`atendai/evolution-api:v2.x`) embute uma versão antiga
 
 ### Pré-requisito
 
-A pasta `infra/evolution-api-local/` já está no repositório com o código clonado. Basta instalar as dependências:
-
-```bash
-cd infra/evolution-api-local
-npm install
-```
+1. Certifique-se que o Docker esteja rodando (`pnpm infra:up`), pois a Evolution API local depende do PostgreSQL e Redis.
+2. A pasta `infra/evolution-api-local/` já contém o código-fonte necessário.
+3. Configure o arquivo `.env` da Evolution API:
+   ```bash
+   cp infra/evolution-api-local/.env.example infra/evolution-api-local/.env
+   ```
+4. Instale as dependências:
+   ```bash
+   cd infra/evolution-api-local
+   npm install
+   ```
 
 ### 1. Migrar o banco `evolution`
 
