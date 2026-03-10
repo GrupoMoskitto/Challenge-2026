@@ -88,33 +88,35 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
 - Node.js v20+.
 - pnpm v10+.
 
-### Instalação
+### Quick Start (Recomendado)
 
-1. Clone o repositório.
-2. Configure o arquivo `.env`:
+O comando `infra:dev` automatiza todo o setup (Docker, Banco, Seeds e WhatsApp):
+
+1. **Clone** o repositório.
+2. **Configure os arquivos .env** (Copia os exemplos):
    ```bash
    cp packages/database/.env.example packages/database/.env
+   cp infra/evolution-api-local/.env.example infra/evolution-api-local/.env
    ```
-3. Instale as dependências:
+3. **Instale e Inicie tudo**:
    ```bash
    pnpm install
+   pnpm infra:dev
    ```
-4. Gere o Prisma Client:
-   ```bash
-   pnpm --filter @crmed/database db:generate
-   ```
-5. Suba a infraestrutura com Docker Compose:
-   ```bash
-   cd infra/docker && docker-compose up -d
-   ```
-6. Execute as migrações do banco de dados:
-   ```bash
-   pnpm --filter @crmed/database db:migrate
-   ```
-7. Popule o banco com dados sintéticos:
-   ```bash
-   pnpm --filter @crmed/database db:seed
-   ```
+
+> Esse comando sobe a infraestrutura, alimenta o banco de dados e inicia todos os serviços (incluindo o WhatsApp) em paralelo.
+
+---
+
+### Instalação Manual (Passo a Passo)
+
+Caso prefira configurar cada parte individualmente:
+
+1. **Instale as dependências**: `pnpm install`
+2. **Inicie o Docker**: `pnpm infra:up`
+3. **Setup do Banco**: `pnpm --filter @crmed/database db:setup` (Gera Prisma + Migrate + Seed)
+4. **WhatsApp**: `pnpm infra:whatsapp`
+5. **Apps**: `pnpm dev`
 
 ### Scripts Disponíveis
 
