@@ -62,14 +62,16 @@ const getThemeColors = () => {
   };
 };
 
-const originColors: Record<string, string> = {
-  'Instagram': '#E1306C',
-  'TikTok': '#000000',
-  'Google Ads': '#4285F4',
-  'Indicação': '#25D366',
-  'Site': '#FF6F00',
-  'Facebook': '#1877F2',
-  'Outro': '#6B7280',
+const getOriginColors = () => {
+  const isDark = document.documentElement.classList.contains('dark');
+  return {
+    'Instagram': '#E1306C',
+    'TikTok': isDark ? '#E5E7EB' : '#111827',
+    'Site': '#FF6F00',
+    'Indicação': '#25D366',
+    'Facebook': '#1877F2',
+    'Outro': isDark ? '#9CA3AF' : '#6B7280',
+  };
 };
 
 const exportToCSV = (data: any[], filename: string) => {
@@ -96,10 +98,12 @@ const exportToCSV = (data: any[], filename: string) => {
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [themeColors, setThemeColors] = useState(getThemeColors);
+  const [originColors, setOriginColors] = useState(getOriginColors);
   
   useEffect(() => {
     const handleThemeChange = () => {
       setThemeColors(getThemeColors());
+      setOriginColors(getOriginColors());
     };
     
     window.addEventListener('theme-transition', handleThemeChange);
@@ -207,7 +211,7 @@ const Dashboard = () => {
     color: statusColors[name],
   }));
 
-  const leadsByDay = filteredLeads.reduce((acc: any, lead: any) => {
+  const leadsByDay = filteredLeads.reduce((acc: Record<string, { leads: number, converted: number }>, lead: any) => {
     const day = format(new Date(lead.createdAt), 'dd/MM');
     acc[day] = acc[day] || { leads: 0, converted: 0 };
     acc[day].leads += 1;
@@ -224,7 +228,7 @@ const Dashboard = () => {
       return new Date(`${m1}/${d1}/${y1}`).getTime() - new Date(`${m2}/${d2}/${y2}`).getTime();
     })
     .slice(-14)
-    .map(([date, data]) => ({ date, leads: data.leads, converted: data.converted }));
+    .map(([date, data]: [string, any]) => ({ date, leads: data.leads, converted: data.converted }));
 
   const surgeonAppointments = surgeons.map((surgeon: any) => {
     const surgeonApts = appointments.filter((a: any) => a.surgeon?.id === surgeon.id);
@@ -437,7 +441,8 @@ const Dashboard = () => {
                           background: "hsl(var(--card))",
                           boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                         }}
-                        labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+                        labelStyle={{ fontWeight: 600, marginBottom: 4, color: "hsl(var(--foreground))" }}
+                        itemStyle={{ color: "hsl(var(--foreground))" }}
                       />
                       <Area 
                         type="monotone" 
@@ -496,11 +501,14 @@ const Dashboard = () => {
                         ))}
                       </Pie>
                       <Tooltip
+                        formatter={(value: number) => [value, "Leads"]}
                         contentStyle={{
                           borderRadius: "var(--radius)",
                           border: "1px solid hsl(var(--border))",
                           background: "hsl(var(--card))",
                         }}
+                        labelStyle={{ color: "hsl(var(--foreground))" }}
+                        itemStyle={{ color: "hsl(var(--foreground))" }}
                       />
                       <Legend />
                     </PieChart>
@@ -531,11 +539,14 @@ const Dashboard = () => {
                       <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                       <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={80} stroke="hsl(var(--muted-foreground))" />
                       <Tooltip
+                        formatter={(value: number) => [value, "Leads"]}
                         contentStyle={{
                           borderRadius: "var(--radius)",
                           border: "1px solid hsl(var(--border))",
                           background: "hsl(var(--card))",
                         }}
+                        labelStyle={{ color: "hsl(var(--foreground))" }}
+                        itemStyle={{ color: "hsl(var(--foreground))" }}
                       />
                       <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                         {originData.map((entry, index) => (
@@ -577,11 +588,14 @@ const Dashboard = () => {
                         ))}
                       </Pie>
                       <Tooltip
+                        formatter={(value: number, name: string) => [value, name]}
                         contentStyle={{
                           borderRadius: "var(--radius)",
                           border: "1px solid hsl(var(--border))",
                           background: "hsl(var(--card))",
                         }}
+                        labelStyle={{ color: "hsl(var(--foreground))" }}
+                        itemStyle={{ color: "hsl(var(--foreground))" }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
