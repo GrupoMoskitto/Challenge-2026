@@ -342,6 +342,14 @@ async function main() {
         name: 'Boas-vindas Lead',
         channel: MessageChannel.WHATSAPP,
         content: 'Olá {nome}! Bem-vindo(a) ao Hospital São Rafael. Recebemos seu interesse em {procedimento}. Em breve entraremos em contato!',
+        triggerDays: -1, // Changed to not overlap with the 0-days appointment reminder
+      },
+    }),
+    prisma.messageTemplate.create({
+      data: {
+        name: 'Dia da Consulta',
+        channel: MessageChannel.WHATSAPP,
+        content: 'Olá {nome}, hoje é o dia da sua consulta com {medico} às {hora}. Esperamos você!',
         triggerDays: 0,
       },
     }),
