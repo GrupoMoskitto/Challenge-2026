@@ -3,6 +3,7 @@ import { startStandaloneServer } from '@apollo/server/standalone';
 import { typeDefs } from './graphql/schema';
 import { resolvers, Context } from './graphql/resolvers';
 import { verifyToken } from './auth';
+import { prisma } from '@crmed/database';
 
 const server = new ApolloServer({
   typeDefs,
@@ -19,8 +20,19 @@ async function startServer() {
         const token = authHeader.substring(7);
         const payload = verifyToken(token);
         
-        if (payload) {
-          return { user: payload };
+        if (payload && payload.userId) {
+          try {
+            // Verify if user still exists and is active in the database
+            const dbUser = await prisma.user.findUnique({
+              where: { id: payload.userId }
+            });
+
+            if (dbUser && dbUser.isActive) {
+              return { user: payload };
+            }
+          } catch (error) {
+            console.error('Error verifying user in context:', error);
+          }
         }
       }
       
