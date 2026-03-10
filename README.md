@@ -827,40 +827,9 @@ A automação de mensagens para a **RN05** (lembretes de consulta via WhatsApp) 
 
 A imagem Docker oficial (`atendai/evolution-api:v2.x`) embute uma versão antiga do Baileys que não consegue gerar o QR Code porque o protocolo do WhatsApp foi atualizado. A solução é clonar o código-fonte e rodar com `npm` diretamente, garantindo a versão mais recente.
 
-### Pré-requisito
+### Como Conectar (QR Code)
 
-1. Certifique-se que o Docker esteja rodando (`pnpm infra:up`), pois a Evolution API local depende do PostgreSQL e Redis.
-2. A pasta `infra/evolution-api-local/` já contém o código-fonte necessário.
-3. Configure o arquivo `.env` da Evolution API:
-   ```bash
-   cp infra/evolution-api-local/.env.example infra/evolution-api-local/.env
-   ```
-4. Instale as dependências:
-   ```bash
-   cd infra/evolution-api-local
-   npm install
-   ```
-
-### 1. Migrar o banco `evolution`
-
-*(Necessário apenas na primeira vez ou após limpar volumes)*
-
-```bash
-cd infra/evolution-api-local
-npm run db:deploy
-npm run db:generate
-```
-
-> Certifique-se que o Docker esteja rodando (`pnpm infra:up`) antes de executar o comando acima, pois ele precisa do PostgreSQL.
-
-### 2. Iniciar a Evolution API
-
-```bash
-cd infra/evolution-api-local
-npm run start:prod
-```
-
-A API sobe em `http://localhost:8080`. Logs ficam disponíveis no terminal.
+Se você usou o `pnpm infra:dev`, o servidor da Evolution API já está rodando. Siga os passos abaixo para parear seu celular:
 
 ### 3. Criar a instância e gerar o QR Code
 
