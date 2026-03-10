@@ -129,9 +129,11 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
 | `pnpm infra:down` | Para containers Docker |
 | `pnpm infra:postgres` | Inicia PostgreSQL via Docker |
 | `pnpm infra:db:setup` | Sobe PostgreSQL + gera Prisma + executa migrações |
-| `pnpm infra:dev` | Setup completo (infra + dev) para desenvolvimento rápido |
+| `pnpm infra:whatsapp` | Inicia a Evolution API localmente (migra DB + sobe servidor) |
+| `pnpm infra:dev` | Setup completo: Docker + seed + WhatsApp + dev em paralelo |
 
-> **Recomendação:** A maneira mais rápida e fácil de iniciar o projeto (incluindo alimentar o banco de dados de forma sintética) é utilizar a opção `pnpm infra:dev`.
+> **Recomendação:** Use `pnpm infra:dev` para subir tudo de uma vez (infra Docker, banco de dados com seed, Evolution API do WhatsApp e todos os apps em modo dev).
+
 
 ### Portas em Execução (Testes Locais)
 
