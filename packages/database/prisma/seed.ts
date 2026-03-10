@@ -199,7 +199,7 @@ async function main() {
   // Lead data
   const firstNames = ['Ana', 'Bruno', 'Carla', 'Daniel', 'Eduarda', 'Fernando', 'Gabriela', 'Henrique', 'Isabela', 'João', 'Karina', 'Leonardo', 'Marcos', 'Natalia', 'Octavio', 'Patricia', 'Ricardo', 'Sofia', 'Thiago', 'Ursula', 'Vinicius', 'William', 'Xavier', 'Yasmin', 'Zilda'];
   const lastNames = ['Silva', 'Santos', 'Oliveira', 'Souza', 'Lima', 'Costa', 'Almeida', 'Nascimento', 'Mendes', 'Ferreira', 'Rodrigues', 'Carvalho', 'Araujo', 'Monteiro', 'Barbosa'];
-  const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Facebook', 'Orkut', 'LinkedIn', 'Radio', 'Tv'];
+  const origins = ['Instagram', 'TikTok', 'Site', 'Indicação', 'Facebook'];
   const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Mamoplastia + Abdominoplastia', 'Rinoplastia + Otoplastia', 'Próteses'];
   const statuses = [LeadStatus.NEW, LeadStatus.NEW, LeadStatus.NEW, LeadStatus.CONTACTED, LeadStatus.CONTACTED, LeadStatus.QUALIFIED, LeadStatus.CONVERTED, LeadStatus.LOST];
   const notes = ['', '', '', 'Interessado(a) no procedimento há anos', 'Já fez avaliação em outra clínica', 'Indicação de amigo(a)', 'Quer agendar para o próximo mês', ' Orçamento solicitado', 'Ligação não atendida', 'Número incorreto'];
