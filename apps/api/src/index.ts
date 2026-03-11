@@ -44,4 +44,7 @@ async function startServer() {
   console.log(`📊 GraphQL Playground: ${url}graphql`);
 }
 
-startServer();
+// Only start the server if this file is run directly (not imported)
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}

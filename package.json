@@ -10,7 +10,7 @@
     "infra:db:setup": "pnpm infra:postgres && sleep 5 && pnpm --filter @crmed/database db:generate && pnpm --filter @crmed/database db:migrate",
     "infra:whatsapp": "cd infra/evolution-api-local && npm run db:deploy && npm run db:generate && npm run start:prod",
     "infra:dev": "pnpm infra:up && pnpm --filter @crmed/database db:push && pnpm --filter @crmed/database db:seed && concurrently \"pnpm infra:whatsapp\" \"pnpm dev\"",
-    "dev": "turbo dev",
+    "dev": "kill-port 8080 3001 3000 || true && turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "vitest run"
@@ -23,6 +23,7 @@
     "@types/node": "^25.3.5",
     "@vitest/coverage-v8": "^4.0.18",
     "concurrently": "^9.2.1",
+    "kill-port": "^2.0.1",
     "turbo": "^2.8.10",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^3.2.4"

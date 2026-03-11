@@ -31,9 +31,7 @@ export const WhatsAppService = {
           delay: 1200,
           presence: 'composing',
         },
-        textMessage: {
-          text: text,
-        },
+        text: text,
       });
 
       return response.data;
