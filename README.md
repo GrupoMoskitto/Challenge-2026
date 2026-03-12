@@ -13,6 +13,8 @@ O sistema atua como o cérebro operacional do hospital, gerenciando desde a entr
 - **Automação de Contatos:** Disparos automáticos via WhatsApp para confirmações e lembretes.
 - **Inteligência de Dados:** Dashboards de conversão e ociosidade médica.
 
+### Escopo Externo
+
 - Não é uma interface voltada para o paciente final (contato apenas via WhatsApp).
 
 ## Stack Tecnológica
@@ -180,7 +182,7 @@ Acesse o GraphQL Playground em: `http://localhost:3001/graphql`
 
 ## Frontend
 
-O frontend é uma aplicação React desenvolvida com Vite, fornecendo a interface interna para colaboradores e médicos do hospital.
+O frontend é nossa aplicação principal para colaboradores e médicos, construída com React e Vite.
 
 ### Iniciar o Frontend
 
@@ -188,14 +190,7 @@ O frontend é uma aplicação React desenvolvida com Vite, fornecendo a interfac
 pnpm --filter @crmed/web dev
 ```
 
-O frontend estará disponível em: `http://localhost:3000`
-
-### Funcionalidades Principais
-
-- Dashboard com estatísticas e KPIs
-- Gestão de leads e pacientes
-- Agenda de consultas
-- Configurações do sistema
+A aplicação subirá em: `http://localhost:3000`
 
 ### Padrões de Resposta
 
@@ -806,11 +801,11 @@ O schema inclui os seguintes tipos principais:
 
 ---
 
-## Interface Frontend
+### Interface Frontend
 
 O frontend é uma aplicação React desenvolvida com Vite, TypeScript e Tailwind CSS, oferecendo uma interface moderna e responsiva para os colaboradores do hospital.
 
-### Principais Funcionalidades
+#### Principais Funcionalidades
 
 - **Dashboard**: Visão geral com KPIs, gráficos de conversão e consultas agendadas
 - **Gestão de Leads**: Sistema kanban para acompanhar o funil de vendas
@@ -818,7 +813,7 @@ O frontend é uma aplicação React desenvolvida com Vite, TypeScript e Tailwind
 - **Pacientes**: Visualização detalhada do histórico e acompanhamento
 - **Configurações**: Gerenciamento de usuários e templates de mensagens
 
-### Autenticação
+#### Autenticação
 
 Sistema de login seguro com JWT para controle de acesso baseado em roles (Admin, Cirurgião, Call Center, Recepção, Vendas).
 
