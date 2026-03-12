@@ -13,10 +13,6 @@ O sistema atua como o cérebro operacional do hospital, gerenciando desde a entr
 - **Automação de Contatos:** Disparos automáticos via WhatsApp para confirmações e lembretes.
 - **Inteligência de Dados:** Dashboards de conversão e ociosidade médica.
 
-### Escopo Externo
-
-- Não substitui o ERP completo (Tasy).
-- Não realiza processamento de pagamentos diretamente.
 - Não é uma interface voltada para o paciente final (contato apenas via WhatsApp).
 
 ## Stack Tecnológica
@@ -152,6 +148,7 @@ Caso prefira configurar cada parte individualmente:
 | API (Docker) | 3001 | API via Docker |
 | Web | 3000 | Frontend Next.js |
 | Workers | 3002 | BullMQ Workers |
+| Evolution API (Local) | 8080 | Emulador do WhatsApp e interface do QR Code |
 
 ### Variáveis de Ambiente
 
@@ -162,6 +159,8 @@ Caso prefira configurar cada parte individualmente:
 | `LOCALSTACK_URL` | URL do LocalStack (desenvolvimento) |
 | `CLERK_SECRET_KEY` | Chave do Clerk para autenticação |
 | `EVOLUTION_API_KEY` | Chave da Evolution API |
+| `EVOLUTION_INSTANCE_NAME` | Nome da instância instanciada via UI da Evolution API para ser endereçada aos logs do Worker |
+| `DEV_ALLOWED_PHONE` | Para evitar disparos acidentais contra dados de pacientes reais (Sandbox Mode). Restringe os webhooks do Worker apenas a este número. |
 
 ## API GraphQL
 
