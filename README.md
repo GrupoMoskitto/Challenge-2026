@@ -93,12 +93,16 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
 O comando `infra:dev` automatiza todo o setup (Docker, Banco, Seeds e WhatsApp):
 
 1. **Clone** o repositório.
-2. **Configure os arquivos .env** (Copia os exemplos):
+    ```bash
+    git clone https://github.com/GrupoMoskitto/Challenge-2026.git
+    cd Challenge-2026
+    ```
+2. **Configure os arquivos .env**:
    ```bash
    cp packages/database/.env.example packages/database/.env
    cp infra/evolution-api-local/.env.example infra/evolution-api-local/.env
    ```
-3. **Instale e Inicie tudo**:
+3. **Instale e inicie tudo**:
    ```bash
    pnpm install
    pnpm infra:dev

@@ -76,6 +76,11 @@ services:
       LOCALSTACK_URL: http://localstack:4566
       EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://localhost:8080}
       EVOLUTION_API_KEY: ***REMOVED***
+      DEV_ALLOWED_PHONE: ${DEV_ALLOWED_PHONE:-}
+      EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-crmed-whatsapp}
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_URL: "http://workers:3002/webhook/evolution"
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
     depends_on:
       postgres:
         condition: service_healthy
