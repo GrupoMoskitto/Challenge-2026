@@ -11,6 +11,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Init script to create a secondary database since POSTGRES_DB only creates one
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crmed"]
       interval: 5s
@@ -45,6 +47,7 @@ services:
       timeout: 5s
       retries: 5
 
+
   api:
     build:
       context: ../../
@@ -71,6 +74,13 @@ services:
       DATABASE_URL: postgresql://crmed:crmed123@postgres:5432/crmed
       REDIS_URL: redis://redis:6379
       LOCALSTACK_URL: http://localstack:4566
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://localhost:8080}
+      EVOLUTION_API_KEY: crmed_evolution_api_token_123
+      DEV_ALLOWED_PHONE: ${DEV_ALLOWED_PHONE:-}
+      EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-crmed-whatsapp}
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_URL: "http://workers:3002/webhook/evolution"
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
     depends_on:
       postgres:
         condition: service_healthy

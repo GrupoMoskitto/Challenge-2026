@@ -54,6 +54,7 @@ packages/
 
 infra/
 ├── docker/           # Dockerfiles e Docker Compose
+├── evolution-api-local/ # Evolution API local (necessário para gerar QR Code)
 └── localstack/       # Scripts de inicialização S3/SES
 ```
 
@@ -87,33 +88,39 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
 - Node.js v20+.
 - pnpm v10+.
 
-### Instalação
+### Quick Start (Recomendado)
 
-1. Clone o repositório.
-2. Configure o arquivo `.env`:
+O comando `infra:dev` automatiza todo o setup (Docker, Banco, Seeds e WhatsApp):
+
+1. **Clone** o repositório.
+    ```bash
+    git clone https://github.com/GrupoMoskitto/Challenge-2026.git
+    cd Challenge-2026
+    ```
+2. **Configure os arquivos .env**:
    ```bash
    cp packages/database/.env.example packages/database/.env
+   cp infra/evolution-api-local/.env.example infra/evolution-api-local/.env
    ```
-3. Instale as dependências:
+3. **Instale e inicie tudo**:
    ```bash
    pnpm install
+   pnpm infra:dev
    ```
-4. Gere o Prisma Client:
-   ```bash
-   pnpm --filter @crmed/database db:generate
-   ```
-5. Suba a infraestrutura com Docker Compose:
-   ```bash
-   cd infra/docker && docker-compose up -d
-   ```
-6. Execute as migrações do banco de dados:
-   ```bash
-   pnpm --filter @crmed/database db:migrate
-   ```
-7. Popule o banco com dados sintéticos:
-   ```bash
-   pnpm --filter @crmed/database db:seed
-   ```
+
+> Esse comando sobe a infraestrutura, alimenta o banco de dados e inicia todos os serviços (incluindo o WhatsApp) em paralelo.
+
+---
+
+### Instalação Manual (Passo a Passo)
+
+Caso prefira configurar cada parte individualmente:
+
+1. **Instale as dependências**: `pnpm install`
+2. **Inicie o Docker**: `pnpm infra:up`
+3. **Setup do Banco**: `pnpm --filter @crmed/database db:setup` (Gera Prisma + Migrate + Seed)
+4. **WhatsApp**: `pnpm infra:whatsapp`
+5. **Apps**: `pnpm dev`
 
 ### Scripts Disponíveis
 
@@ -128,9 +135,11 @@ Para ter o sucesso do projeto, o código deve obrigatoriamente seguir estas dire
 | `pnpm infra:down` | Para containers Docker |
 | `pnpm infra:postgres` | Inicia PostgreSQL via Docker |
 | `pnpm infra:db:setup` | Sobe PostgreSQL + gera Prisma + executa migrações |
-| `pnpm infra:dev` | Setup completo (infra + dev) para desenvolvimento rápido |
+| `pnpm infra:whatsapp` | Inicia a Evolution API localmente (migra DB + sobe servidor) |
+| `pnpm infra:dev` | Setup completo: Docker + seed + WhatsApp + dev em paralelo |
 
-> **Recomendação:** A maneira mais rápida e fácil de iniciar o projeto (incluindo alimentar o banco de dados de forma sintética) é utilizar a opção `pnpm infra:dev`.
+> **Recomendação:** Use `pnpm infra:dev` para subir tudo de uma vez (infra Docker, banco de dados com seed, Evolution API do WhatsApp e todos os apps em modo dev).
+
 
 ### Portas em Execução (Testes Locais)
 
@@ -814,7 +823,83 @@ O frontend é uma aplicação React desenvolvida com Vite, TypeScript e Tailwind
 
 Sistema de login seguro com JWT para controle de acesso baseado em roles (Admin, Cirurgião, Call Center, Recepção, Vendas).
 
+## WhatsApp — Evolution API (RN05)
+
+A automação de mensagens para a **RN05** (lembretes de consulta via WhatsApp) é feita através da [Evolution API](https://github.com/EvolutionAPI/evolution-api), rodando localmente fora do Docker para garantir compatibilidade com a versão mais recente do Baileys.
+
+### Por que local e não Docker?
+
+A imagem Docker oficial (`atendai/evolution-api:v2.x`) embute uma versão antiga do Baileys que não consegue gerar o QR Code porque o protocolo do WhatsApp foi atualizado. A solução é clonar o código-fonte e rodar com `npm` diretamente, garantindo a versão mais recente.
+
+### Como Conectar (QR Code)
+
+Se você usou o `pnpm infra:dev`, o servidor da Evolution API já está rodando. Siga os passos abaixo para parear seu celular:
+
+### 3. Criar a instância e gerar o QR Code
+
+**Via Manager UI (recomendado):**
+
+1. Acesse `http://localhost:8080/manager`
+2. Faça login com a API Key: `crmed_evolution_api_token_123`
+3. Clique em **"+ Nova Instância"** ou selecione `crmed-whatsapp` caso já exista
+4. Clique em **"Get QR Code"**
+5. Escaneie com o WhatsApp no celular (**WhatsApp → Dispositivos conectados → Conectar dispositivo**)
+
+**Via API (Postman/curl):**
+
+```bash
+# 1. Criar instância
+curl -X POST http://localhost:8080/instance/create \
+  -H "apikey: crmed_evolution_api_token_123" \
+  -H "Content-Type: application/json" \
+  -d '{"instanceName":"crmed-whatsapp","qrcode":true,"integration":"WHATSAPP-BAILEYS"}'
+
+# 2. Aguardar ~5s e buscar o QR (retorna base64)
+curl http://localhost:8080/instance/connect/crmed-whatsapp \
+  -H "apikey: crmed_evolution_api_token_123"
+```
+
+Cole o valor do campo `base64` em [base64.guru/converter/decode/image](https://base64.guru/converter/decode/image) para visualizar e escanear o QR.
+
+### 4. Verificar conexão
+
+```bash
+curl http://localhost:8080/instance/connectionState/crmed-whatsapp \
+  -H "apikey: crmed_evolution_api_token_123"
+# "status": "open" significa que está conectado!
+```
+
+### 5. Testar os Workers (RN05)
+
+Com a instância conectada, inicie os workers para disparar os lembretes automáticos:
+
+```bash
+pnpm --filter @crmed/workers dev
+```
+
+O cron job roda diariamente às 08h verificando agendamentos que se encaixam nos critérios do RN05 (4, 2, 1 dias e no dia da consulta) e envia mensagens automaticamente via WhatsApp.
+
+### Configuração (.env)
+
+O arquivo `infra/evolution-api-local/.env` já está configurado para desenvolvimento local:
+
+| Variável | Valor |
+| :--- | :--- |
+| `SERVER_URL` | `http://localhost:8080` |
+| `AUTHENTICATION_API_KEY` | `crmed_evolution_api_token_123` |
+| `DATABASE_CONNECTION_URI` | `postgresql://crmed:crmed123@localhost:5432/evolution` |
+| `CACHE_REDIS_URI` | `redis://localhost:6379` |
+
+### Adicionando à porta de serviços
+
+| Serviço | Porta | Descrição |
+| :--- | :--- | :--- |
+| Evolution API | 8080 | WhatsApp Gateway (local, fora do Docker) |
+
+---
+
 ## Integração Contínua (CI/CD) e Testes Automatizados
+
 
 O projeto possui uma esteira de Integração Contínua (CI) configurada nativamente via **GitHub Actions**. A cada nova submissão de código, o pipeline assegura a qualidade da aplicação através das seguintes automações:
 
