@@ -2,7 +2,6 @@ import axios from 'axios';
 
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '***REMOVED***';
-const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
 const DEV_ALLOWED_PHONE = process.env.DEV_ALLOWED_PHONE;
 
 const api = axios.create({
@@ -14,7 +13,7 @@ const api = axios.create({
 });
 
 export const WhatsAppService = {
-  async sendMessage(phone: string, text: string) {
+  async sendMessage(instanceName: string, phone: string, text: string) {
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     const number = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
 
@@ -27,7 +26,7 @@ export const WhatsAppService = {
     }
 
     try {
-      const response = await api.post(`/message/sendText/${INSTANCE_NAME}`, {
+      const response = await api.post(`/message/sendText/${instanceName}`, {
         number,
         options: {
           delay: 1200,
@@ -38,17 +37,17 @@ export const WhatsAppService = {
 
       return response.data;
     } catch (error: any) {
-      console.error('Failed to send WhatsApp message via Evolution API:', error?.response?.data || error.message);
+      console.error(`Failed to send WhatsApp message via instance ${instanceName}:`, error?.response?.data || error.message);
       throw error;
     }
   },
 
-  async connectionState() {
+  async connectionState(instanceName: string) {
     try {
-      const response = await api.get(`/instance/connectionState/${INSTANCE_NAME}`);
+      const response = await api.get(`/instance/connectionState/${instanceName}`);
       return response.data;
     } catch (error: any) {
-      console.error('Failed to get instance state:', error?.response?.data || error.message);
+      console.error(`Failed to get instance state for ${instanceName}:`, error?.response?.data || error.message);
       return { instance: { state: 'disconnected' } };
     }
   }

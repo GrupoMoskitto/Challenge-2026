@@ -4,15 +4,10 @@ dist
 .turbo
 *.log
 .env
-.env.local
-.env.*.local
-
+.env.*
 .DS_Store
 *.pem
-
 coverage
-.nyc_output
-
 prisma/migrations
 *.db
-*.db-journal
+/infra/docker/data/
