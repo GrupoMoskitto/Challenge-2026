@@ -157,12 +157,12 @@ Caso prefira configurar cada parte individualmente:
 | Variável | Descrição |
 | :--- | :--- |
 | `DATABASE_URL` | String de conexão PostgreSQL |
-| `REDIS_URL` | String de conexão Redis |
+| `REDIS_URL` | String de conexão Redis (BullMQ / Chatbot State) |
 | `LOCALSTACK_URL` | URL do LocalStack (desenvolvimento) |
 | `CLERK_SECRET_KEY` | Chave do Clerk para autenticação |
-| `EVOLUTION_API_KEY` | Chave da Evolution API |
-| `EVOLUTION_INSTANCE_NAME` | Nome da instância instanciada via UI da Evolution API para ser endereçada aos logs do Worker |
-| `DEV_ALLOWED_PHONE` | Para evitar disparos acidentais contra dados de pacientes reais (Sandbox Mode). Restringe os webhooks do Worker apenas a este número. |
+| `EVOLUTION_API_KEY` | Chave da Evolution API (Global) |
+| `EVOLUTION_INSTANCE_NAME` | Nome da instância padrão para disparos automáticos de lembretes (ex: `crmed-whatsapp`) |
+| `DEV_ALLOWED_PHONE` | **Sandbox Mode:** Restringe o envio de mensagens (tanto automáticas quanto do chatbot) apenas para este número de teste em ambiente de desenvolvimento. |
 
 ## API GraphQL
 
@@ -871,7 +871,20 @@ Com a instância conectada, inicie os workers para disparar os lembretes automá
 pnpm --filter @crmed/workers dev
 ```
 
-O cron job roda diariamente às 08h verificando agendamentos que se encaixam nos critérios do RN05 (4, 2, 1 dias e no dia da consulta) e envia mensagens automaticamente via WhatsApp.
+### Configurações Avançadas e Segurança
+
+#### Sandbox Mode (`DEV_ALLOWED_PHONE`)
+Para garantir que mensagens de teste jamais cheguem a pacientes reais durante o desenvolvimento, o sistema utiliza a variável `DEV_ALLOWED_PHONE` no `.env` do App `workers`. 
+- Se definida, **todas** as mensagens enviadas por qualquer parte do sistema serão bloqueadas, a menos que o destinatário seja exatamente este número. 
+- Mensagens bloqueadas são logadas no console do Worker como `[DEV MODE] 🛡️ Mensagem bloqueada`.
+
+#### Roteamento Dinâmico de Instâncias
+**Roteamento Dinâmico de Instâncias**: O bot agora identifica por qual instância (`crmed-whatsapp1`, `crmed-whatsapp2`, etc.) recebeu a mensagem e responde pela mesma. Isso permite gerenciar múltiplos números de atendimento simultaneamente com o mesmo código.
+
+#### Filtro de Mensagens Antigas
+Para evitar que o bot responda a mensagens acumuladas durante períodos em que o servidor esteve offline (backlog), implementamos um filtro de **10 segundos**. Mensagens com timestamp de criação superior a este limite são ignoradas silenciosamente pelo Webhook.
+
+---
 
 ### Configuração (.env)
 

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { processDailyAppointments } from './jobs/dailyCron';
-import { whatsappWorker } from './queues/whatsapp.processor';
+import './queues/whatsapp.processor';
 import { CronJob } from 'cron';
 
 console.log('CRMed Workers starting...');
@@ -49,20 +49,25 @@ app.post('/webhook/evolution', async (req, res) => {
             return res.status(200).send('Ignored');
         }
 
+        // Ignore old messages (e.g. older than 10 seconds) to avoid processing backlogs
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const messageTimestamp = messageInfo.messageTimestamp;
+        if (messageTimestamp && (currentTimestamp - messageTimestamp > 10)) {
+            console.log(`[Webhook] Ignorando mensagem antiga de ${data.key?.remoteJid} (${currentTimestamp - messageTimestamp}s atrás)`);
+            return res.status(200).send('Ignored old message');
+        }
+
         const remoteJid = data.key?.remoteJid;
         const pushName = data.pushName || 'Você';
+        const instanceName = body.instance;
         
         const textMessage = messageInfo.conversation || messageInfo.extendedTextMessage?.text;
 
         if (textMessage) {
-            console.log(`[Webhook] Nova mensagem de ${pushName} (${remoteJid}): ${textMessage}`);
+            console.log(`[Webhook] Nova mensagem de ${pushName} (${remoteJid}) na instância ${instanceName}: ${textMessage}`);
             
-            const { WhatsAppService } = await import('./services/whatsapp.service');
-            
-            const replyText = `Olá ${pushName}! 👋 Você mandou: "${textMessage}".\n\n_Esta é uma mensagem automática de boas-vindas do sistema de desenvolvimento CRMed._`;
-            
-            console.log(`[Webhook] Respondendo automaticamente para ${remoteJid}...`);
-            await WhatsAppService.sendMessage(remoteJid, replyText);
+            const { ChatbotService } = await import('./services/chatbot.service');
+            await ChatbotService.handleMessage(instanceName, remoteJid, pushName, textMessage);
         }
 
         res.status(200).send('OK');

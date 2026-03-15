@@ -23,13 +23,14 @@ interface WhatsAppJobData {
 export const whatsappWorker = new Worker<WhatsAppJobData>(
   WHATSAPP_QUEUE_NAME,
   async (job: Job) => {
-    const { appointmentId, leadId, patientName, phone, message, triggerDays } = job.data;
-    
-    console.log(`[WhatsApp Worker] Processing Job ${job.id} for ${patientName} (${phone}) - Trigger: ${triggerDays} days`);
+    const { appointmentId, _leadId, patientName, phone, message, triggerDays } = job.data as any;
+    const leadId = _leadId;
 
     try {
       // 1. Send the WhatsApp message via Evolution API
-      const result = await WhatsAppService.sendMessage(phone, message);
+      // Use the default instance name from environment variables for automated reminders
+      const instanceName = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
+      const result = await WhatsAppService.sendMessage(instanceName, phone, message);
       console.log(`[WhatsApp Worker] Message sent! Evolution API ID:`, result?.key?.id);
 
       // 2. Fulfill RN06: Create an AuditLog representing the successful delivery
