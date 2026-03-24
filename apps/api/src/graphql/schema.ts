@@ -380,6 +380,14 @@ export const typeDefs = gql`
     triggerDays: Int
   }
 
+  input UpdateMessageTemplateInput {
+    id: ID!
+    name: String
+    channel: MessageChannel
+    content: String
+    triggerDays: Int
+  }
+
   type Mutation {
     # Auth
     login(input: LoginInput!): AuthPayload!
@@ -416,6 +424,8 @@ export const typeDefs = gql`
 
     # Message Templates
     createMessageTemplate(input: CreateMessageTemplateInput!): MessageTemplate!
+    updateMessageTemplate(input: UpdateMessageTemplateInput!): MessageTemplate!
+    deleteMessageTemplate(id: ID!): DeleteResult!
   }
 
   type Query {

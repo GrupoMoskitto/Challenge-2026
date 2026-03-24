@@ -307,3 +307,36 @@ export const CREATE_CONTACT = gql`
     }
   }
 `;
+
+export const CREATE_MESSAGE_TEMPLATE = gql`
+  mutation CreateMessageTemplate($input: CreateMessageTemplateInput!) {
+    createMessageTemplate(input: $input) {
+      id
+      name
+      channel
+      content
+      triggerDays
+    }
+  }
+`;
+
+export const UPDATE_MESSAGE_TEMPLATE = gql`
+  mutation UpdateMessageTemplate($input: UpdateMessageTemplateInput!) {
+    updateMessageTemplate(input: $input) {
+      id
+      name
+      channel
+      content
+      triggerDays
+    }
+  }
+`;
+
+export const DELETE_MESSAGE_TEMPLATE = gql`
+  mutation DeleteMessageTemplate($id: ID!) {
+    deleteMessageTemplate(id: $id) {
+      success
+      message
+    }
+  }
+`;
