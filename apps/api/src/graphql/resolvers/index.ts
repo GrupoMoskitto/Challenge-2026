@@ -639,5 +639,33 @@ export const resolvers = {
         },
       });
     },
+    updateMessageTemplate: async (_: unknown, { input }: { input: {
+      id: string;
+      name?: string;
+      channel?: string;
+      content?: string;
+      triggerDays?: number;
+    }}) => {
+      const existing = await prisma.messageTemplate.findUnique({ where: { id: input.id } });
+      if (!existing) throw new Error('Template não encontrado');
+
+      const updateData: any = {};
+      if (input.name !== undefined) updateData.name = input.name;
+      if (input.channel !== undefined) updateData.channel = input.channel;
+      if (input.content !== undefined) updateData.content = input.content;
+      if (input.triggerDays !== undefined) updateData.triggerDays = input.triggerDays;
+
+      return prisma.messageTemplate.update({
+        where: { id: input.id },
+        data: updateData,
+      });
+    },
+    deleteMessageTemplate: async (_: unknown, { id }: { id: string }) => {
+      const existing = await prisma.messageTemplate.findUnique({ where: { id } });
+      if (!existing) throw new Error('Template não encontrado');
+
+      await prisma.messageTemplate.delete({ where: { id } });
+      return { success: true, message: 'Template excluído com sucesso' };
+    },
   },
 };
