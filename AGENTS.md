@@ -21,7 +21,7 @@ packages/database → Prisma ORM (schema, migrations, client compartilhado)
 packages/config   → ESLint, Prettier, TSConfig compartilhados
 packages/types    → Tipos TypeScript compartilhados
 packages/ui       → Componentes React reutilizáveis
-infra/            → Docker, LocalStack, Evolution API
+infra/            → Docker, Evolution API
 ```
 
 ### Stack
@@ -35,7 +35,7 @@ infra/            → Docker, LocalStack, Evolution API
 | WhatsApp | Evolution API (Baileys) |
 | Auth | JWT (jsonwebtoken + bcryptjs) |
 | Testes | Vitest, Testing Library |
-| Infra | Docker, LocalStack (S3, SES) |
+| Infra | Docker |
 
 ---
 
@@ -129,7 +129,7 @@ infra/            → Docker, LocalStack, Evolution API
 
 ```bash
 pnpm dev                              # Todos os apps
-pnpm infra:dev                        # Tudo (Docker + seed + WhatsApp + dev)
+pnpm infra:dev                        # Tudo (Docker + seed + dev)
 pnpm --filter @crmed/api dev          # Apenas API
 pnpm --filter @crmed/web dev          # Apenas frontend
 pnpm --filter @crmed/workers dev      # Apenas workers
