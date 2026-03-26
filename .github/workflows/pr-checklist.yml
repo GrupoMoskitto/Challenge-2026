@@ -16,23 +16,41 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const pr = context.payload.pull_request;
+            const branch = pr.head.ref;
+
             const body = [
-              '## ✅ Checklist do PR',
+              '## 🔍 Review Checklist',
               '',
-              'Antes de solicitar review, verifique os itens abaixo:',
-              '',
-              '- [ ] Branch segue o padrão `MOSK-0000/tipo/tarefa`',
+              '### Padrões de Código',
+              `- [ ] Branch segue o padrão \`MOSK-0000/tipo/tarefa\` — \`${branch}\``,
               '- [ ] Commits seguem [Conventional Commits](https://www.conventionalcommits.org/)',
-              '- [ ] Testes passando (`pnpm --filter @crmed/api test`)',
-              '- [ ] Build sem erros (`pnpm build`)',
-              '- [ ] Regras de negócio (RN01–RN06) respeitadas',
+              '- [ ] TypeScript strict — sem uso de `any` injustificado',
+              '- [ ] Imports via alias de workspace (`@crmed/database`, `@crmed/types`)',
+              '',
+              '### Qualidade',
+              '- [ ] Testes passando — `pnpm --filter @crmed/api test`',
+              '- [ ] Build sem erros — `pnpm build`',
+              '- [ ] Sem credenciais, tokens ou senhas expostas no código',
+              '',
+              '### Regras de Negócio',
+              '- [ ] **RN01** — Duplicidade Zero (CPF, e-mail, telefone)',
+              '- [ ] **RN03** — Hierarquia de roles respeitada',
+              '- [ ] **RN05** — Ciclo de notificações WhatsApp preservado',
+              '- [ ] **RN06** — Auditoria com `AuditLog` em alterações de status',
+              '',
+              '### Documentação',
+              '- [ ] README.md atualizado (se afeta setup, scripts ou variáveis)',
               '- [ ] Schema Prisma atualizado com `db:setup` (se alterado)',
-              '- [ ] README atualizado (se a mudança afeta setup, scripts ou variáveis)',
+              '',
+              '---',
+              '',
+              '> **Nota:** Marque os itens aplicáveis. Itens não relevantes para este PR podem ser ignorados.',
             ].join('\n');
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              issue_number: pr.number,
               body,
             });
