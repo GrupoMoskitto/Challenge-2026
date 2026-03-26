@@ -16,18 +16,34 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const branch = context.payload.pull_request.head.ref;
+
             const body = [
-              '## ✅ Checklist do PR',
+              `## Review Checklist`,
               '',
-              'Antes de solicitar review, verifique os itens abaixo:',
+              `Branch: \`${branch}\``,
               '',
-              '- [ ] Branch segue o padrão `MOSK-0000/tipo/tarefa`',
-              '- [ ] Commits seguem [Conventional Commits](https://www.conventionalcommits.org/)',
-              '- [ ] Testes passando (`pnpm --filter @crmed/api test`)',
-              '- [ ] Build sem erros (`pnpm build`)',
-              '- [ ] Regras de negócio (RN01–RN06) respeitadas',
-              '- [ ] Schema Prisma atualizado com `db:setup` (se alterado)',
-              '- [ ] README atualizado (se a mudança afeta setup, scripts ou variáveis)',
+              '**Padrões**',
+              '- [ ] Branch no formato `MOSK-0000/tipo/tarefa`',
+              '- [ ] Commits seguem Conventional Commits',
+              '- [ ] TypeScript strict, sem `any` injustificado',
+              '',
+              '**Qualidade**',
+              '- [ ] Testes passando — `pnpm test`',
+              '- [ ] Build sem erros — `pnpm build`',
+              '- [ ] Sem credenciais ou secrets expostos',
+              '',
+              '**Regras de Negócio**',
+              '- [ ] RN01 — Unicidade de CPF, e-mail e telefone',
+              '- [ ] RN03 — Hierarquia de roles',
+              '- [ ] RN05 — Ciclo de notificações WhatsApp',
+              '- [ ] RN06 — Auditoria em alterações de status',
+              '',
+              '**Documentação**',
+              '- [ ] README atualizado, se necessário',
+              '- [ ] Prisma schema atualizado com `db:setup`, se alterado',
+              '',
+              '> Marque apenas os itens aplicáveis a este PR.',
             ].join('\n');
 
             await github.rest.issues.createComment({
