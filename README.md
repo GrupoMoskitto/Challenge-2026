@@ -36,7 +36,7 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 | **Banco de Dados** | PostgreSQL · Prisma ORM |
 | **Mensageria / Jobs** | Redis · BullMQ · Cron |
 | **WhatsApp** | Evolution API (Baileys) |
-| **Infra** | Docker · LocalStack (S3, SES) |
+| **Infra** | Docker |
 | **Autenticação** | JWT (jsonwebtoken · bcryptjs) |
 | **Testes** | Vitest · Testing Library |
 
@@ -61,9 +61,7 @@ packages/
 ├── ui/               # Biblioteca de componentes React
 
 infra/
-├── docker/           # Dockerfiles e Docker Compose
-├── evolution-api-local/ # Evolution API local (QR Code WhatsApp)
-└── localstack/       # Scripts de inicialização S3/SES
+└── docker/           # Dockerfiles, Docker Compose e Evolution API
 ```
 
 ### Quick Start
@@ -75,7 +73,6 @@ cd Challenge-2026
 
 # Configure
 cp packages/database/.env.example packages/database/.env
-cp infra/evolution-api-local/.env.example infra/evolution-api-local/.env
 
 # Instale e inicie tudo
 npm install --global pnpm
@@ -92,10 +89,9 @@ pnpm infra:dev
 <summary>Passo a passo</summary>
 
 1. **Dependências:** `npm install --global pnpm && pnpm install`
-2. **Docker:** `pnpm infra:up`
+2. **Docker:** `pnpm infra:up` (PostgreSQL, Redis, Evolution API)
 3. **Banco:** `pnpm --filter @crmed/database db:setup`
-4. **WhatsApp:** `pnpm infra:whatsapp`
-5. **Apps:** `pnpm dev`
+4. **Apps:** `pnpm dev`
 
 </details>
 
@@ -105,10 +101,9 @@ pnpm infra:dev
 | --- | --- |
 | `pnpm dev` | Inicia todos os projetos em modo dev |
 | `pnpm build` | Build de todos os projetos |
-| `pnpm infra:up` | Sobe containers Docker |
+| `pnpm infra:up` | Sobe containers Docker (PostgreSQL, Redis, Evolution API) |
 | `pnpm infra:down` | Para containers Docker |
-| `pnpm infra:dev` | **Setup completo**: Docker + seed + WhatsApp + dev |
-| `pnpm infra:whatsapp` | Inicia a Evolution API localmente |
+| `pnpm infra:dev` | **Setup completo**: Docker + seed + dev |
 | `pnpm --filter @crmed/api dev` | Inicia apenas a API |
 | `pnpm --filter @crmed/web dev` | Inicia apenas o frontend |
 | `pnpm --filter @crmed/workers dev` | Inicia apenas os workers |
@@ -122,7 +117,6 @@ pnpm infra:dev
 | Workers | `3002` |
 | PostgreSQL | `5432` |
 | Redis | `6379` |
-| LocalStack (AWS) | `4566` |
 | Evolution API | `8080` |
 
 ### Regras de Negócio
@@ -140,8 +134,8 @@ pnpm infra:dev
 | --- | --- |
 | `DATABASE_URL` | Conexão PostgreSQL |
 | `REDIS_URL` | Conexão Redis (BullMQ / State) |
-| `LOCALSTACK_URL` | URL do LocalStack |
 | `EVOLUTION_API_KEY` | Chave da Evolution API |
+| `EVOLUTION_API_URL` | URL da Evolution API (padrão: `http://localhost:8080`) |
 | `EVOLUTION_INSTANCE_NAME` | Instância para lembretes automáticos |
 | `DEV_ALLOWED_PHONE` | **Sandbox** — Restringe mensagens a este nº em dev |
 
@@ -241,12 +235,12 @@ PostOpStatus:      SCHEDULED · COMPLETED · CANCELLED
 
 ### WhatsApp — Evolution API
 
-A automação de mensagens (RN05) usa a [Evolution API](https://github.com/EvolutionAPI/evolution-api) rodando **localmente** (fora do Docker) para garantir compatibilidade com a versão mais recente do Baileys.
+A automação de mensagens (RN05) usa a [Evolution API](https://github.com/EvolutionAPI/evolution-api) rodando via **Docker** (`evoapicloud/evolution-api:homolog`). O container sobe automaticamente com `pnpm infra:up`.
 
 <details>
 <summary><strong>Como conectar via QR Code</strong></summary>
 
-Se `pnpm infra:dev` está rodando, a Evolution API já está ativa.
+Se `pnpm infra:dev` está rodando, a Evolution API já está ativa na porta `8080`.
 
 **Via Manager UI (recomendado):**
 1. Acesse `http://localhost:8080/manager`
