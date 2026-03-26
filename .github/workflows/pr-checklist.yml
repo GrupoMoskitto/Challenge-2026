@@ -16,41 +16,39 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const pr = context.payload.pull_request;
-            const branch = pr.head.ref;
+            const branch = context.payload.pull_request.head.ref;
 
             const body = [
-              '## 🔍 Review Checklist',
+              `## Review Checklist`,
               '',
-              '### Padrões de Código',
-              `- [ ] Branch segue o padrão \`MOSK-0000/tipo/tarefa\` — \`${branch}\``,
-              '- [ ] Commits seguem [Conventional Commits](https://www.conventionalcommits.org/)',
-              '- [ ] TypeScript strict — sem uso de `any` injustificado',
-              '- [ ] Imports via alias de workspace (`@crmed/database`, `@crmed/types`)',
+              `Branch: \`${branch}\``,
               '',
-              '### Qualidade',
-              '- [ ] Testes passando — `pnpm --filter @crmed/api test`',
+              '**Padrões**',
+              '- [ ] Branch no formato `MOSK-0000/tipo/tarefa`',
+              '- [ ] Commits seguem Conventional Commits',
+              '- [ ] TypeScript strict, sem `any` injustificado',
+              '',
+              '**Qualidade**',
+              '- [ ] Testes passando — `pnpm test`',
               '- [ ] Build sem erros — `pnpm build`',
-              '- [ ] Sem credenciais, tokens ou senhas expostas no código',
+              '- [ ] Sem credenciais ou secrets expostos',
               '',
-              '### Regras de Negócio',
-              '- [ ] **RN01** — Duplicidade Zero (CPF, e-mail, telefone)',
-              '- [ ] **RN03** — Hierarquia de roles respeitada',
-              '- [ ] **RN05** — Ciclo de notificações WhatsApp preservado',
-              '- [ ] **RN06** — Auditoria com `AuditLog` em alterações de status',
+              '**Regras de Negócio**',
+              '- [ ] RN01 — Unicidade de CPF, e-mail e telefone',
+              '- [ ] RN03 — Hierarquia de roles',
+              '- [ ] RN05 — Ciclo de notificações WhatsApp',
+              '- [ ] RN06 — Auditoria em alterações de status',
               '',
-              '### Documentação',
-              '- [ ] README.md atualizado (se afeta setup, scripts ou variáveis)',
-              '- [ ] Schema Prisma atualizado com `db:setup` (se alterado)',
+              '**Documentação**',
+              '- [ ] README atualizado, se necessário',
+              '- [ ] Prisma schema atualizado com `db:setup`, se alterado',
               '',
-              '---',
-              '',
-              '> **Nota:** Marque os itens aplicáveis. Itens não relevantes para este PR podem ser ignorados.',
+              '> Marque apenas os itens aplicáveis a este PR.',
             ].join('\n');
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: pr.number,
+              issue_number: context.payload.pull_request.number,
               body,
             });
