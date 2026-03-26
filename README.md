@@ -78,6 +78,7 @@ cp packages/database/.env.example packages/database/.env
 cp infra/evolution-api-local/.env.example infra/evolution-api-local/.env
 
 # Instale e inicie tudo
+npm install --global pnpm
 pnpm install
 pnpm infra:dev
 ```
@@ -90,7 +91,7 @@ pnpm infra:dev
 <details>
 <summary>Passo a passo</summary>
 
-1. **Dependências:** `pnpm install`
+1. **Dependências:** `npm install --global pnpm && pnpm install`
 2. **Docker:** `pnpm infra:up`
 3. **Banco:** `pnpm --filter @crmed/database db:setup`
 4. **WhatsApp:** `pnpm infra:whatsapp`
