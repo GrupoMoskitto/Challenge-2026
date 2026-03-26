@@ -284,25 +284,15 @@ O pipeline GitHub Actions roda automaticamente a cada push:
 
 ---
 
+### AGENTS.md
+
+O projeto inclui um [`AGENTS.md`](AGENTS.md) — arquivo de instruções para **agentes de IA** (GitHub Copilot, Cursor, Gemini CLI). Ele contém o contexto completo do projeto, regras de negócio, padrões de código e diretrizes de segurança. Agentes compatíveis o detectam automaticamente na raiz do repositório.
+
+---
+
 ### Contribuição
 
-**Commits** — Semantic Commits:
-
-```
-feat(api): implement RN03 hierarchy constraints
-fix(auth): prevent infinite redirect loop
-docs: update README with CI/CD section
-test(rns): add vitest unit tests
-chore(eslint): setup monorepo linting
-ci(github): setup CI pipeline
-```
-
-**Branches** — `MOSK-0000/tipo/tarefa-em-ingles`:
-
-```
-MOSK-0000/feat/add-login-screen
-MOSK-0012/fix/dashboard-chart-tooltip
-```
+Veja o guia completo em [CONTRIBUTING.md](CONTRIBUTING.md) — branches, commits, testes e checklist de PR.
 
 ---
 
