@@ -67,17 +67,8 @@ async function main() {
     }),
     prisma.user.create({
       data: {
-        email: 'callcenter@hsr.com.br',
-        name: 'Maria Souza',
-        role: UserRole.CALL_CENTER,
-        password: adminPassword,
-        isActive: true,
-      },
-    }),
-    prisma.user.create({
-      data: {
         email: 'recepcao@hsr.com.br',
-        name: 'João Silva',
+        name: 'Recepção (Teste)',
         role: UserRole.RECEPTION,
         password: adminPassword,
         isActive: true,
@@ -85,18 +76,27 @@ async function main() {
     }),
     prisma.user.create({
       data: {
-        email: 'coordenadora@hsr.com.br',
-        name: 'Ana Paula',
-        role: UserRole.RECEPTION,
-        password: adminPassword,
-        isActive: true,
-      },
-    }),
-    prisma.user.create({
-      data: {
-        email: 'enfermeira@hsr.com.br',
-        name: 'Carla Oliveira',
+        email: 'callcenter@hsr.com.br',
+        name: 'Call Center (Teste)',
         role: UserRole.CALL_CENTER,
+        password: adminPassword,
+        isActive: true,
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: 'vendas@hsr.com.br',
+        name: 'Vendas (Teste)',
+        role: UserRole.SALES,
+        password: adminPassword,
+        isActive: true,
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: 'cirurgiao@hsr.com.br',
+        name: 'Dr. Cirurgião (Teste)',
+        role: UserRole.SURGEON,
         password: adminPassword,
         isActive: true,
       },
@@ -335,6 +335,58 @@ async function main() {
   }
   console.log('✅ Created additional appointments for new leads');
 
+  // Create TODAY appointments to populate the UI automatically
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayAppointments = [
+    {
+      patientId: patients[0]?.leadId || leads[0].id,
+      surgeonId: surgeons[0].id,
+      procedure: 'Primeira Consulta',
+      scheduledAt: new Date(`${todayStr}T09:00:00`),
+      status: AppointmentStatus.SCHEDULED,
+      notes: 'Paciente muito interessado'
+    },
+    {
+      patientId: patients[1]?.leadId || leads[1].id,
+      surgeonId: surgeons[1].id,
+      procedure: 'Rinoplastia',
+      scheduledAt: new Date(`${todayStr}T10:00:00`),
+      status: AppointmentStatus.CONFIRMED,
+      notes: 'Cirurgia agendada'
+    },
+    {
+      patientId: patients[2]?.leadId || leads[2].id,
+      surgeonId: surgeons[2].id,
+      procedure: 'Retorno',
+      scheduledAt: new Date(`${todayStr}T14:00:00`),
+      status: AppointmentStatus.COMPLETED,
+      notes: 'Tudo certo com a recuperação'
+    },
+    {
+      patientId: patients[3]?.leadId || leads[3].id,
+      surgeonId: surgeons[0].id,
+      procedure: 'Avaliação',
+      scheduledAt: new Date(`${todayStr}T15:00:00`),
+      status: AppointmentStatus.CANCELLED,
+      notes: 'Cancelou por imprevisto'
+    },
+    {
+      patientId: patients[4]?.leadId || leads[4].id,
+      surgeonId: surgeons[1].id,
+      procedure: 'Lipoaspiração',
+      scheduledAt: new Date(`${todayStr}T16:00:00`),
+      status: AppointmentStatus.NO_SHOW,
+      notes: 'Paciente não apareceu'
+    }
+  ];
+
+  for (const apt of todayAppointments) {
+    if (apt.patientId) {
+      await prisma.appointment.create({ data: apt });
+    }
+  }
+  console.log(`✅ Created ${todayAppointments.length} current-day appointments for UI display`);
+
   // Create Message Templates
   await Promise.all([
     prisma.messageTemplate.create({
@@ -455,7 +507,11 @@ async function main() {
   console.log(`   - ${appointments.length + 10} agendamentos`);
   console.log('');
   console.log('📧 Login credentials:');
-  console.log('   Email: admin@hsr.com.br');
+  console.log('   Admin: admin@hsr.com.br');
+  console.log('   Recepção: recepcao@hsr.com.br');
+  console.log('   Call Center: callcenter@hsr.com.br');
+  console.log('   Vendas: vendas@hsr.com.br');
+  console.log('   Cirurgião: cirurgiao@hsr.com.br');
   console.log('   Password: admin123');
   console.log('');
   console.log('✅ Seed completed successfully!');

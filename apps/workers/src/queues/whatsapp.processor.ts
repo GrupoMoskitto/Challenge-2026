@@ -11,7 +11,7 @@ export const whatsappQueue = new Queue(WHATSAPP_QUEUE_NAME, {
 });
 
 interface WhatsAppJobData {
-  appointmentId: string;
+  appointmentId?: string;
   leadId: string;
   patientName: string;
   phone: string;
@@ -23,8 +23,7 @@ interface WhatsAppJobData {
 export const whatsappWorker = new Worker<WhatsAppJobData>(
   WHATSAPP_QUEUE_NAME,
   async (job: Job) => {
-    const { appointmentId, _leadId, patientName, phone, message, triggerDays } = job.data as any;
-    const leadId = _leadId;
+    const { appointmentId, leadId, patientName, phone, message, triggerDays } = job.data as any;
 
     try {
       // 1. Send the WhatsApp message via Evolution API
@@ -36,11 +35,11 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
       // 2. Fulfill RN06: Create an AuditLog representing the successful delivery
       await prisma.auditLog.create({
         data: {
-          entityType: 'Appointment',
-          entityId: appointmentId,
+          entityType: appointmentId ? 'Appointment' : 'Lead',
+          entityId: appointmentId || leadId,
           action: 'WHATSAPP_SENT',
           newValue: JSON.stringify({ triggerDays, messageSnippet: message.substring(0, 50) }),
-          reason: `Automação RN05: Lembrete de ${triggerDays} dia(s) enviado com sucesso`,
+          reason: `Automação RN05: Lembrete/Mensagem de ${triggerDays} dia(s) enviado com sucesso`,
         }
       });
 
@@ -52,11 +51,11 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
       // Still logging the failure for audit purposes
       await prisma.auditLog.create({
         data: {
-          entityType: 'Appointment',
-          entityId: appointmentId,
+          entityType: appointmentId ? 'Appointment' : 'Lead',
+          entityId: appointmentId || leadId,
           action: 'WHATSAPP_FAILED',
           newValue: JSON.stringify({ error: error?.message }),
-          reason: `Automação RN05: Falha ao enviar lembrete de ${triggerDays} dia(s)`,
+          reason: `Automação RN05: Falha ao enviar lembrete/mensagem de ${triggerDays} dia(s)`,
         }
       });
       

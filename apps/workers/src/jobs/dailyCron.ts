@@ -51,19 +51,12 @@ export async function processDailyAppointments() {
       const aptDate = startOfDay(new Date(appointment.scheduledAt));
       const daysUntilApt = differenceInDays(aptDate, today);
 
-      // Verificamos se o daysUntilApt coincide exatamente com os gatilhos da RN05
-      const validTriggers = [4, 2, 1, 0];
-      if (!validTriggers.includes(daysUntilApt)) {
-        continue;
-      }
-
-      // Procurar o Template correto no banco correspondente ao número de dias
-      // The templates should have triggerDays aligned. 
-      // i.e: triggerDays = 4 for "Lembrete 4 dias", triggerDays = 0 for "Dia da consulta"
-      const template = templates.find(t => t.triggerDays === daysUntilApt);
+      // Verificar se existe um Template no banco correspondente ao número de dias
+      // Mantemos o range <= 5 e >= 0 para garantir que são templates de lembretes
+      const template = templates.find(t => t.triggerDays === daysUntilApt && t.triggerDays >= 0 && t.triggerDays <= 5);
       
       if (!template) {
-        console.warn(`[Cron] No template found for triggerDays = ${daysUntilApt}`);
+        // console.warn(`[Cron] No template found for triggerDays = ${daysUntilApt}`);
         continue;
       }
 

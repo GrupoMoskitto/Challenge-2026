@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, Filter } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_LEADS, UPDATE_LEAD_STATUS, CREATE_LEAD, UPDATE_LEAD, DELETE_LEAD } from "@/lib/queries";
+import { GET_LEADS, UPDATE_LEAD_STATUS, CREATE_LEAD, UPDATE_LEAD, DELETE_LEAD, GET_LEAD_CONTACTS } from "@/lib/queries";
 import { validateCPF, validatePhone, validateEmail, sanitizeInput } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import {
@@ -26,6 +26,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format } from "date-fns";
+import { MessageSquare, PhoneCall, History } from "lucide-react";
 
 const statusColumns = [
   { status: 'NEW', label: 'Novo', color: 'border-t-gray-500' },
@@ -669,15 +672,37 @@ const Leads = () => {
 
       {/* Edit Lead Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Editar Lead</DialogTitle>
-            <DialogDescription>
-              Atualize os dados do lead
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[600px] gap-0 p-0">
+          <div className="p-6 pb-2">
+            <DialogHeader>
+              <DialogTitle>Detalhes do Lead</DialogTitle>
+              <DialogDescription>
+                Visualize ou edite as informações deste lead
+              </DialogDescription>
+            </DialogHeader>
+          </div>
           
-          <div className="grid gap-4 py-4">
+          <Tabs defaultValue="details" className="w-full">
+            <div className="px-6 border-b">
+              <TabsList className="w-full justify-start h-auto p-0 bg-transparent gap-6">
+                <TabsTrigger 
+                  value="details" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 py-3 font-medium"
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar Dados
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="timeline"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 py-3 font-medium"
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  Visualizar Histórico
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            
+            <TabsContent value="details" className="p-6 m-0 space-y-4">
             <div className="grid gap-2">
               <Label htmlFor="edit-name">Nome *</Label>
               <Input
@@ -775,15 +800,14 @@ const Leads = () => {
               <p className="text-sm text-red-500">{formErrors.submit}</p>
             )}
             
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleUpdateLead} disabled={updating}>
-                {updating ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
-          </div>
+            </TabsContent>
+
+            <TabsContent value="timeline" className="p-0 m-0">
+              <div className="h-[400px] overflow-y-auto p-6 bg-muted/10">
+                <LeadTimeline leadId={editingLead?.id} />
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
@@ -810,5 +834,76 @@ const Leads = () => {
     </AppLayout>
   );
 };
+
+function LeadTimeline({ leadId }: { leadId?: string }) {
+  const { data, loading } = useQuery(GET_LEAD_CONTACTS, {
+    variables: { leadId },
+    skip: !leadId,
+    fetchPolicy: 'cache-and-network'
+  });
+
+  if (!leadId) return null;
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="flex gap-4">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const contacts = data?.contactsByLead || [];
+
+  if (contacts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center space-y-3 mt-10">
+        <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+          <History className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <p className="text-sm text-muted-foreground">Nenhum contato registrado para este lead.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
+      {contacts.map((contact: any, index: number) => {
+        const isWhatsapp = contact.type === 'WHATSAPP';
+        const isEmail = contact.type === 'EMAIL';
+        const Icon = isWhatsapp ? MessageSquare : isEmail ? Mail : PhoneCall;
+
+        return (
+          <div key={contact.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-background bg-muted text-muted-foreground shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10 transition-colors">
+              <Icon className="h-4 w-4" />
+            </div>
+
+            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-card p-4 rounded-lg border shadow-sm transition-all hover:shadow-md">
+              <div className="flex items-center justify-between mb-2">
+                <Badge variant={contact.direction === 'OUTBOUND' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                  {contact.direction === 'OUTBOUND' ? 'Enviado' : 'Recebido'}
+                </Badge>
+                <time className="text-xs text-muted-foreground font-medium">
+                  {format(new Date(contact.date), "dd/MM/yyyy • HH:mm")}
+                </time>
+              </div>
+              <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap mt-2.5">
+                {contact.message}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default Leads;

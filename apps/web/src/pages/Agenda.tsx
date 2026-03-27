@@ -11,15 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Trash } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, CREATE_APPOINTMENT } from "@/lib/queries";
+import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
 import { validatePhone, sanitizeInput } from "@/lib/validation";
 import { cn } from "@/lib/utils";
-import { format, addDays, subDays } from "date-fns";
+import { format, addDays, subDays, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-const timeSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
+const timeSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
 const statusLabels: Record<string, string> = {
   SCHEDULED: "Agendado",
@@ -42,6 +42,7 @@ const Agenda = () => {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ doctorId: string; time: string; date: string } | null>(null);
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [newAppointment, setNewAppointment] = useState({
     patientName: '',
     patientPhone: '',
@@ -62,6 +63,8 @@ const Agenda = () => {
   });
 
   const [createAppointment] = useMutation(CREATE_APPOINTMENT);
+  const [updateAppointment] = useMutation(UPDATE_APPOINTMENT);
+  const [deleteAppointment] = useMutation(DELETE_APPOINTMENT);
 
   const appointments = appointmentsData?.appointmentsByDate || [];
   const surgeons = surgeonsData?.surgeons || [];
@@ -88,12 +91,24 @@ const Agenda = () => {
       (a: any) => a.surgeon?.id === surgeonId && format(new Date(a.scheduledAt), 'HH:mm') === time
     );
 
-  const openNewAppointment = (surgeonId: string, time: string) => {
+  const openNewAppointment = (surgeonId: string, time: string, apt?: any) => {
     setSelectedSlot({ doctorId: surgeonId, time, date: currentDate });
+    if (apt) {
+      setEditingAppointmentId(apt.id);
+      setNewAppointment({
+        patientName: apt.patient?.name || '',
+        patientPhone: '',
+        procedure: apt.procedure || '',
+        notes: apt.notes || '',
+      });
+    } else {
+      setEditingAppointmentId(null);
+      setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '' });
+    }
     setSheetOpen(true);
   };
 
-  const handleCreateAppointment = async () => {
+  const handleSaveAppointment = async () => {
     if (!selectedSlot) return;
 
     const sanitizedName = sanitizeInput(newAppointment.patientName);
@@ -117,26 +132,59 @@ const Agenda = () => {
     }
 
     try {
-      await createAppointment({
-        variables: {
-          input: {
-            patientId: selectedSlot.doctorId,
-            surgeonId: selectedSlot.doctorId,
-            procedure: sanitizedProcedure,
-            scheduledAt: `${selectedSlot.date}T${selectedSlot.time}:00`,
-            notes: sanitizedNotes,
+      if (editingAppointmentId) {
+        await updateAppointment({
+          variables: {
+            input: {
+              id: editingAppointmentId,
+              surgeonId: selectedSlot.doctorId,
+              procedure: sanitizedProcedure,
+              scheduledAt: `${selectedSlot.date}T${selectedSlot.time}:00`,
+              notes: sanitizedNotes,
+            },
           },
-        },
-      });
+        });
+      } else {
+        await createAppointment({
+          variables: {
+            input: {
+              patientId: selectedSlot.doctorId,
+              surgeonId: selectedSlot.doctorId,
+              procedure: sanitizedProcedure,
+              scheduledAt: `${selectedSlot.date}T${selectedSlot.time}:00`,
+              notes: sanitizedNotes,
+            },
+          },
+        });
+      }
       refetchAppointments();
       setSheetOpen(false);
+      setEditingAppointmentId(null);
       setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '' });
     } catch (error) {
-      console.error('Error creating appointment:', error);
+      console.error('Error saving appointment:', error);
+      alert('Erro ao salvar agendamento.');
     }
   };
 
-  if (loadingSurgeons) {
+  const handleDeleteAppointment = async () => {
+    if (!editingAppointmentId) return;
+    if (!confirm('Tem certeza que deseja desmarcar esta consulta?')) return;
+    
+    try {
+      await deleteAppointment({
+        variables: { id: editingAppointmentId },
+      });
+      refetchAppointments();
+      setSheetOpen(false);
+      setEditingAppointmentId(null);
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      alert('Erro ao excluir agendamento.');
+    }
+  };
+
+  if (loadingSurgeons || loadingAppointments) {
     return (
       <AppLayout title="Agenda Médica">
         <div className="flex items-center justify-between mb-6">
@@ -144,8 +192,8 @@ const Agenda = () => {
           <Skeleton className="h-10 w-32" />
         </div>
         <div className="space-y-4">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
         </div>
       </AppLayout>
     );
@@ -154,7 +202,7 @@ const Agenda = () => {
   return (
     <AppLayout title="Agenda Médica">
       {/* Date Navigation */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" onClick={prevDay}>
             <ChevronLeft className="h-4 w-4" />
@@ -182,91 +230,118 @@ const Agenda = () => {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button onClick={() => {
-          setSelectedSlot({ doctorId: surgeons[0]?.id, time: '09:00', date: currentDate });
-          setSheetOpen(true);
-        }}>
+        <Button onClick={() => openNewAppointment(surgeons[0]?.id, '09:00')}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Consulta
         </Button>
       </div>
 
       {/* Schedule Grid */}
-      <div className="grid grid-cols-[100px_repeat(auto-fit,minmax(200px,1fr))] gap-4">
-        {/* Time Column */}
-        <div className="sticky left-0 bg-background z-10">
-          {timeSlots.map((time) => (
-            <div key={time} className="h-16 flex items-center justify-center text-sm text-muted-foreground border-b">
-              {time}
+      <div className="bg-card border rounded-lg p-2 md:p-4 shadow-sm">
+        <div className="grid grid-cols-[80px_repeat(auto-fit,minmax(220px,1fr))] gap-4 overflow-x-auto pb-4 items-start">
+          {/* Time Column */}
+          <div className="sticky left-0 bg-card z-10">
+            {/* Espaçador invisível para alinhar com o topo dos cartões dos médicos */}
+            <div className="mb-4 invisible pointer-events-none sticky top-0">
+              <Card>
+                <CardHeader className="p-3">
+                  <CardTitle className="text-sm">Horário</CardTitle>
+                  <p className="text-xs">Offset</p>
+                </CardHeader>
+              </Card>
+            </div>
+            <div className="space-y-2">
+              {timeSlots.map((time) => (
+                <div key={time} className="h-20 flex items-center justify-center text-sm font-medium text-muted-foreground border-b">
+                  {time}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Doctor Columns */}
+          {surgeons.map((surgeon: any) => (
+            <div key={surgeon.id} className="min-w-[220px]">
+              <Card className="mb-4 sticky top-0 z-20 shadow-sm">
+                <CardHeader className="p-3 bg-secondary/30 rounded-t-lg">
+                  <CardTitle className="text-sm truncate">{surgeon.name}</CardTitle>
+                  <p className="text-xs text-muted-foreground truncate">{surgeon.specialty}</p>
+                </CardHeader>
+              </Card>
+              <div className="space-y-2">
+                {timeSlots.map((time) => {
+                  const appointment = getAppointment(surgeon.id, time);
+                  return (
+                    <div
+                      key={time}
+                      className={cn(
+                        "h-20 border rounded-lg p-3 transition-colors duration-200 border-l-4",
+                        appointment 
+                          ? "bg-primary/5 hover:bg-primary/10 border-primary cursor-pointer shadow-sm" 
+                          : "bg-muted/10 hover:bg-muted/30 cursor-pointer border-dashed border-border border-l-border"
+                      )}
+                      onClick={() => openNewAppointment(surgeon.id, time, appointment)}
+                    >
+                      {appointment ? (
+                        <div className="h-full flex flex-col justify-center gap-1">
+                          <p className="text-sm font-semibold truncate text-foreground">{appointment.patient?.name}</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-muted-foreground truncate font-medium">{appointment.procedure}</span>
+                            <Badge className={cn("h-4 text-[9px] px-1.5", statusColors[appointment.status])}>
+                              {statusLabels[appointment.status]}
+                            </Badge>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                          <span className="text-xs text-muted-foreground font-medium flex items-center">
+                            <Plus className="mr-1 h-3 w-3" /> Adicionar
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
-
-        {/* Doctor Columns */}
-        {surgeons.map((surgeon: any) => (
-          <div key={surgeon.id} className="min-w-[200px]">
-            <Card className="mb-2">
-              <CardHeader className="p-3">
-                <CardTitle className="text-sm">{surgeon.name}</CardTitle>
-                <p className="text-xs text-muted-foreground">{surgeon.specialty}</p>
-              </CardHeader>
-            </Card>
-            <div className="space-y-1">
-              {timeSlots.map((time) => {
-                const appointment = getAppointment(surgeon.id, time);
-                return (
-                  <div
-                    key={time}
-                    className={cn(
-                      "h-16 border rounded-lg p-2 transition-colors",
-                      appointment 
-                        ? "bg-primary/10 border-primary/30 cursor-pointer hover:bg-primary/20" 
-                        : "bg-muted/30 hover:bg-muted/50 cursor-pointer border-dashed"
-                    )}
-                    onClick={() => {
-                      if (appointment) {
-                        alert(`Paciente: ${appointment.patient?.name}\nProcedimento: ${appointment.procedure}\nStatus: ${statusLabels[appointment.status]}`);
-                      } else {
-                        openNewAppointment(surgeon.id, time);
-                      }
-                    }}
-                  >
-                    {appointment && (
-                      <div className="h-full flex flex-col justify-between">
-                        <p className="text-sm font-medium truncate">{appointment.patient?.name}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground truncate">{appointment.procedure}</span>
-                          <Badge className={cn("h-5 text-[10px]", statusColors[appointment.status])}>
-                            {statusLabels[appointment.status]}
-                          </Badge>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
       </div>
 
-      {/* New Appointment Sheet */}
+      {/* Appointment Form */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent>
+        <SheetContent className="overflow-y-auto sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>Nova Consulta</SheetTitle>
+            <SheetTitle>{editingAppointmentId ? 'Detalhes da Consulta' : 'Nova Consulta'}</SheetTitle>
             <SheetDescription>
-              Agende uma nova consulta para {selectedSlot?.date} às {selectedSlot?.time}
+              {selectedSlot?.date ? format(parse(selectedSlot.date, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM", { locale: ptBR }) : ''} às {selectedSlot?.time}
             </SheetDescription>
           </SheetHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-5 py-6">
+            <div className="space-y-2">
+              <Label htmlFor="surgeonId">Cirurgião</Label>
+              <Select
+                value={selectedSlot?.doctorId || ""}
+                onValueChange={(val) => setSelectedSlot((prev: any) => ({ ...prev, doctorId: val }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o cirurgião" />
+                </SelectTrigger>
+                <SelectContent>
+                  {surgeons.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
             <div className="space-y-2">
               <Label htmlFor="patientName">Nome do Paciente</Label>
               <Input
                 id="patientName"
                 value={newAppointment.patientName}
                 onChange={(e) => setNewAppointment({ ...newAppointment, patientName: e.target.value })}
-                placeholder="Digite o nome do paciente"
+                placeholder="Ex: João da Silva"
               />
             </div>
             <div className="space-y-2">
@@ -275,40 +350,49 @@ const Agenda = () => {
                 id="patientPhone"
                 value={newAppointment.patientPhone}
                 onChange={(e) => setNewAppointment({ ...newAppointment, patientPhone: e.target.value })}
-                placeholder="(71) 99999-9999"
+                placeholder="(11) 99999-9999"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="procedure">Procedimento</Label>
+              <Label htmlFor="procedure">Procedimento / Etapa</Label>
               <Select
                 value={newAppointment.procedure}
                 onValueChange={(value) => setNewAppointment({ ...newAppointment, procedure: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o procedimento" />
+                  <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="Primeira Consulta">Primeira Consulta</SelectItem>
+                  <SelectItem value="Retorno">Retorno</SelectItem>
                   <SelectItem value="Rinoplastia">Rinoplastia</SelectItem>
                   <SelectItem value="Lipoaspiração">Lipoaspiração</SelectItem>
                   <SelectItem value="Mamoplastia">Mamoplastia</SelectItem>
                   <SelectItem value="Abdominoplastia">Abdominoplastia</SelectItem>
-                  <SelectItem value="Blefaroplastia">Blefaroplastia</SelectItem>
-                  <SelectItem value="Otoplastia">Otoplastia</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="notes">Observações</Label>
+              <Label htmlFor="notes">Observações Clínicas</Label>
               <Textarea
                 id="notes"
                 value={newAppointment.notes}
                 onChange={(e) => setNewAppointment({ ...newAppointment, notes: e.target.value })}
-                placeholder="Observações adicionais..."
+                placeholder="Detalhes ou restrições..."
+                className="resize-none h-24"
               />
             </div>
-            <Button onClick={handleCreateAppointment} className="w-full">
-              Agendar Consulta
-            </Button>
+            
+            <div className="pt-4 flex gap-3">
+              <Button onClick={handleSaveAppointment} className="flex-1">
+                {editingAppointmentId ? 'Salvar Alterações' : 'Confirmar Agendamento'}
+              </Button>
+              {editingAppointmentId && (
+                <Button variant="destructive" size="icon" onClick={handleDeleteAppointment}>
+                  <Trash className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </SheetContent>
       </Sheet>

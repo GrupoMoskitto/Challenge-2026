@@ -17,12 +17,11 @@ import { cn } from "@/lib/utils";
 import { removeAuthToken } from "@/lib/apollo";
 import { Button } from "./ui/button";
 
-const navItems = [
+const baseNavItems = [
   { title: "Início", url: "/", icon: LayoutDashboard },
   { title: "Leads", url: "/leads", icon: Users },
   { title: "Agenda", url: "/schedule", icon: CalendarDays },
   { title: "Pacientes", url: "/patients", icon: UserCircle },
-  { title: "Configurações", url: "/settings", icon: Settings },
 ];
 
 function ThemeToggle({ collapsed }: { collapsed: boolean }) {
@@ -74,8 +73,16 @@ export function AppSidebar() {
   const handleLogout = () => {
     removeAuthToken();
     localStorage.removeItem('user');
-    navigate('/login');
+    window.location.href = '/login'; // Use window.location instead of navigate because the AppSidebar is outside Routes context maybe, or just to reset state fully
   };
+
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = user?.role === 'ADMIN';
+  
+  const navItems = [...baseNavItems];
+  if (isAdmin) {
+    navItems.push({ title: "Configurações", url: "/settings", icon: Settings });
+  }
 
   return (
     <aside
