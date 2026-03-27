@@ -206,6 +206,19 @@ export const GET_AUDIT_LOGS = gql`
   }
 `;
 
+export const GET_LEAD_CONTACTS = gql`
+  query GetLeadContacts($leadId: ID!) {
+    contactsByLead(leadId: $leadId) {
+      id
+      date
+      type
+      direction
+      status
+      message
+    }
+  }
+`;
+
 export const GET_MESSAGE_TEMPLATES = gql`
   query GetMessageTemplates {
     messageTemplates {
@@ -214,6 +227,29 @@ export const GET_MESSAGE_TEMPLATES = gql`
       channel
       content
       triggerDays
+    }
+  }
+`;
+
+export const GET_USERS = gql`
+  query GetUsers {
+    users {
+      id
+      name
+      email
+      role
+      isActive
+      createdAt
+    }
+  }
+`;
+
+export const GET_EVOLUTION_API_STATUS = gql`
+  query GetEvolutionApiStatus {
+    evolutionApiStatus {
+      connected
+      instanceName
+      state
     }
   }
 `;
@@ -297,6 +333,26 @@ export const UPDATE_APPOINTMENT_STATUS = gql`
   }
 `;
 
+export const UPDATE_APPOINTMENT = gql`
+  mutation UpdateAppointment($input: UpdateAppointmentInput!) {
+    updateAppointment(input: $input) {
+      id
+      procedure
+      scheduledAt
+      status
+    }
+  }
+`;
+
+export const DELETE_APPOINTMENT = gql`
+  mutation DeleteAppointment($id: ID!) {
+    deleteAppointment(id: $id) {
+      success
+      message
+    }
+  }
+`;
+
 export const CREATE_CONTACT = gql`
   mutation CreateContact($input: CreateContactInput!) {
     createContact(input: $input) {
@@ -337,6 +393,89 @@ export const DELETE_MESSAGE_TEMPLATE = gql`
     deleteMessageTemplate(id: $id) {
       success
       message
+    }
+  }
+`;
+
+export const CREATE_USER = gql`
+  mutation CreateUser($input: CreateUserInput!) {
+    createUser(input: $input) {
+      id
+      name
+      email
+      role
+      isActive
+    }
+  }
+`;
+
+export const TOGGLE_USER_STATUS = gql`
+  mutation ToggleUserStatus($id: ID!) {
+    toggleUserStatus(id: $id) {
+      id
+      isActive
+    }
+  }
+`;
+
+export const UPDATE_PROFILE = gql`
+  mutation UpdateProfile($input: UpdateProfileInput!) {
+    updateProfile(input: $input) {
+      id
+      name
+    }
+  }
+`;
+
+export const UPDATE_PATIENT = gql`
+  mutation UpdatePatient($input: UpdatePatientInput!) {
+    updatePatient(input: $input) {
+      id
+      dateOfBirth
+      medicalRecord
+      address
+    }
+  }
+`;
+
+export const CREATE_DOCUMENT = gql`
+  mutation CreateDocument($input: CreateDocumentInput!) {
+    createDocument(input: $input) {
+      id
+      name
+      type
+      date
+      status
+    }
+  }
+`;
+
+export const UPDATE_DOCUMENT_STATUS = gql`
+  mutation UpdateDocumentStatus($id: ID!, $status: DocumentStatus!) {
+    updateDocumentStatus(id: $id, status: $status) {
+      id
+      status
+    }
+  }
+`;
+
+export const CREATE_POST_OP = gql`
+  mutation CreatePostOp($input: CreatePostOpInput!) {
+    createPostOp(input: $input) {
+      id
+      date
+      type
+      description
+      status
+    }
+  }
+`;
+
+export const UPDATE_POST_OP_STATUS = gql`
+  mutation UpdatePostOpStatus($id: ID!, $status: PostOpStatus!) {
+    updatePostOpStatus(id: $id, status: $status) {
+      id
+      status
     }
   }
 `;

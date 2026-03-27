@@ -268,9 +268,20 @@ export const typeDefs = gql`
     user: User!
   }
 
+  type EvolutionApiStatus {
+    connected: Boolean!
+    instanceName: String!
+    state: String
+  }
+
   type RefreshPayload {
     token: String!
     refreshToken: String!
+  }
+
+  input UpdateProfileInput {
+    name: String
+    password: String
   }
 
   input CreateLeadInput {
@@ -289,6 +300,13 @@ export const typeDefs = gql`
   input CreatePatientInput {
     leadId: ID!
     dateOfBirth: DateTime!
+    medicalRecord: String
+    address: String
+  }
+
+  input UpdatePatientInput {
+    id: ID!
+    dateOfBirth: DateTime
     medicalRecord: String
     address: String
   }
@@ -348,6 +366,15 @@ export const typeDefs = gql`
     reason: String
   }
 
+  input UpdateAppointmentInput {
+    id: ID!
+    patientId: ID
+    surgeonId: ID
+    procedure: String
+    scheduledAt: DateTime
+    notes: String
+  }
+
   input CreateContactInput {
     leadId: ID!
     date: DateTime!
@@ -402,25 +429,32 @@ export const typeDefs = gql`
 
     # Patients
     createPatient(input: CreatePatientInput!): Patient!
+    updatePatient(input: UpdatePatientInput!): Patient!
 
     # Appointments
     createAppointment(input: CreateAppointmentInput!): Appointment!
+    updateAppointment(input: UpdateAppointmentInput!): Appointment!
     updateAppointmentStatus(input: UpdateAppointmentStatusInput!): Appointment!
+    deleteAppointment(id: ID!): DeleteResult!
 
     # Surgeons
     createSurgeon(input: CreateSurgeonInput!): Surgeon!
 
-    # Users
+    # Users & Profile
     createUser(input: CreateUserInput!): User!
+    toggleUserStatus(id: ID!): User!
+    updateProfile(input: UpdateProfileInput!): User!
 
     # Contacts
     createContact(input: CreateContactInput!): Contact!
 
     # Documents
     createDocument(input: CreateDocumentInput!): Document!
+    updateDocumentStatus(id: ID!, status: DocumentStatus!): Document!
 
     # PostOps
     createPostOp(input: CreatePostOpInput!): PostOp!
+    updatePostOpStatus(id: ID!, status: PostOpStatus!): PostOp!
 
     # Message Templates
     createMessageTemplate(input: CreateMessageTemplateInput!): MessageTemplate!
@@ -472,5 +506,8 @@ export const typeDefs = gql`
     # Message Templates
     messageTemplates: [MessageTemplate!]!
     messageTemplate(id: ID!): MessageTemplate
+
+    # Integration Status
+    evolutionApiStatus: EvolutionApiStatus!
   }
 `;

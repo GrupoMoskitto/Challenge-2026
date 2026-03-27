@@ -1,50 +1,73 @@
 import { ApolloServer } from '@apollo/server';
-import { startStandaloneServer } from '@apollo/server/standalone';
+import { expressMiddleware } from '@as-integrations/express5';
 import { typeDefs } from './graphql/schema';
 import { resolvers, Context } from './graphql/resolvers';
 import { verifyToken } from './auth';
 import { prisma } from '@crmed/database';
+import express from 'express';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 
-const server = new ApolloServer({
+const app = express();
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  limit: 200, 
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Muitas requisições deste IP, por favor tente novamente mais tarde'
+});
+
+const server = new ApolloServer<Context>({
   typeDefs,
   resolvers,
 });
 
 async function startServer() {
-  const { url } = await startStandaloneServer(server, {
-    listen: { port: 3001 },
-    context: async ({ req }): Promise<Context> => {
-      const authHeader = req.headers.authorization;
-      
-      if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
-        const payload = verifyToken(token);
-        
-        if (payload && payload.userId) {
-          try {
-            // Verify if user still exists and is active in the database
-            const dbUser = await prisma.user.findUnique({
-              where: { id: payload.userId }
-            });
+  await server.start();
 
-            if (dbUser && dbUser.isActive) {
-              return { user: payload };
+  app.use(cors());
+  app.use(express.json());
+  
+  // Apply rate limiting to all requests
+  app.use(limiter);
+
+  app.use(
+    '/graphql',
+    expressMiddleware(server, {
+      context: async ({ req }: { req: express.Request }): Promise<Context> => {
+        const authHeader = req.headers.authorization;
+        
+        if (authHeader?.startsWith('Bearer ')) {
+          const token = authHeader.substring(7);
+          const payload = verifyToken(token);
+          
+          if (payload && payload.userId) {
+            try {
+              const dbUser = await prisma.user.findUnique({
+                where: { id: payload.userId }
+              });
+
+              if (dbUser && dbUser.isActive) {
+                return { user: payload };
+              }
+            } catch (error) {
+              console.error('Error verifying user in context:', error);
             }
-          } catch (error) {
-            console.error('Error verifying user in context:', error);
           }
         }
-      }
-      
-      return {};
-    },
-  });
+        
+        return {};
+      },
+    })
+  );
 
-  console.log(`🚀 GraphQL Server ready at: ${url}`);
-  console.log(`📊 GraphQL Playground: ${url}graphql`);
+  const port = process.env.PORT || 3001;
+  app.listen(port, () => {
+    console.log(`🚀 GraphQL Server ready at: http://localhost:${port}/graphql`);
+  });
 }
 
-// Only start the server if this file is run directly (not imported)
 if (process.env.NODE_ENV !== 'test') {
   startServer();
 }
