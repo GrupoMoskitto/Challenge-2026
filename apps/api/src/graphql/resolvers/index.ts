@@ -718,9 +718,23 @@ export const resolvers = {
       const user = await prisma.user.findUnique({ where: { id: decodedId } });
       if (!user) throw new Error('Usuário não encontrado');
       
+      const newStatus = !user.isActive;
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'User',
+          entityId: decodedId,
+          action: 'STATUS_UPDATED',
+          oldValue: JSON.stringify({ isActive: user.isActive }),
+          newValue: JSON.stringify({ isActive: newStatus }),
+          reason: 'Ativação/Desativação de usuário',
+          userId: (context.user as any).userId,
+        },
+      });
+
       return prisma.user.update({
         where: { id: decodedId },
-        data: { isActive: !user.isActive },
+        data: { isActive: newStatus },
       });
     },
     updateProfile: async (_: unknown, { input }: { input: { name?: string; password?: string } }, context: Context) => {
@@ -758,15 +772,43 @@ export const resolvers = {
         include: { lead: true },
       });
     },
-    updateDocumentStatus: async (_: unknown, { id, status }: { id: string; status: string }) => {
+    updateDocumentStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: Context) => {
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const current = await prisma.document.findUnique({ where: { id: decodedId } });
+      if (!current) throw new Error('Documento não encontrado');
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Document',
+          entityId: decodedId,
+          action: 'STATUS_UPDATED',
+          oldValue: JSON.stringify({ status: current.status }),
+          newValue: JSON.stringify({ status }),
+          reason: 'Atualização do status do documento',
+          userId: context.user?.userId,
+        },
+      });
       return prisma.document.update({
         where: { id: decodedId },
         data: { status: status as any },
       });
     },
-    updatePostOpStatus: async (_: unknown, { id, status }: { id: string; status: string }) => {
+    updatePostOpStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: Context) => {
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const current = await prisma.postOp.findUnique({ where: { id: decodedId } });
+      if (!current) throw new Error('Pós-operatório não encontrado');
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'PostOp',
+          entityId: decodedId,
+          action: 'STATUS_UPDATED',
+          oldValue: JSON.stringify({ status: current.status }),
+          newValue: JSON.stringify({ status }),
+          reason: 'Atualização do status do retorno pós-operatório',
+          userId: context.user?.userId,
+        },
+      });
       return prisma.postOp.update({
         where: { id: decodedId },
         data: { status: status as any },
