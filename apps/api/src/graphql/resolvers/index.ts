@@ -1,7 +1,7 @@
 import { prisma, checkUniqueness } from '@crmed/database';
 import { LeadStatus, AppointmentStatus } from '@prisma/client';
 import { DateTimeScalar, IDScalar } from '../scalars';
-import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyToken, verifyRefreshToken } from '../../auth';
+import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken } from '../../auth';
 import { dispatchLeadWelcome, dispatchLeadFollowup } from '../../services/whatsappQueue';
 
 const encodeBase64 = (id: string): string => {
@@ -28,7 +28,7 @@ export const resolvers = {
       const limit = first || 20;
       const cursor = after ? Buffer.from(after, 'base64url').toString('utf-8') : undefined;
       
-      let whereClause: any = status ? { status } : {};
+      const whereClause: any = status ? { status } : {};
       
       if (context.user?.role === 'SURGEON') {
         const surgeon = await prisma.surgeon.findFirst({ where: { email: context.user.email } });
@@ -99,7 +99,7 @@ export const resolvers = {
       });
     },
     appointments: async (_: unknown, { status }: { status?: AppointmentStatus }, context: Context) => {
-      let whereClause: any = status ? { status } : {};
+      const whereClause: any = status ? { status } : {};
       
       if (context.user?.role === 'SURGEON') {
         const surgeon = await prisma.surgeon.findFirst({ where: { email: context.user.email } });
@@ -282,7 +282,7 @@ export const resolvers = {
             state: state,
           };
         });
-      } catch (error) {
+      } catch (_error) {
         return [];
       }
     },
@@ -514,7 +514,7 @@ export const resolvers = {
 
       return updatedLead;
     },
-    deleteLead: async (_: unknown, { id }: { id: string }, context: Context) => {
+    deleteUser: async (_: unknown, { id }: { id: string }, _context: Context) => {
       const existingLead = await prisma.lead.findUnique({ where: { id } });
       if (!existingLead) throw new Error('Lead não encontrado');
 

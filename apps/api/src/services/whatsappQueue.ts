@@ -58,7 +58,7 @@ export const dispatchLeadFollowup = async (leadId: string, leadName: string, pho
   });
 };
 
-export const dispatchTemplateTest = async (templateId: string, instanceName: string, userId: string) => {
+export const dispatchTemplateTest = async (templateId: string, instanceName: string, _userId: string) => {
   const { prisma } = await import('@crmed/database');
   const template = await prisma.messageTemplate.findUnique({ 
     where: { id: templateId } 
