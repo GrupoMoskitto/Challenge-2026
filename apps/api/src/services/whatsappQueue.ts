@@ -57,3 +57,44 @@ export const dispatchLeadFollowup = async (leadId: string, leadName: string, pho
     delay: days * 24 * 60 * 60 * 1000, 
   });
 };
+
+export const dispatchTemplateTest = async (templateId: string, instanceName: string, userId: string) => {
+  const { prisma } = await import('@crmed/database');
+  const template = await prisma.messageTemplate.findUnique({ 
+    where: { id: templateId } 
+  });
+  if (!template) throw new Error('Template não encontrado');
+
+  const testPhone = process.env.DEV_ALLOWED_PHONE;
+  if (!testPhone) {
+    console.error('[API] Erro: DEV_ALLOWED_PHONE não configurado');
+    throw new Error('DEV_ALLOWED_PHONE não configurado no ambiente');
+  }
+
+  console.log(`[API] Preparando teste de disparo para template ${template.name} (${templateId}) usando instância ${instanceName}`);
+
+  let content = template.content.replace(/{nome}/g, 'Usuário de Teste');
+  content = content.replace(/{medico}/g, 'Dr. Arnaldo (Teste)');
+  content = content.replace(/{data}/g, new Date().toLocaleDateString('pt-BR'));
+  content = content.replace(/{hora}/g, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+
+  const jobParameters = {
+    leadId: 'test-user',
+    patientName: 'Usuário de Teste (Admin)',
+    phone: testPhone,
+    message: content,
+    triggerDays: template.triggerDays,
+    instanceName,
+  };
+
+  try {
+    const job = await whatsappQueue.add('template-test', jobParameters, {
+      jobId: `test-${templateId}-${instanceName}-${Date.now()}`,
+    });
+    console.log(`[API] Job de teste adicionado com sucesso! ID: ${job.id}`);
+  } catch (error: any) {
+    console.error(`[API] Falha ao adicionar job na fila: ${error.message}`);
+    throw error;
+  }
+};
+
