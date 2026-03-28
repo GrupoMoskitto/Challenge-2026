@@ -121,7 +121,7 @@ const Patients = () => {
         ...(statusFilter && { status: statusFilter }),
       }
     },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-and-network',
     onCompleted: (data) => {
       if (data?.patients) {
         setEndCursor(data.patients.pageInfo.endCursor);
