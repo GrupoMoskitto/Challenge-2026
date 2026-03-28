@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,9 @@ import {
   CREATE_MESSAGE_TEMPLATE,
   UPDATE_MESSAGE_TEMPLATE,
   DELETE_MESSAGE_TEMPLATE,
+  TEST_MESSAGE_TEMPLATE,
   GET_USERS,
-  GET_EVOLUTION_API_STATUS,
+  GET_EVOLUTION_API_INSTANCES,
   CREATE_USER,
   TOGGLE_USER_STATUS,
   UPDATE_PROFILE,
@@ -115,24 +116,39 @@ const Settings = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+
   const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<MessageTemplate | null>(null);
+  const [testingTemplate, setTestingTemplate] = useState<MessageTemplate | null>(null);
+
   const [newTemplate, setNewTemplate] = useState<TemplateForm>(initialTemplateForm);
   const [editTemplate, setEditTemplate] = useState<TemplateForm>(initialTemplateForm);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  // User management state
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
   const [newUserForm, setNewUserForm] = useState({ name: "", email: "", role: "RECEPTION", password: "" });
   const [profileForm, setProfileForm] = useState({ name: user?.name || "", password: "" });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const [selectedInstance, setSelectedInstance] = useState<string>("");
 
   // GraphQL
-  const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates } = useQuery(GET_MESSAGE_TEMPLATES);
-  const { data: usersData, loading: usersLoading, refetch: refetchUsers } = useQuery(GET_USERS);
-  const { data: evoData, loading: evoLoading } = useQuery(GET_EVOLUTION_API_STATUS);
+  const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
+  const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS);
+  const { data: evoData, loading: evoLoading, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES);
+
+  useEffect(() => {
+    if (templatesError) toast.error("Erro ao carregar templates: " + templatesError.message);
+    if (usersError) toast.error("Erro ao carregar usuários: " + usersError.message);
+    if (evoError) toast.error("Erro ao carregar integrações: " + evoError.message);
+  }, [templatesError, usersError, evoError]);
 
   const [createTemplate, { loading: creating }] = useMutation(CREATE_MESSAGE_TEMPLATE);
   const [updateTemplate, { loading: updating }] = useMutation(UPDATE_MESSAGE_TEMPLATE);
   const [deleteTemplate, { loading: deleting }] = useMutation(DELETE_MESSAGE_TEMPLATE);
+  const [testTemplate, { loading: testing }] = useMutation(TEST_MESSAGE_TEMPLATE);
   
   const [createUser, { loading: creatingUser }] = useMutation(CREATE_USER);
   const [toggleUserStatus] = useMutation(TOGGLE_USER_STATUS);
@@ -140,7 +156,7 @@ const Settings = () => {
 
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
   const systemUsers = usersData?.users || [];
-  const evolutionApi = evoData?.evolutionApiStatus || { connected: false, state: 'unknown', instanceName: '-' };
+  const evolutionInstances: any[] = evoData?.evolutionApiInstances || [];
 
   const handleUpdateProfile = async () => {
     try {
@@ -274,6 +290,30 @@ const Settings = () => {
   const handlePreview = (template: MessageTemplate) => {
     setPreviewTemplate(template);
     setPreviewDialogOpen(true);
+  };
+
+  const handleTestClick = (template: MessageTemplate) => {
+    setTestingTemplate(template);
+    // Auto-select first connected instance if available
+    const firstConnected = evolutionInstances.find(i => i.connected)?.instanceName || evolutionInstances[0]?.instanceName || "";
+    setSelectedInstance(firstConnected);
+    setTestDialogOpen(true);
+  };
+
+  const handleRunTest = async () => {
+    if (!testingTemplate || !selectedInstance) return;
+    try {
+      await testTemplate({
+        variables: {
+          templateId: testingTemplate.id,
+          instanceName: selectedInstance,
+        }
+      });
+      toast.success("Teste disparado! Verifique o número permitido no ambiente.");
+      setTestDialogOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao disparar teste");
+    }
   };
 
   const renderTemplateForm = (form: TemplateForm, setForm: (f: TemplateForm) => void) => (
@@ -432,33 +472,43 @@ const Settings = () => {
             <CardHeader>
               <CardTitle>Integrações</CardTitle>
               <CardDescription>
-                Gerencie as integrações do sistema
+                Gerencie as conexões ativas com a Evolution API
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="border rounded-lg p-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <PhoneIcon className="h-6 w-6 text-green-500" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-base">WhatsApp (Evolution API)</h4>
-                    <p className="text-sm text-muted-foreground">Instância: {evoLoading ? "Verificando..." : evolutionApi.instanceName}</p>
-                    <p className="text-sm text-muted-foreground pt-1">
-                      Status Nativo: <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs">{evoLoading ? "..." : evolutionApi.state}</span>
-                    </p>
-                  </div>
+            <CardContent className="space-y-4">
+              {evoLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
                 </div>
-                <div>
-                  {evoLoading ? (
-                    <Badge variant="outline">Verificando...</Badge>
-                  ) : evolutionApi.connected ? (
-                    <Badge className="bg-green-500">Conectado</Badge>
-                  ) : (
-                    <Badge variant="destructive">Desconectado</Badge>
-                  )}
+              ) : evolutionInstances.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground border rounded-lg border-dashed">
+                  Nenhuma instância encontrada na Evolution API.
                 </div>
-              </div>
+              ) : (
+                evolutionInstances.map((inst: any) => (
+                  <div key={inst.instanceName} className="border rounded-lg p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${inst.connected ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
+                        <PhoneIcon className={`h-6 w-6 ${inst.connected ? 'text-green-500' : 'text-destructive'}`} />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-base">Instância: {inst.instanceName}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Status: <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs">{inst.state}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      {inst.connected ? (
+                        <Badge className="bg-green-500">Conectado</Badge>
+                      ) : (
+                        <Badge variant="destructive">Desconectado</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -617,6 +667,12 @@ const Settings = () => {
                                 <Eye className="h-4 w-4 mr-2" />
                                 Visualizar
                               </DropdownMenuItem>
+                              {user?.role === 'ADMIN' && (
+                                <DropdownMenuItem onClick={() => handleTestClick(template)} className="cursor-pointer">
+                                  <Plug className="h-4 w-4 mr-2" />
+                                  Teste de Disparo
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => handleEditClick(template)} className="cursor-pointer">
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Editar
@@ -773,6 +829,45 @@ const Settings = () => {
             <Button variant="outline" onClick={() => setCreateUserDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleCreateUser} disabled={creatingUser}>
               {creatingUser ? "Criando..." : "Criar Usuário"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Test Template Dialog */}
+      <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Teste de Disparo</DialogTitle>
+            <DialogDescription>
+              Envie uma mensagem de teste do template <strong>{testingTemplate?.name}</strong> para o número pré-aprovado no ambiente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-3 bg-muted rounded-md text-xs border">
+              <p className="font-semibold mb-1 uppercase tracking-wider opacity-70">Aviso RN05 Sandbox:</p>
+              A mensagem será enviada apenas para os números definidos em <code>DEV_ALLOWED_PHONE</code> para evitar disparos acidentais para pacientes em ambiente de testes.
+            </div>
+            <div className="space-y-2">
+              <Label>Escolha a Instância WhatsApp</Label>
+              <Select value={selectedInstance} onValueChange={setSelectedInstance}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma instância" />
+                </SelectTrigger>
+                <SelectContent>
+                  {evolutionInstances.map((inst: any) => (
+                    <SelectItem key={inst.instanceName} value={inst.instanceName}>
+                      {inst.instanceName} ({inst.connected ? 'Ativa' : 'Offline'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setTestDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleRunTest} disabled={testing || !selectedInstance}>
+              {testing ? "Disparando..." : "Enviar Teste"}
             </Button>
           </div>
         </DialogContent>

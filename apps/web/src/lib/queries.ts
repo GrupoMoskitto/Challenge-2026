@@ -244,9 +244,9 @@ export const GET_USERS = gql`
   }
 `;
 
-export const GET_EVOLUTION_API_STATUS = gql`
-  query GetEvolutionApiStatus {
-    evolutionApiStatus {
+export const GET_EVOLUTION_API_INSTANCES = gql`
+  query GetEvolutionApiInstances {
+    evolutionApiInstances {
       connected
       instanceName
       state
@@ -477,5 +477,11 @@ export const UPDATE_POST_OP_STATUS = gql`
       id
       status
     }
+  }
+`;
+
+export const TEST_MESSAGE_TEMPLATE = gql`
+  mutation TestMessageTemplate($templateId: ID!, $instanceName: String!) {
+    testMessageTemplate(templateId: $templateId, instanceName: $instanceName)
   }
 `;
