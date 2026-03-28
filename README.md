@@ -4,6 +4,7 @@
 <p align="center">Sistema inteligente de relacionamento e performance clínica para o Hospital São Rafael.</p>
 <p align="center">
   <a href="https://github.com/GrupoMoskitto/Challenge-2026/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/GrupoMoskitto/Challenge-2026/ci.yml?style=flat&branch=main&label=CI&logo=githubactions&logoColor=white" /></a>&nbsp;
+  <a href="https://github.com/GrupoMoskitto/Challenge-2026"><img alt="Coverage" src="https://img.shields.io/badge/coverage-pending-yellow?style=flat" /></a>&nbsp;
   <a href="https://github.com/GrupoMoskitto/Challenge-2026"><img alt="Node" src="https://img.shields.io/badge/node-v24-339933?style=flat&logo=nodedotjs&logoColor=white" /></a>&nbsp;
   <a href="https://github.com/GrupoMoskitto/Challenge-2026"><img alt="pnpm" src="https://img.shields.io/badge/pnpm-v10-F69220?style=flat&logo=pnpm&logoColor=white" /></a>&nbsp;
   <a href="https://github.com/GrupoMoskitto/Challenge-2026"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat&logo=typescript&logoColor=white" /></a>
