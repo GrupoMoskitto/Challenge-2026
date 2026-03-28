@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolvers, Context } from '../graphql/resolvers/index';
 import { prisma } from '@crmed/database';
-import { LeadStatus, UserRole } from '@prisma/client';
+import { LeadStatus } from '@prisma/client';
 
 describe('Role Permissions & Access Control', () => {
   let findUniqueLeadSpy: any;
-  let findUniqueUserSpy: any;
   let findManyUserSpy: any;
   let findManyAuditSpy: any;
   let updateLeadSpy: any;
@@ -13,7 +12,7 @@ describe('Role Permissions & Access Control', () => {
 
   beforeEach(() => {
     findUniqueLeadSpy = vi.spyOn(prisma.lead, 'findUnique');
-    findUniqueUserSpy = vi.spyOn(prisma.user, 'findUnique');
+    vi.spyOn(prisma.user, 'findUnique');
     findManyUserSpy = vi.spyOn(prisma.user, 'findMany');
     findManyAuditSpy = vi.spyOn(prisma.auditLog, 'findMany');
     updateLeadSpy = vi.spyOn(prisma.lead, 'update');
