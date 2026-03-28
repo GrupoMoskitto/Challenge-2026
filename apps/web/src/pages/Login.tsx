@@ -88,8 +88,16 @@ export default function Login() {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
       
-      if (newAttempts >= 5) {
+      const errorMessage = err.message || '';
+      
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network') || errorMessage.includes('ECONNREFUSED')) {
+        setError('Não foi possível conectar ao servidor. Verifique se a API está rodando.');
+      } else if (newAttempts >= 5) {
         setError('Muitas tentativas falhas. Aguarde 5 minutos.');
+      } else if (errorMessage.includes('Credenciais inválidas')) {
+        setError('E-mail ou senha incorretos');
+      } else if (errorMessage.includes('inativo')) {
+        setError('Usuário inativo. Entre em contato com o administrador.');
       } else {
         setError(err.message || 'Falha ao fazer login');
       }
