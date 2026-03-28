@@ -288,7 +288,7 @@ O projeto inclui um [`AGENTS.md`](AGENTS.md) — arquivo de instruções para **
 
 ### Contribuição
 
-Veja o guia completo em [CONTRIBUTING.md](CONTRIBUTING.md) — branches, commits, testes e checklist de PR.
+Veja o guia completo em [`CONTRIBUTING.md`](CONTRIBUTING.md) — branches, commits, testes e checklist de PR.
 
 ---
 
