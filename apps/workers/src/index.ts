@@ -77,6 +77,6 @@ app.post('/webhook/evolution', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`✅ Workers HTTP Webhook Server listening on port ${PORT}`);
 });

@@ -73,6 +73,8 @@ cd Challenge-2026
 
 # Configure
 cp packages/database/.env.example packages/database/.env
+cp apps/api/.env.example apps/api/.env
+cp apps/workers/.env.example apps/workers/.env
 
 # Instale e inicie tudo
 npm install --global pnpm
@@ -81,7 +83,7 @@ pnpm infra:dev
 ```
 
 > [!TIP]
-> O comando `pnpm infra:dev` automatiza **todo** o setup: Docker, banco de dados com seed, Evolution API (WhatsApp) e todos os apps em paralelo.
+> O comando `pnpm infra:dev` automatiza **todo** o setup: Docker, banco de dados com seed, Evolution API (WhatsApp) e todos os apps em paralelo. Certifique-se de configurar a variável `DEV_ALLOWED_PHONE` nos arquivos `.env` para habilitar o envio de mensagens em desenvolvimento.
 
 ### Instalação Manual
 

@@ -20,9 +20,35 @@ import {
   Upload,
   Calendar,
   User,
+  Pencil,
+  Plus,
 } from "lucide-react";
-import { useQuery } from "@apollo/client";
-import { GET_PATIENTS, GET_PATIENT } from "@/lib/queries";
+import { useQuery, useMutation } from "@apollo/client";
+import { 
+  GET_PATIENTS, 
+  GET_PATIENT,
+  UPDATE_PATIENT,
+  CREATE_DOCUMENT,
+  UPDATE_DOCUMENT_STATUS,
+  CREATE_POST_OP,
+  UPDATE_POST_OP_STATUS
+} from "@/lib/queries";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -56,14 +82,77 @@ const Patients = () => {
     fetchPolicy: 'network-only',
   });
 
-  const { data: patientData, loading: loadingPatient } = useQuery(GET_PATIENT, {
+  const { data: patientData, loading: loadingPatient, refetch: refetchPatient } = useQuery(GET_PATIENT, {
     variables: { id: selectedPatientId },
     skip: !selectedPatientId,
     fetchPolicy: 'network-only',
   });
 
+  const [updatePatient, { loading: updatingPatient }] = useMutation(UPDATE_PATIENT);
+  const [createDocument, { loading: creatingDoc }] = useMutation(CREATE_DOCUMENT);
+  const [updateDocumentStatus] = useMutation(UPDATE_DOCUMENT_STATUS);
+  const [createPostOp, { loading: creatingPostOp }] = useMutation(CREATE_POST_OP);
+  const [updatePostOpStatus] = useMutation(UPDATE_POST_OP_STATUS);
+
+  const [editPatientDialogOpen, setEditPatientDialogOpen] = useState(false);
+  const [editPatientForm, setEditPatientForm] = useState({ dateOfBirth: "", medicalRecord: "", address: "" });
+
+  const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
+  const [newDocForm, setNewDocForm] = useState({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
+
+  const [newPostOpDialogOpen, setNewPostOpDialogOpen] = useState(false);
+  const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
+
   const patients = patientsData?.patients || [];
   const patient = patientData?.patient;
+
+  // Handlers
+  const openEditPatient = () => {
+    if (!patient) return;
+    setEditPatientForm({
+      dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
+      medicalRecord: patient.medicalRecord || "",
+      address: patient.address || ""
+    });
+    setEditPatientDialogOpen(true);
+  };
+
+  const handleUpdatePatient = async () => {
+    try {
+      await updatePatient({ variables: { input: { id: patient.id, ...editPatientForm } } });
+      toast.success("Dados atualizados com sucesso!");
+      setEditPatientDialogOpen(false);
+      refetchPatient();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao atualizar");
+    }
+  };
+
+  const handleCreateDocument = async () => {
+    if (!newDocForm.name || !newDocForm.date) return toast.error("Preencha nome e data");
+    try {
+      await createDocument({ variables: { input: { patientId: patient.id, ...newDocForm, date: new Date(newDocForm.date).toISOString() } } });
+      toast.success("Documento adicionado!");
+      setNewDocDialogOpen(false);
+      setNewDocForm({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
+      refetchPatient();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao adicionar documento");
+    }
+  };
+
+  const handleCreatePostOp = async () => {
+    if (!newPostOpForm.description || !newPostOpForm.date) return toast.error("Preencha descrição e data");
+    try {
+      await createPostOp({ variables: { input: { patientId: patient.id, ...newPostOpForm, date: new Date(newPostOpForm.date).toISOString() } } });
+      toast.success("Pós-operatório agendado!");
+      setNewPostOpDialogOpen(false);
+      setNewPostOpForm({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
+      refetchPatient();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao agendar pós-op");
+    }
+  };
 
   const filteredPatients = patients.filter((p: any) =>
     p.lead?.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -180,8 +269,12 @@ const Patients = () => {
             <>
               {/* Patient Info Card */}
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-base">Dados Pessoais</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={openEditPatient}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar
+                  </Button>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-3 mb-4">
@@ -257,7 +350,13 @@ const Patients = () => {
                   ))}
                 </TabsContent>
 
-                <TabsContent value="documents" className="space-y-2 mt-4">
+                <TabsContent value="documents" className="space-y-4 mt-4">
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => setNewDocDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Documento
+                    </Button>
+                  </div>
                   {patient.documents?.length === 0 && (
                     <Card>
                       <CardContent className="py-8 text-center text-muted-foreground">
@@ -275,15 +374,48 @@ const Patients = () => {
                             {documentTypeLabels[doc.type]} • {format(new Date(doc.date), 'dd/MM/yyyy')}
                           </p>
                         </div>
-                        <Badge variant="outline">
-                          {documentStatusLabels[doc.status]}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={doc.status === 'SIGNED' ? 'default' : doc.status === 'UPLOADED' ? 'secondary' : 'outline'}>
+                            {documentStatusLabels[doc.status]}
+                          </Badge>
+                          {doc.status === 'PENDING' && (
+                            <div className="flex flex-col gap-1 ml-2">
+                              {doc.type === 'CONTRACT' || doc.type === 'TERM' ? (
+                                <Button size="sm" variant="outline" className="h-8 text-xs px-2" onClick={async () => {
+                                  try {
+                                    await updateDocumentStatus({ variables: { id: doc.id, status: 'SIGNED' } });
+                                    toast.success("Documento assinado!");
+                                    refetchPatient();
+                                  } catch (e: any) { toast.error(e.message); }
+                                }}>
+                                  Marcar Assinado
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" className="h-8 text-xs px-2" onClick={async () => {
+                                  try {
+                                    await updateDocumentStatus({ variables: { id: doc.id, status: 'UPLOADED' } });
+                                    toast.success("Documento enviado!");
+                                    refetchPatient();
+                                  } catch (e: any) { toast.error(e.message); }
+                                }}>
+                                  Marcar Enviado
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
                 </TabsContent>
 
-                <TabsContent value="postop" className="space-y-2 mt-4">
+                <TabsContent value="postop" className="space-y-4 mt-4">
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => setNewPostOpDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Agendar Retorno
+                    </Button>
+                  </div>
                   {patient.postOps?.length === 0 && (
                     <Card>
                       <CardContent className="py-8 text-center text-muted-foreground">
@@ -301,9 +433,22 @@ const Patients = () => {
                             {format(new Date(postOp.date), 'dd/MM/yyyy')}
                           </p>
                         </div>
-                        <Badge variant={postOp.status === 'COMPLETED' ? 'default' : 'secondary'}>
-                          {postOp.status === 'COMPLETED' ? 'Concluído' : postOp.status === 'SCHEDULED' ? 'Agendado' : 'Pendente'}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={postOp.status === 'COMPLETED' ? 'default' : postOp.status === 'SCHEDULED' ? 'secondary' : 'outline'}>
+                            {postOp.status === 'COMPLETED' ? 'Concluído' : postOp.status === 'SCHEDULED' ? 'Agendado' : 'Pendente'}
+                          </Badge>
+                          {postOp.status !== 'COMPLETED' && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Marcar como Concluído" onClick={async () => {
+                              try {
+                                await updatePostOpStatus({ variables: { id: postOp.id, status: 'COMPLETED' }});
+                                toast.success("Pós-operatório concluído!");
+                                refetchPatient();
+                              } catch(e: any) { toast.error(e.message); }
+                            }}>
+                              <Check className="h-4 w-4 text-green-500" />
+                            </Button>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -319,6 +464,101 @@ const Patients = () => {
           )}
         </div>
       </div>
+
+      {/* Edit Patient Dialog */}
+      <Dialog open={editPatientDialogOpen} onOpenChange={setEditPatientDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Paciente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Data de Nascimento</Label>
+              <Input type="date" value={editPatientForm.dateOfBirth} onChange={e => setEditPatientForm(f => ({...f, dateOfBirth: e.target.value}))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Prontuário</Label>
+              <Input value={editPatientForm.medicalRecord} onChange={e => setEditPatientForm(f => ({...f, medicalRecord: e.target.value}))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Endereço</Label>
+              <Input value={editPatientForm.address} onChange={e => setEditPatientForm(f => ({...f, address: e.target.value}))} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditPatientDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleUpdatePatient} disabled={updatingPatient}>{updatingPatient ? "Salvando..." : "Salvar"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Document Dialog */}
+      <Dialog open={newDocDialogOpen} onOpenChange={setNewDocDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo Documento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome do Documento *</Label>
+              <Input value={newDocForm.name} onChange={e => setNewDocForm(f => ({...f, name: e.target.value}))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo *</Label>
+              <Select value={newDocForm.type} onValueChange={v => setNewDocForm(f => ({...f, type: v}))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CONTRACT">Contrato</SelectItem>
+                  <SelectItem value="TERM">Termo</SelectItem>
+                  <SelectItem value="EXAM">Exame</SelectItem>
+                  <SelectItem value="OTHER">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Emissão *</Label>
+              <Input type="date" value={newDocForm.date} onChange={e => setNewDocForm(f => ({...f, date: e.target.value}))} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setNewDocDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateDocument} disabled={creatingDoc}>{creatingDoc ? "Adicionando..." : "Adicionar Documento"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New PostOp Dialog */}
+      <Dialog open={newPostOpDialogOpen} onOpenChange={setNewPostOpDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agendar Pós-Operatório</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Descrição *</Label>
+              <Input value={newPostOpForm.description} onChange={e => setNewPostOpForm(f => ({...f, description: e.target.value}))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo *</Label>
+              <Select value={newPostOpForm.type} onValueChange={v => setNewPostOpForm(f => ({...f, type: v}))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="RETURN">Retorno</SelectItem>
+                  <SelectItem value="REPAIR">Reparo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Data Agendada *</Label>
+              <Input type="date" value={newPostOpForm.date} onChange={e => setNewPostOpForm(f => ({...f, date: e.target.value}))} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setNewPostOpDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreatePostOp} disabled={creatingPostOp}>{creatingPostOp ? "Agendando..." : "Agendar Retorno"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };

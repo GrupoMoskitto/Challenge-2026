@@ -6,7 +6,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:whatsapp": "tsx src/scripts/send-test.ts"
   },
   "dependencies": {
     "@crmed/database": "workspace:*",

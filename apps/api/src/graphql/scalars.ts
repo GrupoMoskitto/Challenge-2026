@@ -24,7 +24,7 @@ export const DateTimeScalar = new GraphQLScalarType({
     }
     throw new Error('DateTime must be a string or number');
   },
-  parseLiteral(ast: Kind): Date {
+  parseLiteral(ast: any): Date {
     if (ast.kind === Kind.STRING) {
       return new Date(ast.value);
     }
@@ -58,7 +58,7 @@ export const IDScalar = new GraphQLScalarType({
     }
     throw new Error('ID must be a base64url string');
   },
-  parseLiteral(ast: Kind): string {
+  parseLiteral(ast: any): string {
     if (ast.kind === Kind.STRING) {
       return decodeBase64(ast.value);
     }
