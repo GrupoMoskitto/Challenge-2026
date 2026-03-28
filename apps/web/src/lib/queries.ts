@@ -130,20 +130,32 @@ export const GET_SURGEONS = gql`
 `;
 
 export const GET_PATIENTS = gql`
-  query GetPatients {
-    patients {
-      id
-      dateOfBirth
-      medicalRecord
-      address
-      lead {
-        id
-        name
-        email
-        phone
-        cpf
-        status
+  query GetPatients($first: Int, $after: String, $where: PatientWhereInput) {
+    patients(first: $first, after: $after, where: $where) {
+      edges {
+        node {
+          id
+          dateOfBirth
+          medicalRecord
+          address
+          lead {
+            id
+            name
+            email
+            phone
+            cpf
+            status
+          }
+        }
+        cursor
       }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+      totalCount
     }
   }
 `;
@@ -186,6 +198,15 @@ export const GET_PATIENT = gql`
         type
         description
         status
+      }
+      auditLogs {
+        id
+        action
+        oldValue
+        newValue
+        reason
+        userId
+        createdAt
       }
     }
   }
@@ -434,6 +455,25 @@ export const UPDATE_PATIENT = gql`
       dateOfBirth
       medicalRecord
       address
+    }
+  }
+`;
+
+export const CREATE_PATIENT = gql`
+  mutation CreatePatient($input: CreatePatientInput!) {
+    createPatient(input: $input) {
+      id
+      dateOfBirth
+      medicalRecord
+      address
+      lead {
+        id
+        name
+        email
+        phone
+        cpf
+        status
+      }
     }
   }
 `;

@@ -81,11 +81,74 @@ export const resolvers = {
     leadByCpf: async (_: unknown, { cpf }: { cpf: string }) => {
       return prisma.lead.findUnique({ where: { cpf } });
     },
-    patients: async () => {
-      return prisma.patient.findMany({
+    patients: async (_: unknown, { first, after, where }: { 
+      first?: number; 
+      after?: string; 
+      where?: { 
+        status?: LeadStatus; 
+        search?: string; 
+        surgeonId?: string;
+        createdFrom?: string;
+        createdTo?: string;
+      } 
+    }, context: Context) => {
+      const limit = first || 20;
+      const cursor = after ? Buffer.from(after, 'base64url').toString('utf-8') : undefined;
+
+      const whereClause: any = {};
+
+      if (where?.status) {
+        whereClause.lead = { ...whereClause.lead, status: where.status };
+      }
+
+      if (where?.search) {
+        whereClause.OR = [
+          { lead: { name: { contains: where.search, mode: 'insensitive' } } },
+          { lead: { cpf: { contains: where.search, mode: 'insensitive' } } },
+          { lead: { phone: { contains: where.search, mode: 'insensitive' } } },
+        ];
+      }
+
+      if (where?.surgeonId) {
+        const decodedSurgeonId = Buffer.from(where.surgeonId, 'base64url').toString('utf-8');
+        whereClause.appointments = {
+          some: { surgeonId: decodedSurgeonId },
+        };
+      }
+
+      if (where?.createdFrom || where?.createdTo) {
+        whereClause.createdAt = {};
+        if (where.createdFrom) whereClause.createdAt.gte = new Date(where.createdFrom);
+        if (where.createdTo) whereClause.createdAt.lte = new Date(where.createdTo);
+      }
+
+      const whereFinal = Object.keys(whereClause).length > 0 ? whereClause : undefined;
+
+      const patients = await prisma.patient.findMany({
+        where: whereFinal,
         include: { lead: true },
+        take: limit + 1,
+        cursor: cursor ? { id: cursor } : undefined,
+        skip: cursor ? 1 : 0,
         orderBy: { createdAt: 'desc' },
       });
+
+      const hasNextPage = patients.length > limit;
+      const edges = patients.slice(0, limit).map((patient) => ({
+        node: patient,
+        cursor: encodeBase64(patient.id),
+      }));
+
+      return {
+        edges,
+        pageInfo: {
+          hasNextPage,
+          hasPreviousPage: !!after,
+          startCursor: edges[0]?.cursor || null,
+          endCursor: edges[edges.length - 1]?.cursor || null,
+        },
+        totalCount: await prisma.patient.count({ where: whereFinal }),
+      };
     },
     patient: async (_: unknown, { id }: { id: string }) => {
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
@@ -94,7 +157,8 @@ export const resolvers = {
         include: { 
           lead: { include: { contacts: true } }, 
           documents: { orderBy: { date: 'desc' } }, 
-          postOps: { orderBy: { date: 'desc' } } 
+          postOps: { orderBy: { date: 'desc' } },
+          auditLogs: { orderBy: { createdAt: 'desc' } },
         },
       });
     },
@@ -527,9 +591,19 @@ export const resolvers = {
       dateOfBirth: string;
       medicalRecord?: string;
       address?: string;
-    }}) => {
+    }}, context: Context) => {
       const decodedLeadId = Buffer.from(input.leadId, 'base64url').toString('utf-8');
       
+      const lead = await prisma.lead.findUnique({ where: { id: decodedLeadId } });
+      if (!lead) throw new Error('Lead não encontrado');
+      
+      await checkUniqueness({
+        cpf: lead.cpf,
+        email: lead.email,
+        phone: lead.phone,
+        excludeId: decodedLeadId,
+      });
+
       if (input.medicalRecord) {
         const existing = await prisma.patient.findUnique({
           where: { medicalRecord: input.medicalRecord },
@@ -537,7 +611,7 @@ export const resolvers = {
         if (existing) throw new Error('RN01_VIOLATION: Prontuário já cadastrado');
       }
 
-      return prisma.patient.create({
+      const patient = await prisma.patient.create({
         data: {
           leadId: decodedLeadId,
           dateOfBirth: new Date(input.dateOfBirth),
@@ -546,6 +620,23 @@ export const resolvers = {
         },
         include: { lead: true },
       });
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Patient',
+          entityId: patient.id,
+          action: 'CREATED',
+          newValue: JSON.stringify({
+            dateOfBirth: input.dateOfBirth,
+            medicalRecord: input.medicalRecord,
+            address: input.address,
+          }),
+          reason: 'Paciente criado a partir de lead',
+          userId: context.user?.userId,
+        },
+      });
+
+      return patient;
     },
     createAppointment: async (_: unknown, { input }: { input: {
       patientId: string;
@@ -752,8 +843,11 @@ export const resolvers = {
         data: updateData,
       });
     },
-    updatePatient: async (_: unknown, { input }: { input: { id: string; dateOfBirth?: string; medicalRecord?: string; address?: string } }) => {
+    updatePatient: async (_: unknown, { input }: { input: { id: string; dateOfBirth?: string; medicalRecord?: string; address?: string; reason?: string } }, context: Context) => {
       const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      
+      const current = await prisma.patient.findUnique({ where: { id: decodedId } });
+      if (!current) throw new Error('Paciente não encontrado');
       
       if (input.medicalRecord) {
         const existing = await prisma.patient.findUnique({ where: { medicalRecord: input.medicalRecord } });
@@ -763,15 +857,43 @@ export const resolvers = {
       }
       
       const updateData: any = {};
-      if (input.dateOfBirth !== undefined) updateData.dateOfBirth = new Date(input.dateOfBirth);
-      if (input.medicalRecord !== undefined) updateData.medicalRecord = input.medicalRecord;
-      if (input.address !== undefined) updateData.address = input.address;
+      const changes: any = {};
+      if (input.dateOfBirth !== undefined) {
+        updateData.dateOfBirth = new Date(input.dateOfBirth);
+        changes.dateOfBirth = { from: current.dateOfBirth, to: new Date(input.dateOfBirth) };
+      }
+      if (input.medicalRecord !== undefined) {
+        updateData.medicalRecord = input.medicalRecord;
+        changes.medicalRecord = { from: current.medicalRecord, to: input.medicalRecord };
+      }
+      if (input.address !== undefined) {
+        updateData.address = input.address;
+        changes.address = { from: current.address, to: input.address };
+      }
       
-      return prisma.patient.update({
+      const updated = await prisma.patient.update({
         where: { id: decodedId },
         data: updateData,
         include: { lead: true },
       });
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Patient',
+          entityId: decodedId,
+          action: 'UPDATED',
+          oldValue: JSON.stringify({
+            dateOfBirth: current.dateOfBirth,
+            medicalRecord: current.medicalRecord,
+            address: current.address,
+          }),
+          newValue: JSON.stringify(changes),
+          reason: input.reason || 'Atualização de dados do paciente',
+          userId: context.user?.userId,
+        },
+      });
+      
+      return updated;
     },
     updateDocumentStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: Context) => {
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
