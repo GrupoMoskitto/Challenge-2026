@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -90,7 +91,8 @@ const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Fa
 const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Outro'];
 
 const Leads = () => {
-  const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") || "");
   const [filterOrigins, setFilterOrigins] = useState<string[]>([]);
   const [filterProcedures, setFilterProcedures] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
@@ -106,7 +108,7 @@ const Leads = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const { data, loading, refetch } = useQuery(GET_LEADS, {
-    variables: { first: 100 },
+    variables: { first: 100, search: search || undefined },
     fetchPolicy: 'network-only',
   });
 

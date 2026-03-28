@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -95,8 +96,9 @@ const auditActionLabels: Record<string, string> = {
 const PAGE_SIZE = 20;
 
 const Patients = () => {
+  const [searchParams] = useSearchParams();
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
   const [endCursor, setEndCursor] = useState<string | null>(null);

@@ -491,7 +491,7 @@ export const typeDefs = gql`
     me: User
 
     # Leads
-    leads(status: LeadStatus, first: Int, after: String): LeadConnection
+    leads(status: LeadStatus, first: Int, after: String, search: String): LeadConnection
     lead(id: ID!): Lead
     leadByCpf(cpf: String!): Lead
 
