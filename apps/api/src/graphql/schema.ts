@@ -268,7 +268,7 @@ export const typeDefs = gql`
     user: User!
   }
 
-  type EvolutionApiStatus {
+  type EvolutionApiInstance {
     connected: Boolean!
     instanceName: String!
     state: String
@@ -455,6 +455,8 @@ export const typeDefs = gql`
     # PostOps
     createPostOp(input: CreatePostOpInput!): PostOp!
     updatePostOpStatus(id: ID!, status: PostOpStatus!): PostOp!
+    
+    testMessageTemplate(templateId: ID!, instanceName: String!): Boolean!
 
     # Message Templates
     createMessageTemplate(input: CreateMessageTemplateInput!): MessageTemplate!
@@ -508,6 +510,6 @@ export const typeDefs = gql`
     messageTemplate(id: ID!): MessageTemplate
 
     # Integration Status
-    evolutionApiStatus: EvolutionApiStatus!
+    evolutionApiInstances: [EvolutionApiInstance!]!
   }
 `;
