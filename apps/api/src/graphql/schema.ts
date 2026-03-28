@@ -463,6 +463,7 @@ export const typeDefs = gql`
 
     # Users & Profile
     createUser(input: CreateUserInput!): User!
+    deleteUser(id: ID!): DeleteResult!
     toggleUserStatus(id: ID!): User!
     updateProfile(input: UpdateProfileInput!): User!
 
