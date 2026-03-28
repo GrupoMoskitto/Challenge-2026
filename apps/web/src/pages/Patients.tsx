@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,16 +12,18 @@ import {
   MessageCircle,
   Mail,
   FileText,
-  ArrowUpRight,
-  ArrowDownLeft,
   Check,
   X,
   Clock,
-  Upload,
   Calendar,
   User,
   Pencil,
   Plus,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  History,
+  XCircle,
 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { 
@@ -31,7 +33,9 @@ import {
   CREATE_DOCUMENT,
   UPDATE_DOCUMENT_STATUS,
   CREATE_POST_OP,
-  UPDATE_POST_OP_STATUS
+  UPDATE_POST_OP_STATUS,
+  CREATE_PATIENT,
+  GET_LEADS,
 } from "@/lib/queries";
 import {
   Dialog,
@@ -61,6 +65,14 @@ const statusLabels: Record<string, string> = {
   LOST: 'Perdido',
 };
 
+const statusColors: Record<string, string> = {
+  NEW: 'bg-blue-500',
+  CONTACTED: 'bg-yellow-500',
+  QUALIFIED: 'bg-purple-500',
+  CONVERTED: 'bg-green-500',
+  LOST: 'bg-red-500',
+};
+
 const documentTypeLabels: Record<string, string> = {
   CONTRACT: 'Contrato',
   TERM: 'Termo',
@@ -74,13 +86,57 @@ const documentStatusLabels: Record<string, string> = {
   UPLOADED: 'Enviado',
 };
 
+const auditActionLabels: Record<string, string> = {
+  CREATED: 'Criado',
+  UPDATED: 'Atualizado',
+  STATUS_CHANGE: 'Status alterado',
+};
+
+const PAGE_SIZE = 20;
+
 const Patients = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const { data: patientsData, loading: loadingPatients } = useQuery(GET_PATIENTS, {
+  const { data: patientsData, loading: loadingPatients, refetch: refetchPatients } = useQuery(GET_PATIENTS, {
+    variables: { 
+      first: PAGE_SIZE,
+      where: {
+        ...(search && { search }),
+        ...(statusFilter && { status: statusFilter }),
+      }
+    },
     fetchPolicy: 'network-only',
+    onCompleted: (data) => {
+      if (data?.patients) {
+        setEndCursor(data.patients.pageInfo.endCursor);
+        setHasNextPage(data.patients.pageInfo.hasNextPage);
+        setTotalCount(data.patients.totalCount);
+      }
+    },
   });
+
+  const loadMore = async () => {
+    if (!endCursor || !hasNextPage) return;
+    const { data } = await refetchPatients({
+      first: PAGE_SIZE,
+      after: endCursor,
+      where: {
+        ...(search && { search }),
+        ...(statusFilter && { status: statusFilter }),
+      }
+    });
+    if (data?.patients) {
+      setEndCursor(data.patients.pageInfo.endCursor);
+      setHasNextPage(data.patients.pageInfo.hasNextPage);
+      setTotalCount(data.patients.totalCount);
+    }
+  };
 
   const { data: patientData, loading: loadingPatient, refetch: refetchPatient } = useQuery(GET_PATIENT, {
     variables: { id: selectedPatientId },
@@ -88,14 +144,20 @@ const Patients = () => {
     fetchPolicy: 'network-only',
   });
 
+  const { data: leadsData } = useQuery(GET_LEADS, {
+    variables: { status: 'CONVERTED' },
+    fetchPolicy: 'network-only',
+  });
+
   const [updatePatient, { loading: updatingPatient }] = useMutation(UPDATE_PATIENT);
+  const [createPatient, { loading: creatingPatient }] = useMutation(CREATE_PATIENT);
   const [createDocument, { loading: creatingDoc }] = useMutation(CREATE_DOCUMENT);
   const [updateDocumentStatus] = useMutation(UPDATE_DOCUMENT_STATUS);
   const [createPostOp, { loading: creatingPostOp }] = useMutation(CREATE_POST_OP);
   const [updatePostOpStatus] = useMutation(UPDATE_POST_OP_STATUS);
 
   const [editPatientDialogOpen, setEditPatientDialogOpen] = useState(false);
-  const [editPatientForm, setEditPatientForm] = useState({ dateOfBirth: "", medicalRecord: "", address: "" });
+  const [editPatientForm, setEditPatientForm] = useState({ dateOfBirth: "", medicalRecord: "", address: "", reason: "" });
 
   const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
@@ -103,16 +165,21 @@ const Patients = () => {
   const [newPostOpDialogOpen, setNewPostOpDialogOpen] = useState(false);
   const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
 
-  const patients = patientsData?.patients || [];
-  const patient = patientData?.patient;
+  const [createPatientDialogOpen, setCreatePatientDialogOpen] = useState(false);
+  const [createPatientForm, setCreatePatientForm] = useState({ leadId: "", dateOfBirth: "", medicalRecord: "", address: "" });
 
-  // Handlers
+  const patients = patientsData?.patients?.edges?.map((e: any) => e.node) || [];
+  const patient = patientData?.patient;
+  const convertedLeads = leadsData?.leads?.edges?.map((e: any) => e.node) || [];
+  const availableLeadsForConversion = convertedLeads.filter((lead: any) => !lead.patient);
+
   const openEditPatient = () => {
     if (!patient) return;
     setEditPatientForm({
       dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
       medicalRecord: patient.medicalRecord || "",
-      address: patient.address || ""
+      address: patient.address || "",
+      reason: ""
     });
     setEditPatientDialogOpen(true);
   };
@@ -154,11 +221,42 @@ const Patients = () => {
     }
   };
 
-  const filteredPatients = patients.filter((p: any) =>
-    p.lead?.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.lead?.cpf?.includes(search) ||
-    p.lead?.phone?.includes(search)
-  );
+  const handleCreatePatient = async () => {
+    if (!createPatientForm.leadId || !createPatientForm.dateOfBirth) {
+      return toast.error("Selecione um lead e informe a data de nascimento");
+    }
+    try {
+      const result = await createPatient({ 
+        variables: { 
+          input: {
+            leadId: createPatientForm.leadId,
+            dateOfBirth: new Date(createPatientForm.dateOfBirth).toISOString(),
+            medicalRecord: createPatientForm.medicalRecord || undefined,
+            address: createPatientForm.address || undefined,
+          }
+        } 
+      });
+      toast.success("Paciente criado com sucesso!");
+      setCreatePatientDialogOpen(false);
+      setCreatePatientForm({ leadId: "", dateOfBirth: "", medicalRecord: "", address: "" });
+      refetchPatients();
+      if (result.data?.createPatient?.id) {
+        setSelectedPatientId(result.data.createPatient.id);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao criar paciente");
+    }
+  };
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setEndCursor(null);
+  }, []);
+
+  const handleStatusFilterChange = useCallback((value: string) => {
+    setStatusFilter(value === "ALL" ? "" : value);
+    setEndCursor(null);
+  }, []);
 
   const contactIcon = (type: string) => {
     switch (type) {
@@ -210,44 +308,96 @@ const Patients = () => {
       <div className="flex gap-6">
         {/* Patient List */}
         <div className="w-1/3 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar paciente..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+          <div className="flex items-center justify-between gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar paciente..."
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)}>
+              <Filter className="h-4 w-4" />
+            </Button>
+            <Button size="sm" onClick={() => setCreatePatientDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Novo
+            </Button>
           </div>
+
+          {showFilters && (
+            <Card className="p-3">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Status do Lead</Label>
+                  <Select value={statusFilter || "ALL"} onValueChange={handleStatusFilterChange}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Todos</SelectItem>
+                      <SelectItem value="NEW">Novo</SelectItem>
+                      <SelectItem value="CONTACTED">Contato</SelectItem>
+                      <SelectItem value="QUALIFIED">Qualificado</SelectItem>
+                      <SelectItem value="CONVERTED">Convertido</SelectItem>
+                      <SelectItem value="LOST">Perdido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{totalCount} pacientes</span>
+          </div>
+
           <div className="space-y-2">
-            {filteredPatients.length === 0 && (
+            {loadingPatients && patients.length === 0 ? (
+              [...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
+            ) : patients.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 Nenhum paciente encontrado
               </p>
+            ) : (
+              patients.map((p: any) => (
+                <Card
+                  key={p.id}
+                  className={cn(
+                    "cursor-pointer hover:shadow-md transition-shadow",
+                    selectedPatientId === p.id && "border-primary"
+                  )}
+                  onClick={() => setSelectedPatientId(p.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                        <User className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">{p.lead?.name}</p>
+                          <div className={cn("w-2 h-2 rounded-full", statusColors[p.lead?.status] || "bg-gray-400")} title={statusLabels[p.lead?.status]} />
+                        </div>
+                        <p className="text-xs text-muted-foreground">{p.lead?.phone}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
             )}
-            {filteredPatients.map((p: any) => (
-              <Card
-                key={p.id}
-                className={cn(
-                  "cursor-pointer hover:shadow-md transition-shadow",
-                  selectedPatientId === p.id && "border-primary"
-                )}
-                onClick={() => setSelectedPatientId(p.id)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                      <User className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">{p.lead?.name}</p>
-                      <p className="text-xs text-muted-foreground">{p.lead?.phone}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
           </div>
+
+          {hasNextPage && (
+            <div className="flex justify-center">
+              <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingPatients}>
+                <ChevronRight className="h-4 w-4 mr-1" />
+                Carregar mais
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Patient Details */}
@@ -319,6 +469,7 @@ const Patients = () => {
                   <TabsTrigger value="contacts" className="flex-1">Contatos</TabsTrigger>
                   <TabsTrigger value="documents" className="flex-1">Documentos</TabsTrigger>
                   <TabsTrigger value="postop" className="flex-1">Pós-Operatório</TabsTrigger>
+                  <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="contacts" className="space-y-2 mt-4">
@@ -453,6 +604,53 @@ const Patients = () => {
                     </Card>
                   ))}
                 </TabsContent>
+
+                <TabsContent value="history" className="space-y-2 mt-4">
+                  {patient.auditLogs?.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-8 text-center text-muted-foreground">
+                        Nenhum registro de auditoria
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    patient.auditLogs?.map((log: any) => (
+                      <Card key={log.id}>
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-3">
+                            <div className={cn(
+                              "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                              log.action === 'CREATED' ? "bg-green-500/20" : "bg-blue-500/20"
+                            )}>
+                              {log.action === 'CREATED' ? (
+                                <Plus className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <History className="h-4 w-4 text-blue-500" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium">
+                                  {auditActionLabels[log.action] || log.action}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm')}
+                                </span>
+                              </div>
+                              {log.reason && (
+                                <p className="text-xs text-muted-foreground mb-1">{log.reason}</p>
+                              )}
+                              {log.newValue && (
+                                <p className="text-xs bg-muted p-2 rounded font-mono truncate">
+                                  {log.newValue.length > 100 ? log.newValue.substring(0, 100) + '...' : log.newValue}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </TabsContent>
               </Tabs>
             </>
           ) : (
@@ -464,6 +662,51 @@ const Patients = () => {
           )}
         </div>
       </div>
+
+      {/* Create Patient Dialog */}
+      <Dialog open={createPatientDialogOpen} onOpenChange={setCreatePatientDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Converter Lead em Paciente</DialogTitle>
+            <DialogDescription>
+              Selecione um lead convertido para criar o registro de paciente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Lead *</Label>
+              <Select value={createPatientForm.leadId} onValueChange={v => setCreatePatientForm(f => ({...f, leadId: v}))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um lead" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableLeadsForConversion.map((lead: any) => (
+                    <SelectItem key={lead.id} value={lead.id}>
+                      {lead.name} - {lead.cpf}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Data de Nascimento *</Label>
+              <Input type="date" value={createPatientForm.dateOfBirth} onChange={e => setCreatePatientForm(f => ({...f, dateOfBirth: e.target.value}))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Prontuário</Label>
+              <Input value={createPatientForm.medicalRecord} onChange={e => setCreatePatientForm(f => ({...f, medicalRecord: e.target.value}))} placeholder="Opcional" />
+            </div>
+            <div className="space-y-2">
+              <Label>Endereço</Label>
+              <Input value={createPatientForm.address} onChange={e => setCreatePatientForm(f => ({...f, address: e.target.value}))} placeholder="Opcional" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCreatePatientDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreatePatient} disabled={creatingPatient}>{creatingPatient ? "Criando..." : "Criar Paciente"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Patient Dialog */}
       <Dialog open={editPatientDialogOpen} onOpenChange={setEditPatientDialogOpen}>
@@ -483,6 +726,10 @@ const Patients = () => {
             <div className="space-y-2">
               <Label>Endereço</Label>
               <Input value={editPatientForm.address} onChange={e => setEditPatientForm(f => ({...f, address: e.target.value}))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Motivo da alteração</Label>
+              <Input value={editPatientForm.reason} onChange={e => setEditPatientForm(f => ({...f, reason: e.target.value}))} placeholder="Opcional" />
             </div>
           </div>
           <div className="flex justify-end gap-2">
