@@ -138,7 +138,7 @@ const Patients = () => {
     }
   };
 
-  const { data: patientData, loading: loadingPatient, error: patientError, refetch: refetchPatient } = useQuery(GET_PATIENT, {
+  const { data: patientData, loading: loadingPatient, refetch: refetchPatient } = useQuery(GET_PATIENT, {
     variables: { id: selectedPatientId },
     skip: !selectedPatientId,
     fetchPolicy: 'network-only',
@@ -413,12 +413,6 @@ const Patients = () => {
               <CardContent className="p-6 space-y-4">
                 <Skeleton className="h-20 w-full" />
                 <Skeleton className="h-40 w-full" />
-              </CardContent>
-            </Card>
-          ) : patientError ? (
-            <Card>
-              <CardContent className="flex items-center justify-center h-64">
-                <p className="text-muted-foreground">{patientError.message || 'Erro ao carregar dados do paciente'}</p>
               </CardContent>
             </Card>
           ) : patient ? (
