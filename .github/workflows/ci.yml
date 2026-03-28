@@ -60,7 +60,11 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Generate Prisma Client
-        run: pnpm --filter @crmed/database db:generate
+        env:
+          DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
+        run: |
+          echo "DATABASE_URL=$DATABASE_URL" >> $GITHUB_ENV
+          pnpm --filter @crmed/database db:generate
 
       - name: ESLint Check
         run: pnpm lint
@@ -122,11 +126,16 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Generate Prisma Client
-        run: pnpm --filter @crmed/database db:generate
+        env:
+          DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
+        run: |
+          echo "DATABASE_URL=$DATABASE_URL" >> $GITHUB_ENV
+          pnpm --filter @crmed/database db:generate
 
       - name: Setup Test Database
+        env:
+          DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
         run: |
-          cp packages/database/.env.example packages/database/.env.test || true
           pnpm --filter @crmed/database db:push
 
       - name: Run RN01 Tests (Uniqueness)
