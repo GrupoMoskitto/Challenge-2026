@@ -68,6 +68,7 @@ model Patient {
 
   documents     Document[]
   postOps       PostOp[]
+  auditLogs     AuditLog[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -162,15 +163,18 @@ model AuditLog {
 
   userId        String?
   appointmentId String?
+  patientId     String?
 
   user          User?        @relation(fields: [userId], references: [id])
   appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  patient       Patient?     @relation(fields: [patientId], references: [id])
 
   createdAt     DateTime     @default(now())
 
   @@index([entityType, entityId])
   @@index([userId])
   @@index([appointmentId])
+  @@index([patientId])
   @@index([createdAt])
 }
 
