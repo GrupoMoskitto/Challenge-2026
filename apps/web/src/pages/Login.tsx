@@ -195,7 +195,7 @@ export default function Login() {
             </div>
             <Button
               type="submit"
-              className="w-full h-11 rounded-xl glass-button text-white font-semibold text-sm border-0"
+              className="w-full h-11 rounded-xl glass-button text-black dark:text-white font-semibold text-sm border-0"
               disabled={loading}
             >
               {loading ? (

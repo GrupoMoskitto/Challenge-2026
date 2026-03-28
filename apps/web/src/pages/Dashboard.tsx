@@ -34,6 +34,9 @@ import {
   Legend,
   Area,
   AreaChart,
+  FunnelChart,
+  Funnel,
+  LabelList,
 } from "recharts";
 import { useQuery } from "@apollo/client";
 import { GET_DASHBOARD_STATS, GET_LEADS, GET_APPOINTMENTS } from "@/lib/queries";
@@ -46,6 +49,22 @@ const statusLabels: Record<string, string> = {
   QUALIFIED: "Qualificado",
   CONVERTED: "Convertido",
   LOST: "Perdido",
+};
+
+const appointmentStatusColors: Record<string, string> = {
+  SCHEDULED: "bg-blue-500 cursor-default hover:bg-blue-600",
+  CONFIRMED: "bg-green-500 cursor-default hover:bg-green-600",
+  COMPLETED: "bg-gray-500 cursor-default hover:bg-gray-600",
+  CANCELLED: "bg-red-500 cursor-default hover:bg-red-600",
+  NO_SHOW: "bg-yellow-500 cursor-default hover:bg-yellow-600",
+};
+
+const appointmentStatusLabels: Record<string, string> = {
+  SCHEDULED: "Agendado",
+  CONFIRMED: "Confirmado",
+  COMPLETED: "Concluído",
+  CANCELLED: "Cancelado",
+  NO_SHOW: "Faltou",
 };
 
 const getThemeColors = () => {
@@ -176,6 +195,13 @@ const Dashboard = () => {
   const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
   const lostRate = totalLeads > 0 ? Math.round((lostLeads / totalLeads) * 100) : 0;
   const qualifiedRate = totalLeads > 0 ? Math.round((qualifiedLeads / totalLeads) * 100) : 0;
+
+  const funnelData = [
+    { name: 'Leads', value: totalLeads, fill: themeColors.NEW },
+    { name: 'Contatados', value: contactedLeads + qualifiedLeads + convertedLeads, fill: themeColors.CONTACTED },
+    { name: 'Qualificados', value: qualifiedLeads + convertedLeads, fill: themeColors.QUALIFIED },
+    { name: 'Convertidos', value: convertedLeads, fill: themeColors.CONVERTED },
+  ];
 
   const originCounts = filteredLeads.reduce((acc: any, lead: any) => {
     const origin = lead.origin || 'Outro';
@@ -524,7 +550,55 @@ const Dashboard = () => {
         </div>
 
         {/* Charts Row 2 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Funnel Chart */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-medium">Funil de Conversão</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                {totalLeads > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <FunnelChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                      <Tooltip 
+                        contentStyle={{
+                          borderRadius: "var(--radius)",
+                          border: "1px solid hsl(var(--border))",
+                          background: "hsl(var(--card))",
+                        }}
+                        labelStyle={{ color: "hsl(var(--foreground))" }}
+                        itemStyle={{ color: "hsl(var(--foreground))" }}
+                      />
+                      <Legend 
+                        verticalAlign="bottom"
+                        payload={
+                          funnelData.map(
+                            item => ({
+                              id: item.name,
+                              type: "square",
+                              value: item.name,
+                              color: item.fill
+                            })
+                          )
+                        } 
+                      />
+                      <Funnel
+                        dataKey="value"
+                        data={funnelData}
+                        isAnimationActive
+                      />
+                    </FunnelChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    Nenhum dado disponível
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Origin Bar Chart */}
           <Card>
             <CardHeader className="pb-2">
@@ -567,21 +641,21 @@ const Dashboard = () => {
           {/* Procedure Donut Chart */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">Procedimentos mais Procurados</CardTitle>
+              <CardTitle className="text-base font-medium">Procedimentos Mais Procurados</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-64">
                 {procedureData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
+                    <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                       <Pie
                         data={procedureData}
                         cx="50%"
                         cy="50%"
-                        outerRadius={90}
+                        outerRadius={70}
                         dataKey="value"
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        labelLine={false}
+                        labelLine={true}
                       >
                         {procedureData.map((entry, index) => (
                           <Cell key={index} fill={`hsl(${index * 40}, 70%, 50%)`} />
@@ -665,8 +739,8 @@ const Dashboard = () => {
                           </p>
                         </div>
                       </div>
-                      <Badge variant={apt.status === 'SCHEDULED' ? 'default' : 'secondary'} className="text-xs">
-                        {apt.status === 'SCHEDULED' ? 'Agendado' : apt.status}
+                      <Badge className={`text-xs text-white ${appointmentStatusColors[apt.status] || 'bg-gray-500'}`}>
+                        {appointmentStatusLabels[apt.status] || apt.status}
                       </Badge>
                     </div>
                   ))

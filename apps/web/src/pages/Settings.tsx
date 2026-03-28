@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,19 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
+import { toast } from "sonner";
 import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_MESSAGE_TEMPLATES,
   CREATE_MESSAGE_TEMPLATE,
   UPDATE_MESSAGE_TEMPLATE,
   DELETE_MESSAGE_TEMPLATE,
+  TEST_MESSAGE_TEMPLATE,
+  GET_USERS,
+  GET_EVOLUTION_API_INSTANCES,
+  CREATE_USER,
+  TOGGLE_USER_STATUS,
+  UPDATE_PROFILE,
 } from "@/lib/queries";
 import {
   Dialog,
@@ -36,7 +43,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, Bell, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Mail, Phone as PhoneIcon, Eye } from "lucide-react";
+import { User, Bell, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Mail, Phone as PhoneIcon, Eye, Plug, X, Check } from "lucide-react";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrador",
@@ -109,20 +116,92 @@ const Settings = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+
   const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<MessageTemplate | null>(null);
+  const [testingTemplate, setTestingTemplate] = useState<MessageTemplate | null>(null);
+
   const [newTemplate, setNewTemplate] = useState<TemplateForm>(initialTemplateForm);
   const [editTemplate, setEditTemplate] = useState<TemplateForm>(initialTemplateForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  // User management state
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ name: "", email: "", role: "RECEPTION", password: "" });
+  const [profileForm, setProfileForm] = useState({ name: user?.name || "", password: "" });
+
+  const [selectedInstance, setSelectedInstance] = useState<string>("");
+
   // GraphQL
-  const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates } = useQuery(GET_MESSAGE_TEMPLATES);
+  const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
+  const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS);
+  const { data: evoData, loading: evoLoading, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES);
+
+  useEffect(() => {
+    if (templatesError) toast.error("Erro ao carregar templates: " + templatesError.message);
+    if (usersError) toast.error("Erro ao carregar usuários: " + usersError.message);
+    if (evoError) toast.error("Erro ao carregar integrações: " + evoError.message);
+  }, [templatesError, usersError, evoError]);
+
   const [createTemplate, { loading: creating }] = useMutation(CREATE_MESSAGE_TEMPLATE);
   const [updateTemplate, { loading: updating }] = useMutation(UPDATE_MESSAGE_TEMPLATE);
   const [deleteTemplate, { loading: deleting }] = useMutation(DELETE_MESSAGE_TEMPLATE);
+  const [testTemplate, { loading: testing }] = useMutation(TEST_MESSAGE_TEMPLATE);
+  
+  const [createUser, { loading: creatingUser }] = useMutation(CREATE_USER);
+  const [toggleUserStatus] = useMutation(TOGGLE_USER_STATUS);
+  const [updateProfile, { loading: updatingProfile }] = useMutation(UPDATE_PROFILE);
 
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
+  const systemUsers = usersData?.users || [];
+  const evolutionInstances: any[] = evoData?.evolutionApiInstances || [];
+
+  const handleUpdateProfile = async () => {
+    try {
+      await updateProfile({
+        variables: {
+          input: {
+            name: profileForm.name || undefined,
+            password: profileForm.password || undefined,
+          }
+        }
+      });
+      toast.success("Perfil atualizado! Por favor, faça login novamente se trocou a senha.");
+      setProfileForm({ ...profileForm, password: "" });
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao atualizar perfil");
+    }
+  };
+
+  const handleCreateUser = async () => {
+    if (!newUserForm.name || !newUserForm.email || !newUserForm.password) {
+      toast.error("Preencha os campos obrigatórios");
+      return;
+    }
+    try {
+      await createUser({
+        variables: { input: newUserForm }
+      });
+      toast.success("Usuário criado com sucesso!");
+      setCreateUserDialogOpen(false);
+      setNewUserForm({ name: "", email: "", role: "RECEPTION", password: "" });
+      refetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao criar usuário");
+    }
+  };
+
+  const handleToggleUserStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      await toggleUserStatus({ variables: { id } });
+      toast.success(`Usuário ${currentStatus ? 'desativado' : 'ativado'} com sucesso!`);
+      refetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao alterar status do usuário");
+    }
+  };
 
   const validateForm = (form: TemplateForm): boolean => {
     const errors: Record<string, string> = {};
@@ -213,6 +292,30 @@ const Settings = () => {
     setPreviewDialogOpen(true);
   };
 
+  const handleTestClick = (template: MessageTemplate) => {
+    setTestingTemplate(template);
+    // Auto-select first connected instance if available
+    const firstConnected = evolutionInstances.find(i => i.connected)?.instanceName || evolutionInstances[0]?.instanceName || "";
+    setSelectedInstance(firstConnected);
+    setTestDialogOpen(true);
+  };
+
+  const handleRunTest = async () => {
+    if (!testingTemplate || !selectedInstance) return;
+    try {
+      await testTemplate({
+        variables: {
+          templateId: testingTemplate.id,
+          instanceName: selectedInstance,
+        }
+      });
+      toast.success("Teste disparado! Verifique o número permitido no ambiente.");
+      setTestDialogOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao disparar teste");
+    }
+  };
+
   const renderTemplateForm = (form: TemplateForm, setForm: (f: TemplateForm) => void) => (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2">
@@ -294,18 +397,22 @@ const Settings = () => {
             <User className="h-4 w-4 mr-2" />
             Perfil
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex-1">
-            <Bell className="h-4 w-4 mr-2" />
-            Notificações
+          <TabsTrigger value="integrations" className="flex-1">
+            <Plug className="h-4 w-4 mr-2" />
+            Integrações
           </TabsTrigger>
-          <TabsTrigger value="users" className="flex-1">
-            <Users className="h-4 w-4 mr-2" />
-            Usuários
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="flex-1">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Templates
-          </TabsTrigger>
+          {user?.role === 'ADMIN' && (
+            <TabsTrigger value="users" className="flex-1">
+              <Users className="h-4 w-4 mr-2" />
+              Usuários
+            </TabsTrigger>
+          )}
+          {user?.role === 'ADMIN' && (
+            <TabsTrigger value="templates" className="flex-1">
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Templates
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Profile Tab */}
@@ -334,7 +441,7 @@ const Settings = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome Completo</Label>
-                  <Input id="name" defaultValue={user?.name} />
+                  <Input id="name" value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">E-mail</Label>
@@ -346,60 +453,67 @@ const Settings = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Nova Senha</Label>
-                  <Input id="password" type="password" placeholder="••••••••" />
+                  <Input id="password" type="password" placeholder="Mínimo 6 caracteres (Opcional)" value={profileForm.password} onChange={e => setProfileForm(p => ({ ...p, password: e.target.value }))} />
                 </div>
               </div>
 
               <div className="flex justify-end">
-                <Button>Salvar Alterações</Button>
+                <Button onClick={handleUpdateProfile} disabled={updatingProfile || (profileForm.name === user?.name && !profileForm.password)}>
+                  {updatingProfile ? "Salvando..." : "Salvar Alterações"}
+                </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Notifications Tab */}
-        <TabsContent value="notifications">
+        {/* Integrations Tab */}
+        <TabsContent value="integrations">
           <Card>
             <CardHeader>
-              <CardTitle>Configurações de Notificações</CardTitle>
+              <CardTitle>Integrações</CardTitle>
               <CardDescription>
-                Escolha como você deseja receber notificações
+                Gerencie as conexões ativas com a Evolution API
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Notificações de novos leads</p>
-                    <p className="text-sm text-muted-foreground">Receba alertas quando um novo lead for cadastrado</p>
-                  </div>
-                  <Button variant="outline">Ativar</Button>
+            <CardContent className="space-y-4">
+              {evoLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Lembretes de consulta</p>
-                    <p className="text-sm text-muted-foreground">Receba lembretes antes das consultas agendadas</p>
-                  </div>
-                  <Button>Ativo</Button>
+              ) : evolutionInstances.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground border rounded-lg border-dashed">
+                  Nenhuma instância encontrada na Evolution API.
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">E-mails de resumo diário</p>
-                    <p className="text-sm text-muted-foreground">Receba um resumo das atividades do dia</p>
+              ) : (
+                evolutionInstances.map((inst: any) => (
+                  <div key={inst.instanceName} className="border rounded-lg p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${inst.connected ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
+                        <PhoneIcon className={`h-6 w-6 ${inst.connected ? 'text-green-500' : 'text-destructive'}`} />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-base">Instância: {inst.instanceName}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Status: <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs">{inst.state}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      {inst.connected ? (
+                        <Badge className="bg-green-500">Conectado</Badge>
+                      ) : (
+                        <Badge variant="destructive">Desconectado</Badge>
+                      )}
+                    </div>
                   </div>
-                  <Button variant="outline">Ativar</Button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Notificações de conversão</p>
-                    <p className="text-sm text-muted-foreground">Seja avisado quando um lead for convertido em paciente</p>
-                  </div>
-                  <Button>Ativo</Button>
-                </div>
-              </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Notifications Tab Removida (Inativa) */}
 
         {/* Users Tab */}
         <TabsContent value="users">
@@ -416,7 +530,7 @@ const Settings = () => {
                   <p className="text-sm text-muted-foreground">
                     Gerencie os usuários que têm acesso ao sistema
                   </p>
-                  <Button>Novo Usuário</Button>
+                  <Button onClick={() => setCreateUserDialogOpen(true)}>Novo Usuário</Button>
                 </div>
                 <div className="border rounded-lg">
                   <div className="grid grid-cols-4 gap-4 p-4 border-b bg-muted/30 font-medium text-sm">
@@ -425,24 +539,41 @@ const Settings = () => {
                     <div>Cargo</div>
                     <div>Status</div>
                   </div>
-                  <div className="grid grid-cols-4 gap-4 p-4 border-b items-center">
-                    <div className="font-medium">Administrador</div>
-                    <div className="text-sm text-muted-foreground">admin@hsr.com.br</div>
-                    <div><Badge>Administrador</Badge></div>
-                    <div><Badge variant="secondary">Ativo</Badge></div>
-                  </div>
-                  <div className="grid grid-cols-4 gap-4 p-4 border-b items-center">
-                    <div className="font-medium">Maria Souza</div>
-                    <div className="text-sm text-muted-foreground">maria@hsr.com.br</div>
-                    <div><Badge variant="outline">Call Center</Badge></div>
-                    <div><Badge variant="secondary">Ativo</Badge></div>
-                  </div>
-                  <div className="grid grid-cols-4 gap-4 p-4 items-center">
-                    <div className="font-medium">João Silva</div>
-                    <div className="text-sm text-muted-foreground">joao@hsr.com.br</div>
-                    <div><Badge variant="outline">Recepção</Badge></div>
-                    <div><Badge variant="secondary">Ativo</Badge></div>
-                  </div>
+                  {usersLoading ? (
+                    <div className="p-4 flex flex-col gap-3">
+                      <Skeleton className="h-6 w-full" />
+                      <Skeleton className="h-6 w-full" />
+                      <Skeleton className="h-6 w-full" />
+                    </div>
+                  ) : (
+                    systemUsers.map((u: any) => (
+                      <div key={u.id} className="grid grid-cols-4 gap-4 p-4 border-b items-center last:border-b-0">
+                        <div className="font-medium truncate pr-2">{u.name}</div>
+                        <div className="text-sm text-muted-foreground truncate pr-2">{u.email}</div>
+                        <div>
+                          <Badge variant={u.role === 'ADMIN' ? 'default' : 'outline'}>
+                            {roleLabels[u.role] || u.role}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={u.isActive ? 'secondary' : 'destructive'}>
+                            {u.isActive ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                          {user?.id !== u.id && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleToggleUserStatus(u.id, u.isActive)}
+                              className="px-2"
+                              title={u.isActive ? "Desativar" : "Ativar"}
+                            >
+                              {u.isActive ? <X className="h-4 w-4 text-red-500" /> : <Check className="h-4 w-4 text-green-500" />}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -536,6 +667,12 @@ const Settings = () => {
                                 <Eye className="h-4 w-4 mr-2" />
                                 Visualizar
                               </DropdownMenuItem>
+                              {user?.role === 'ADMIN' && (
+                                <DropdownMenuItem onClick={() => handleTestClick(template)} className="cursor-pointer">
+                                  <Plug className="h-4 w-4 mr-2" />
+                                  Teste de Disparo
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => handleEditClick(template)} className="cursor-pointer">
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Editar
@@ -647,6 +784,90 @@ const Settings = () => {
           <div className="flex justify-end pt-2">
             <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
               Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog open={createUserDialogOpen} onOpenChange={setCreateUserDialogOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle>Novo Usuário</DialogTitle>
+            <DialogDescription>
+              Adicione um novo colaborador ao sistema
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome Completo *</Label>
+              <Input value={newUserForm.name} onChange={e => setNewUserForm(f => ({...f, name: e.target.value}))} />
+            </div>
+            <div className="space-y-2">
+              <Label>E-mail *</Label>
+              <Input type="email" value={newUserForm.email} onChange={e => setNewUserForm(f => ({...f, email: e.target.value}))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Cargo *</Label>
+              <Select value={newUserForm.role} onValueChange={val => setNewUserForm(f => ({...f, role: val}))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(roleLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Senha Inicial *</Label>
+              <Input type="password" value={newUserForm.password} onChange={e => setNewUserForm(f => ({...f, password: e.target.value}))} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCreateUserDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateUser} disabled={creatingUser}>
+              {creatingUser ? "Criando..." : "Criar Usuário"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Test Template Dialog */}
+      <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Teste de Disparo</DialogTitle>
+            <DialogDescription>
+              Envie uma mensagem de teste do template <strong>{testingTemplate?.name}</strong> para o número pré-aprovado no ambiente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-3 bg-muted rounded-md text-xs border">
+              <p className="font-semibold mb-1 uppercase tracking-wider opacity-70">Aviso RN05 Sandbox:</p>
+              A mensagem será enviada apenas para os números definidos em <code>DEV_ALLOWED_PHONE</code> para evitar disparos acidentais para pacientes em ambiente de testes.
+            </div>
+            <div className="space-y-2">
+              <Label>Escolha a Instância WhatsApp</Label>
+              <Select value={selectedInstance} onValueChange={setSelectedInstance}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma instância" />
+                </SelectTrigger>
+                <SelectContent>
+                  {evolutionInstances.map((inst: any) => (
+                    <SelectItem key={inst.instanceName} value={inst.instanceName}>
+                      {inst.instanceName} ({inst.connected ? 'Ativa' : 'Offline'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setTestDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleRunTest} disabled={testing || !selectedInstance}>
+              {testing ? "Disparando..." : "Enviar Teste"}
             </Button>
           </div>
         </DialogContent>

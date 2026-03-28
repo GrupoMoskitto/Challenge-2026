@@ -1,7 +1,8 @@
 import { prisma, checkUniqueness } from '@crmed/database';
 import { LeadStatus, AppointmentStatus } from '@prisma/client';
 import { DateTimeScalar, IDScalar } from '../scalars';
-import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyToken, verifyRefreshToken } from '../../auth';
+import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken } from '../../auth';
+import { dispatchLeadWelcome, dispatchLeadFollowup } from '../../services/whatsappQueue';
 
 const encodeBase64 = (id: string): string => {
   return Buffer.from(id).toString('base64url');
@@ -23,12 +24,30 @@ export const resolvers = {
       if (!context.user) return null;
       return prisma.user.findUnique({ where: { id: context.user.userId } });
     },
-    leads: async (_: unknown, { status, first, after }: { status?: LeadStatus; first?: number; after?: string }) => {
+    leads: async (_: unknown, { status, first, after }: { status?: LeadStatus; first?: number; after?: string }, context: Context) => {
       const limit = first || 20;
       const cursor = after ? Buffer.from(after, 'base64url').toString('utf-8') : undefined;
       
+      const whereClause: any = status ? { status } : {};
+      
+      if (context.user?.role === 'SURGEON') {
+        const surgeon = await prisma.surgeon.findFirst({ where: { email: context.user.email } });
+        if (surgeon) {
+          whereClause.preferredDoctor = surgeon.id;
+        } else {
+          // If the user is a surgeon but has no surgeon profile, they see no leads
+          return {
+            edges: [],
+            pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
+            totalCount: 0,
+          };
+        }
+      }
+
+      const where = Object.keys(whereClause).length > 0 ? whereClause : undefined;
+
       const leads = await prisma.lead.findMany({
-        where: status ? { status } : undefined,
+        where,
         take: limit + 1,
         cursor: cursor ? { id: cursor } : undefined,
         skip: cursor ? 1 : 0,
@@ -49,7 +68,7 @@ export const resolvers = {
           startCursor: edges[0]?.cursor || null,
           endCursor: edges[edges.length - 1]?.cursor || null,
         },
-        totalCount: await prisma.lead.count({ where: status ? { status } : undefined }),
+        totalCount: await prisma.lead.count({ where }),
       };
     },
     lead: async (_: unknown, { id }: { id: string }) => {
@@ -72,12 +91,29 @@ export const resolvers = {
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.patient.findUnique({
         where: { id: decodedId },
-        include: { lead: true },
+        include: { 
+          lead: { include: { contacts: true } }, 
+          documents: { orderBy: { date: 'desc' } }, 
+          postOps: { orderBy: { date: 'desc' } } 
+        },
       });
     },
-    appointments: async (_: unknown, { status }: { status?: AppointmentStatus }) => {
+    appointments: async (_: unknown, { status }: { status?: AppointmentStatus }, context: Context) => {
+      const whereClause: any = status ? { status } : {};
+      
+      if (context.user?.role === 'SURGEON') {
+        const surgeon = await prisma.surgeon.findFirst({ where: { email: context.user.email } });
+        if (surgeon) {
+          whereClause.surgeonId = surgeon.id;
+        } else {
+          return [];
+        }
+      }
+
+      const where = Object.keys(whereClause).length > 0 ? whereClause : undefined;
+
       return prisma.appointment.findMany({
-        where: status ? { status } : undefined,
+        where,
         include: { patient: true, surgeon: true },
         orderBy: { scheduledAt: 'asc' },
       });
@@ -89,10 +125,14 @@ export const resolvers = {
         include: { patient: true, surgeon: true },
       });
     },
-    appointmentsByDate: async (_: unknown, { date }: { date: string }) => {
-      const targetDate = new Date(date);
-      const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
+    appointmentsByDate: async (_: unknown, { date }: { date: any }) => {
+      const dateObj = typeof date === 'string' ? new Date(date) : (date as Date);
+      const year = dateObj.getUTCFullYear();
+      const month = dateObj.getUTCMonth();
+      const day = dateObj.getUTCDate();
+      
+      const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
+      const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
       
       return prisma.appointment.findMany({
         where: {
@@ -150,16 +190,19 @@ export const resolvers = {
       
       return surgeonsWithSlots.filter(s => s.availability.length > 0);
     },
-    users: async () => {
+    users: async (_: unknown, __: unknown, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       return prisma.user.findMany({
-        where: { isActive: true },
+        orderBy: { name: 'asc' },
       });
     },
-    user: async (_: unknown, { id }: { id: string }) => {
+    user: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.user.findUnique({ where: { id: decodedId } });
     },
-    auditLogs: async (_: unknown, { entityType, entityId }: { entityType?: string; entityId?: string }) => {
+    auditLogs: async (_: unknown, { entityType, entityId }: { entityType?: string; entityId?: string }, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       return prisma.auditLog.findMany({
         where: {
           entityType: entityType || undefined,
@@ -213,6 +256,35 @@ export const resolvers = {
     messageTemplate: async (_: unknown, { id }: { id: string }) => {
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.messageTemplate.findUnique({ where: { id: decodedId } });
+    },
+    evolutionApiInstances: async (_: unknown, __: unknown, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      
+      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
+      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'crmed_evolution_api_token_123';
+
+      try {
+        const response = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
+          headers: { apikey: EVOLUTION_API_KEY },
+        });
+        
+        if (!response.ok) throw new Error('Failed to fetch from Evolution API');
+        
+        const rawData = await response.json() as any;
+        const data = Array.isArray(rawData) ? rawData : (rawData?.instances || []);
+        
+        return data.map((inst: any) => {
+          const name = inst.instance?.instanceName || inst.name || inst.instanceName || 'Unknown';
+          const state = inst.instance?.state || inst.connectionStatus || inst.status || inst.state || 'disconnected';
+          return {
+            connected: state === 'open' || state === 'CONNECTED',
+            instanceName: name,
+            state: state,
+          };
+        });
+      } catch (_error) {
+        return [];
+      }
     },
   },
   Mutation: {
@@ -302,7 +374,7 @@ export const resolvers = {
     }}) => {
       await checkUniqueness({ cpf: input.cpf, email: input.email, phone: input.phone });
 
-      return prisma.lead.create({
+      const newLead = await prisma.lead.create({
         data: {
           name: input.name,
           email: input.email,
@@ -317,6 +389,11 @@ export const resolvers = {
           status: LeadStatus.NEW,
         },
       });
+
+      // Dispatch welcome message
+      await dispatchLeadWelcome(newLead.id, newLead.name, newLead.phone, newLead.procedure || undefined);
+
+      return newLead;
     },
     updateLeadStatus: async (_: unknown, { input }: { input: {
       id: string;
@@ -363,6 +440,11 @@ export const resolvers = {
               userId: context.user.userId,
             },
           });
+        }
+
+        // Trigger Follow up logic if changed to CONTACTED
+        if (input.status === LeadStatus.CONTACTED && currentLead.status === LeadStatus.NEW) {
+          await dispatchLeadFollowup(updatedLead.id, updatedLead.name, updatedLead.phone, updatedLead.procedure || undefined, 7);
         }
 
         return updatedLead;
@@ -426,9 +508,13 @@ export const resolvers = {
         data: updateData,
       });
 
+      if (input.status === LeadStatus.CONTACTED && currentLead.status === LeadStatus.NEW) {
+        await dispatchLeadFollowup(updatedLead.id, updatedLead.name, updatedLead.phone, updatedLead.procedure || undefined, 7);
+      }
+
       return updatedLead;
     },
-    deleteLead: async (_: unknown, { id }: { id: string }, context: Context) => {
+    deleteUser: async (_: unknown, { id }: { id: string }, _context: Context) => {
       const existingLead = await prisma.lead.findUnique({ where: { id } });
       if (!existingLead) throw new Error('Lead não encontrado');
 
@@ -525,6 +611,65 @@ export const resolvers = {
 
       return updated;
     },
+    updateAppointment: async (_: unknown, { input }: { input: {
+      id: string;
+      patientId?: string;
+      surgeonId?: string;
+      procedure?: string;
+      scheduledAt?: string;
+      notes?: string;
+    }}, context: Context) => {
+      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
+      if (!current) throw new Error('Agendamento não encontrado');
+
+      const data: any = {};
+      if (input.patientId) data.patientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
+      if (input.surgeonId) data.surgeonId = Buffer.from(input.surgeonId, 'base64url').toString('utf-8');
+      if (input.procedure) data.procedure = input.procedure;
+      if (input.scheduledAt) data.scheduledAt = new Date(input.scheduledAt);
+      if (input.notes !== undefined) data.notes = input.notes;
+
+      const updated = await prisma.appointment.update({
+        where: { id: decodedId },
+        data,
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Appointment',
+          entityId: decodedId,
+          action: 'UPDATED',
+          oldValue: JSON.stringify({ procedure: current.procedure, scheduledAt: current.scheduledAt }),
+          newValue: JSON.stringify({ procedure: updated.procedure, scheduledAt: updated.scheduledAt }),
+          reason: 'Agendamento atualizado',
+          userId: context.user?.userId,
+          appointmentId: decodedId,
+        },
+      });
+
+      return updated;
+    },
+    deleteAppointment: async (_: unknown, { id }: { id: string }, context: Context) => {
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
+      if (!current) throw new Error('Agendamento não encontrado');
+
+      await prisma.appointment.delete({ where: { id: decodedId } });
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Appointment',
+          entityId: decodedId,
+          action: 'DELETED',
+          oldValue: JSON.stringify({ procedure: current.procedure, scheduledAt: current.scheduledAt }),
+          reason: 'Agendamento excluído',
+          userId: context.user?.userId,
+        },
+      });
+
+      return { success: true, message: 'Agendamento excluído com sucesso' };
+    },
     createSurgeon: async (_: unknown, { input }: { input: {
       name: string;
       specialty: string;
@@ -546,7 +691,9 @@ export const resolvers = {
       name: string;
       role: string;
       password: string;
-    }}) => {
+    }}, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      
       const existing = await prisma.user.findUnique({
         where: { email: input.email },
       });
@@ -563,6 +710,109 @@ export const resolvers = {
           role: input.role as any,
           password: hashedPassword,
         } 
+      });
+    },
+    toggleUserStatus: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const user = await prisma.user.findUnique({ where: { id: decodedId } });
+      if (!user) throw new Error('Usuário não encontrado');
+      
+      const newStatus = !user.isActive;
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'User',
+          entityId: decodedId,
+          action: 'STATUS_UPDATED',
+          oldValue: JSON.stringify({ isActive: user.isActive }),
+          newValue: JSON.stringify({ isActive: newStatus }),
+          reason: 'Ativação/Desativação de usuário',
+          userId: (context.user as any).userId,
+        },
+      });
+
+      return prisma.user.update({
+        where: { id: decodedId },
+        data: { isActive: newStatus },
+      });
+    },
+    updateProfile: async (_: unknown, { input }: { input: { name?: string; password?: string } }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
+      const updateData: any = {};
+      if (input.name !== undefined) updateData.name = input.name;
+      if (input.password) {
+        updateData.password = await hashPassword(input.password);
+      }
+      
+      return prisma.user.update({
+        where: { id: context.user.userId },
+        data: updateData,
+      });
+    },
+    updatePatient: async (_: unknown, { input }: { input: { id: string; dateOfBirth?: string; medicalRecord?: string; address?: string } }) => {
+      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      
+      if (input.medicalRecord) {
+        const existing = await prisma.patient.findUnique({ where: { medicalRecord: input.medicalRecord } });
+        if (existing && existing.id !== decodedId) {
+          throw new Error('RN01_VIOLATION: Prontuário já cadastrado por outro paciente');
+        }
+      }
+      
+      const updateData: any = {};
+      if (input.dateOfBirth !== undefined) updateData.dateOfBirth = new Date(input.dateOfBirth);
+      if (input.medicalRecord !== undefined) updateData.medicalRecord = input.medicalRecord;
+      if (input.address !== undefined) updateData.address = input.address;
+      
+      return prisma.patient.update({
+        where: { id: decodedId },
+        data: updateData,
+        include: { lead: true },
+      });
+    },
+    updateDocumentStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: Context) => {
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const current = await prisma.document.findUnique({ where: { id: decodedId } });
+      if (!current) throw new Error('Documento não encontrado');
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Document',
+          entityId: decodedId,
+          action: 'STATUS_UPDATED',
+          oldValue: JSON.stringify({ status: current.status }),
+          newValue: JSON.stringify({ status }),
+          reason: 'Atualização do status do documento',
+          userId: context.user?.userId,
+        },
+      });
+      return prisma.document.update({
+        where: { id: decodedId },
+        data: { status: status as any },
+      });
+    },
+    updatePostOpStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: Context) => {
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const current = await prisma.postOp.findUnique({ where: { id: decodedId } });
+      if (!current) throw new Error('Pós-operatório não encontrado');
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'PostOp',
+          entityId: decodedId,
+          action: 'STATUS_UPDATED',
+          oldValue: JSON.stringify({ status: current.status }),
+          newValue: JSON.stringify({ status }),
+          reason: 'Atualização do status do retorno pós-operatório',
+          userId: context.user?.userId,
+        },
+      });
+      return prisma.postOp.update({
+        where: { id: decodedId },
+        data: { status: status as any },
       });
     },
     createContact: async (_: unknown, { input }: { input: {
@@ -629,7 +879,8 @@ export const resolvers = {
       channel: string;
       content: string;
       triggerDays?: number;
-    }}) => {
+    }}, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       return prisma.messageTemplate.create({
         data: {
           name: input.name,
@@ -645,7 +896,8 @@ export const resolvers = {
       channel?: string;
       content?: string;
       triggerDays?: number;
-    }}) => {
+    }}, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       const existing = await prisma.messageTemplate.findUnique({ where: { id: input.id } });
       if (!existing) throw new Error('Template não encontrado');
 
@@ -660,12 +912,20 @@ export const resolvers = {
         data: updateData,
       });
     },
-    deleteMessageTemplate: async (_: unknown, { id }: { id: string }) => {
+    deleteMessageTemplate: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       const existing = await prisma.messageTemplate.findUnique({ where: { id } });
       if (!existing) throw new Error('Template não encontrado');
 
       await prisma.messageTemplate.delete({ where: { id } });
       return { success: true, message: 'Template excluído com sucesso' };
+    },
+    testMessageTemplate: async (_: unknown, { templateId, instanceName }: { templateId: string; instanceName: string }, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      
+      const { dispatchTemplateTest } = await import('../../services/whatsappQueue');
+      await dispatchTemplateTest(templateId, instanceName, context.user.userId);
+      return true;
     },
   },
 };
