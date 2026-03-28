@@ -24,11 +24,20 @@ export const resolvers = {
       if (!context.user) return null;
       return prisma.user.findUnique({ where: { id: context.user.userId } });
     },
-    leads: async (_: unknown, { status, first, after }: { status?: LeadStatus; first?: number; after?: string }, context: Context) => {
+    leads: async (_: unknown, { status, first, after, search }: { status?: LeadStatus; first?: number; after?: string; search?: string }, context: Context) => {
       const limit = first || 20;
       const cursor = after ? Buffer.from(after, 'base64url').toString('utf-8') : undefined;
       
       const whereClause: any = status ? { status } : {};
+
+      if (search) {
+        whereClause.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { cpf: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+        ];
+      }
       
       if (context.user?.role === 'SURGEON') {
         const surgeon = await prisma.surgeon.findFirst({ where: { email: context.user.email } });
@@ -151,7 +160,15 @@ export const resolvers = {
       };
     },
     patient: async (_: unknown, { id }: { id: string }) => {
-      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      let decodedId = id;
+      try {
+        const decoded = Buffer.from(id, 'base64url').toString('utf-8');
+        if (decoded && decoded.match(/^[a-zA-Z0-9_-]+$/)) {
+          decodedId = decoded;
+        }
+      } catch {
+        decodedId = id;
+      }
       return prisma.patient.findUnique({
         where: { id: decodedId },
         include: { 
