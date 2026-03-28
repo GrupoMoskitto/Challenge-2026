@@ -193,7 +193,7 @@ export const resolvers = {
     users: async (_: unknown, __: unknown, context: Context) => {
       if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       return prisma.user.findMany({
-        where: { isActive: true },
+        orderBy: { name: 'asc' },
       });
     },
     user: async (_: unknown, { id }: { id: string }, context: Context) => {
@@ -257,32 +257,33 @@ export const resolvers = {
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.messageTemplate.findUnique({ where: { id: decodedId } });
     },
-    evolutionApiStatus: async (_: unknown, __: unknown, context: Context) => {
+    evolutionApiInstances: async (_: unknown, __: unknown, context: Context) => {
       if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       
       const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
       const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'crmed_evolution_api_token_123';
-      const instanceName = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
 
       try {
-        const response = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instanceName}`, {
+        const response = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
           headers: { apikey: EVOLUTION_API_KEY },
         });
         
         if (!response.ok) throw new Error('Failed to fetch from Evolution API');
         
-        const data = await response.json() as any;
-        return {
-          connected: data?.instance?.state === 'open',
-          instanceName,
-          state: data?.instance?.state || 'disconnected',
-        };
+        const rawData = await response.json() as any;
+        const data = Array.isArray(rawData) ? rawData : (rawData?.instances || []);
+        
+        return data.map((inst: any) => {
+          const name = inst.instance?.instanceName || inst.name || inst.instanceName || 'Unknown';
+          const state = inst.instance?.state || inst.connectionStatus || inst.status || inst.state || 'disconnected';
+          return {
+            connected: state === 'open' || state === 'CONNECTED',
+            instanceName: name,
+            state: state,
+          };
+        });
       } catch (error) {
-        return {
-          connected: false,
-          instanceName,
-          state: 'disconnected',
-        };
+        return [];
       }
     },
   },
@@ -918,6 +919,13 @@ export const resolvers = {
 
       await prisma.messageTemplate.delete({ where: { id } });
       return { success: true, message: 'Template excluído com sucesso' };
+    },
+    testMessageTemplate: async (_: unknown, { templateId, instanceName }: { templateId: string; instanceName: string }, context: Context) => {
+      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      
+      const { dispatchTemplateTest } = await import('../../services/whatsappQueue');
+      await dispatchTemplateTest(templateId, instanceName, context.user.userId);
+      return true;
     },
   },
 };
