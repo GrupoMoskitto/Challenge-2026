@@ -214,7 +214,7 @@ jobs:
   database-changes:
     name: Database Schema Validation
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, 'schema') || contains(github.event.pull_request.title, 'database') || contains(github.event.pull_request.title, 'prisma') || contains(join(files.outputs.modified, ','), 'schema.prisma')
+    if: contains(github.event.pull_request.title, 'schema') || contains(github.event.pull_request.title, 'database') || contains(github.event.pull_request.title, 'prisma')
     needs: lint-and-test
 
     steps:
