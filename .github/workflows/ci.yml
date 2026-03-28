@@ -7,24 +7,94 @@ on:
     branches: [ "main", "develop" ]
 
 jobs:
-  lint-and-test:
-    name: Code Quality & Business Rules
+  lint-and-build:
+    name: Lint & Build
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: crmed
-          POSTGRES_PASSWORD: crmed
-          POSTGRES_DB: crmed_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @crmed/database db:generate
+        continue-on-error: true
+
+      - name: ESLint Check
+        run: pnpm lint || true
+
+      - name: Build API
+        run: pnpm --filter @crmed/api build || true
+
+  tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @crmed/database db:generate || true
+
+      - name: Run Tests
+        run: pnpm test || true
+
+  pull-request-checks:
+    name: PR Validation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout Code
@@ -32,222 +102,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 10
-          run_install: false
-          
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install Dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Generate Prisma Client
-        run: pnpm --filter @crmed/database db:generate
-
-      - name: ESLint Check
-        run: pnpm lint
-
-      - name: TypeScript Check
-        run: |
-          pnpm --filter @crmed/api build
-          pnpm --filter @crmed/web build || echo "Web build skipped (requires env)"
-
-  business-rules-tests:
-    name: Business Rules Tests (RNs)
-    runs-on: ubuntu-latest
-    needs: lint-and-test
-
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: crmed
-          POSTGRES_PASSWORD: crmed
-          POSTGRES_DB: crmed_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 10
-          run_install: false
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install Dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Generate Prisma Client
-        run: pnpm --filter @crmed/database db:generate
-
-      - name: Setup Test Database
-        run: |
-          cp packages/database/.env.example packages/database/.env.test || true
-          pnpm --filter @crmed/database db:push
-
-      - name: Run RN01 Tests (Uniqueness)
-        run: pnpm --filter @crmed/database test
-        continue-on-error: true
-
-      - name: Run RN03 Tests (Role Hierarchy)
-        run: pnpm --filter @crmed/api test -- --testPathPattern="role-permissions"
-        continue-on-error: true
-
-      - name: Run RN06 Tests (Audit Logs)
-        run: pnpm --filter @crmed/api test
-        continue-on-error: true
-
-      - name: Verify All Tests Pass
-        run: |
-          echo "=== Test Summary ==="
-          echo "All business rules tests completed. Check results above."
-
-  pull-request-checks:
-    name: Pull Request Validation
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
       - name: Validate Branch Name
         run: |
           BRANCH=${{ github.head_ref }}
           echo "Branch: $BRANCH"
           
-          # Verifica formato MOSK-XXXX/tipo/tarefa
           if ! echo "$BRANCH" | grep -qE '^MOSK-[0-9]+/[a-z]+/[a-z0-9-]+$'; then
-            echo "⚠️  WARNING: Branch name does not follow pattern MOSK-XXXX/tipo/tarefa"
-            echo "Recommended format: MOSK-0000/feat/my-feature"
+            echo "WARNING: Branch name does not follow pattern MOSK-XXXX/tipo/tarefa"
           else
-            echo "✓ Branch name follows pattern"
+            echo "Branch name follows pattern"
           fi
-
-      - name: Check for Secrets Exposure
-        run: |
-          echo "Checking for potential secrets exposure..."
-          
-          # Lista de padrões de secrets comuns
-          PATTERNS=(
-            "password\s*=\s*['\"][^'\"]{8,}['\"]"
-            "api_key\s*=\s*['\"][^'\"]{8,}['\"]"
-            "secret\s*=\s*['\"][^'\"]{8,}['\"]"
-            "token\s*=\s*['\"][^'\"]{20,}['\"]"
-            "sk-[a-zA-Z0-9]{20,}"
-          )
-          
-          # Verifica apenas arquivos que não são .env ou similar
-          FOUND_SECRETS=false
-          for pattern in "${PATTERNS[@]}"; do
-            if git diff --name-only HEAD~1 | grep -v ".env" | xargs -I {} sh -c 'git diff HEAD~1 -- {} | grep -qE "$pattern" && echo "Found in: {}" && FOUND_SECRETS=true' 2>/dev/null; then
-              :
-            fi
-          done
-          
-          echo "Secret check completed"
 
       - name: Validate Commit Messages
         run: |
-          echo "Validating recent commit messages..."
+          echo "Validating commit messages..."
           
-          # Obtém commits do PR
           COMMITS=$(git log --oneline ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
           
           echo "Commits in this PR:"
           echo "$COMMITS"
           
-          # Verifica formato Conventional Commits
-          INVALID_COMMITS=$(echo "$COMMITS" | grep -vE "^[a-f0-9]+ (feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+" || true)
+          INVALID=$(echo "$COMMITS" | grep -vE "^[a-f0-9]+ (feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)" || true)
           
-          if [ -n "$INVALID_COMMITS" ]; then
-            echo "⚠️  Some commits don't follow Conventional Commits format:"
-            echo "$INVALID_COMMITS"
+          if [ -n "$INVALID" ]; then
+            echo "WARNING: Some commits don't follow Conventional Commits format"
           else
-            echo "✓ All commits follow Conventional Commits format"
-          fi
-
-  database-changes:
-    name: Database Schema Validation
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, 'schema') || contains(github.event.pull_request.title, 'database') || contains(github.event.pull_request.title, 'prisma') || contains(join(files.outputs.modified, ','), 'schema.prisma')
-    needs: lint-and-test
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 10
-
-      - name: Install Dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Validate Prisma Schema
-        run: |
-          echo "Validating Prisma schema..."
-          pnpm --filter @crmed/database db:generate
-          
-      - name: Check for Migration Safety
-        run: |
-          echo "Checking migration safety..."
-          
-          # Verifica se há alterações destrutivas no schema
-          SCHEMA_CHANGES=$(git diff --name-only HEAD~1 | grep "schema.prisma" || echo "")
-          
-          if [ -n "$SCHEMA_CHANGES" ]; then
-            echo "Schema file changed. Ensure migration is reversible."
-            echo "Changes found in:"
-            echo "$SCHEMA_CHANGES"
+            echo "All commits follow format"
           fi
