@@ -17,20 +17,24 @@ interface WhatsAppJobData {
   phone: string;
   message: string;
   triggerDays: number;
+  instanceName?: string; // Optional custom instance
 }
 
 // BullMQ Worker to process the events
 export const whatsappWorker = new Worker<WhatsAppJobData>(
   WHATSAPP_QUEUE_NAME,
   async (job: Job) => {
-    const { appointmentId, leadId, patientName, phone, message, triggerDays } = job.data as any;
+    console.log(`[WhatsApp Worker] Processing job ${job.id} (Name: ${job.name})`);
+    const { appointmentId, leadId, patientName, phone, message, triggerDays, instanceName: jobInstanceName } = job.data as any;
 
     try {
       // 1. Send the WhatsApp message via Evolution API
-      // Use the default instance name from environment variables for automated reminders
-      const instanceName = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
+      // Use the instance name from the job if provided, otherwise fallback to default
+      const defaultInstance = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
+      const instanceName = jobInstanceName || defaultInstance;
+      console.log(`[WhatsApp Worker] Sending message via ${instanceName} to ${phone}...`);
       const result = await WhatsAppService.sendMessage(instanceName, phone, message);
-      console.log(`[WhatsApp Worker] Message sent! Evolution API ID:`, result?.key?.id);
+      console.log(`[WhatsApp Worker] API Response:`, JSON.stringify(result));
 
       // 2. Fulfill RN06: Create an AuditLog representing the successful delivery
       await prisma.auditLog.create({
