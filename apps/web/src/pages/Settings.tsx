@@ -110,6 +110,7 @@ function highlightVariables(content: string) {
 
 const Settings = () => {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
 
   // Template state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -136,14 +137,20 @@ const Settings = () => {
 
   // GraphQL
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
-  const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS);
-  const { data: evoData, loading: evoLoading, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES);
+  const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS, { skip: !isAdmin });
+  const { data: evoData, loading: evoLoading, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
 
   useEffect(() => {
     if (templatesError) toast.error("Erro ao carregar templates: " + templatesError.message);
-    if (usersError) toast.error("Erro ao carregar usuários: " + usersError.message);
-    if (evoError) toast.error("Erro ao carregar integrações: " + evoError.message);
-  }, [templatesError, usersError, evoError]);
+  }, [templatesError]);
+
+  useEffect(() => {
+    if (usersError && isAdmin) toast.error("Erro ao carregar usuários: " + usersError.message);
+  }, [usersError, isAdmin]);
+
+  useEffect(() => {
+    if (evoError && isAdmin) toast.error("Erro ao carregar integrações: " + evoError.message);
+  }, [evoError, isAdmin]);
 
   const [createTemplate, { loading: creating }] = useMutation(CREATE_MESSAGE_TEMPLATE);
   const [updateTemplate, { loading: updating }] = useMutation(UPDATE_MESSAGE_TEMPLATE);
@@ -397,17 +404,19 @@ const Settings = () => {
             <User className="h-4 w-4 mr-2" />
             Perfil
           </TabsTrigger>
-          <TabsTrigger value="integrations" className="flex-1">
-            <Plug className="h-4 w-4 mr-2" />
-            Integrações
-          </TabsTrigger>
-          {user?.role === 'ADMIN' && (
+          {isAdmin && (
+            <TabsTrigger value="integrations" className="flex-1">
+              <Plug className="h-4 w-4 mr-2" />
+              Integrações
+            </TabsTrigger>
+          )}
+          {isAdmin && (
             <TabsTrigger value="users" className="flex-1">
               <Users className="h-4 w-4 mr-2" />
               Usuários
             </TabsTrigger>
           )}
-          {user?.role === 'ADMIN' && (
+          {isAdmin && (
             <TabsTrigger value="templates" className="flex-1">
               <MessageSquare className="h-4 w-4 mr-2" />
               Templates
@@ -466,7 +475,8 @@ const Settings = () => {
           </Card>
         </TabsContent>
 
-        {/* Integrations Tab */}
+        {/* Integrations Tab - Only for admins */}
+        {isAdmin && (
         <TabsContent value="integrations">
           <Card>
             <CardHeader>
@@ -512,10 +522,10 @@ const Settings = () => {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
-        {/* Notifications Tab Removida (Inativa) */}
-
-        {/* Users Tab */}
+        {/* Users Tab - Only for admins */}
+        {isAdmin && (
         <TabsContent value="users">
           <Card>
             <CardHeader>
@@ -579,8 +589,10 @@ const Settings = () => {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
-        {/* Templates Tab */}
+        {/* Templates Tab - Only for admins */}
+        {isAdmin && (
         <TabsContent value="templates">
           <Card>
             <CardHeader>
@@ -695,6 +707,7 @@ const Settings = () => {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
       </Tabs>
 
       {/* Create Template Dialog */}
