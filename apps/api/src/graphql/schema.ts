@@ -114,6 +114,25 @@ export const typeDefs = gql`
     totalCount: Int!
   }
 
+  type PatientEdge {
+    node: Patient!
+    cursor: String!
+  }
+
+  type PatientConnection {
+    edges: [PatientEdge!]!
+    pageInfo: PageInfo!
+    totalCount: Int!
+  }
+
+  input PatientWhereInput {
+    status: LeadStatus
+    search: String
+    surgeonId: ID
+    createdFrom: DateTime
+    createdTo: DateTime
+  }
+
   type Lead {
     id: ID!
     name: String!
@@ -144,6 +163,7 @@ export const typeDefs = gql`
     contacts: [Contact!]!
     documents: [Document!]!
     postOps: [PostOp!]!
+    auditLogs: [AuditLog!]!
     createdAt: DateTime!
     updatedAt: DateTime!
   }
@@ -309,6 +329,7 @@ export const typeDefs = gql`
     dateOfBirth: DateTime
     medicalRecord: String
     address: String
+    reason: String
   }
 
   input CreateAppointmentInput {
@@ -474,7 +495,7 @@ export const typeDefs = gql`
     leadByCpf(cpf: String!): Lead
 
     # Patients
-    patients: [Patient!]!
+    patients(first: Int, after: String, where: PatientWhereInput): PatientConnection!
     patient(id: ID!): Patient
 
     # Appointments
