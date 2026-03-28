@@ -74,6 +74,13 @@ jobs:
           pnpm --filter @crmed/api build
           pnpm --filter @crmed/web build || echo "Web build skipped (requires env)"
 
+      - name: Test Coverage
+        env:
+          DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
+        run: |
+          pnpm --filter @crmed/database test --coverage
+          pnpm --filter @crmed/api test --coverage
+
   business-rules-tests:
     name: Business Rules Tests (RNs)
     runs-on: ubuntu-latest
