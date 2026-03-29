@@ -19,6 +19,7 @@ import {
   TEST_MESSAGE_TEMPLATE,
   GET_USERS,
   GET_EVOLUTION_API_INSTANCES,
+  GET_TEST_PHONE_LAST_DIGITS,
   CREATE_USER,
   TOGGLE_USER_STATUS,
   UPDATE_PROFILE,
@@ -109,7 +110,7 @@ function highlightVariables(content: string) {
 }
 
 const Settings = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
   // Template state
@@ -139,6 +140,7 @@ const Settings = () => {
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
   const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS, { skip: !isAdmin });
   const { data: evoData, loading: evoLoading, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
+  const { data: testPhoneData } = useQuery(GET_TEST_PHONE_LAST_DIGITS, { skip: !isAdmin });
 
   useEffect(() => {
     if (templatesError) toast.error("Erro ao carregar templates: " + templatesError.message);
@@ -395,6 +397,17 @@ const Settings = () => {
       )}
     </div>
   );
+
+  if (authLoading) {
+    return (
+      <AppLayout title="Configurações">
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout title="Configurações">
@@ -853,13 +866,13 @@ const Settings = () => {
           <DialogHeader>
             <DialogTitle>Teste de Disparo</DialogTitle>
             <DialogDescription>
-              Envie uma mensagem de teste do template <strong>{testingTemplate?.name}</strong> para o número pré-aprovado no ambiente.
+              Envie uma mensagem de teste do template <strong>{testingTemplate?.name}</strong> para o número pré-aprovado{testPhoneData?.testPhoneLastDigits ? ` (...${testPhoneData.testPhoneLastDigits})` : ''} no ambiente.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-3 bg-muted rounded-md text-xs border">
               <p className="font-semibold mb-1 uppercase tracking-wider opacity-70">Aviso RN05 Sandbox:</p>
-              A mensagem será enviada apenas para os números definidos em <code>DEV_ALLOWED_PHONE</code> para evitar disparos acidentais para pacientes em ambiente de testes.
+              A mensagem será enviada apenas para o número pré-aprovado{testPhoneData?.testPhoneLastDigits ? ` (...${testPhoneData.testPhoneLastDigits})` : ''} definido em <code>DEV_ALLOWED_PHONE</code> para evitar disparos acidentais.
             </div>
             <div className="space-y-2">
               <Label>Escolha a Instância WhatsApp</Label>

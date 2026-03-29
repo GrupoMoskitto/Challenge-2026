@@ -2,27 +2,28 @@ import 'dotenv/config';
 import { processDailyAppointments } from './jobs/dailyCron';
 import './queues/whatsapp.processor';
 import { CronJob } from 'cron';
+import { logger } from './config/logger';
 
-console.log('CRMed Workers starting...');
+logger.info('System', 'CRMed Workers iniciando...');
 
 import express from 'express';
 import bodyParser from 'body-parser';
 
 const PORT = process.env.PORT || 3002;
 
-console.log('✅ WhatsApp BullMQ Worker Initialized');
+logger.success('System', 'WhatsApp BullMQ Worker iniciado');
 
 const job = new CronJob('0 8 * * *', async () => {
-    console.log('[Cron] Running scheduled Daily Appointments task...');
+    logger.info('Cron', 'Executando tarefa agendada de agendamentos diários...');
     await processDailyAppointments();
 }, null, true, 'America/Sao_Paulo');
 
 job.start();
-console.log('✅ Daily Cronjob Scheduled for 08:00 AM');
+logger.success('System', 'Cronjob diário agendado para 08:00 AM');
 
 if (process.env.NODE_ENV !== 'production') {
     setTimeout(() => {
-        console.log('[Dev] Firing initial run of daily appointments...');
+        logger.info('Dev', 'Executando agendamentos diários iniciais...');
         processDailyAppointments();
     }, 5000);
 }
@@ -52,19 +53,19 @@ app.post('/webhook/evolution', async (req, res) => {
         // Ignore old messages (e.g. older than 10 seconds) to avoid processing backlogs
         const currentTimestamp = Math.floor(Date.now() / 1000);
         const messageTimestamp = messageInfo.messageTimestamp;
+        const pushName = data.pushName || 'Você';
         if (messageTimestamp && (currentTimestamp - messageTimestamp > 10)) {
-            console.log(`[Webhook] Ignorando mensagem antiga de ${data.key?.remoteJid} (${currentTimestamp - messageTimestamp}s atrás)`);
+            logger.info('Webhook', `Ignorando mensagem antiga de ${pushName} (${currentTimestamp - messageTimestamp}s atrás)`);
             return res.status(200).send('Ignored old message');
         }
 
         const remoteJid = data.key?.remoteJid;
-        const pushName = data.pushName || 'Você';
         const instanceName = body.instance;
         
         const textMessage = messageInfo.conversation || messageInfo.extendedTextMessage?.text;
 
         if (textMessage) {
-            console.log(`[Webhook] Nova mensagem de ${pushName} (${remoteJid}) na instância ${instanceName}: ${textMessage}`);
+            logger.info('Webhook', `Mensagem de ${pushName}: ${textMessage.substring(0, 50)}${textMessage.length > 50 ? '...' : ''}`);
             
             const { ChatbotService } = await import('./services/chatbot.service');
             await ChatbotService.handleMessage(instanceName, remoteJid, pushName, textMessage);
@@ -72,11 +73,11 @@ app.post('/webhook/evolution', async (req, res) => {
 
         res.status(200).send('OK');
     } catch (error) {
-        console.error('[Webhook] Erro processando hook da Evolution API:', error);
+        logger.error('Webhook', 'Erro processando hook da Evolution API', error);
         res.status(500).send('Error');
     }
 });
 
 app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`✅ Workers HTTP Webhook Server listening on port ${PORT}`);
+    logger.success('System', `Servidor HTTP rodando na porta ${PORT}`);
 });
