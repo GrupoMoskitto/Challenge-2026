@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { gql, useQuery, useMutation } from '@apollo/client';
+import { gql, useQuery } from '@apollo/client';
 
 export interface User {
   id: string;
@@ -40,47 +40,26 @@ const hasAuthToken = (): boolean => {
   return localStorage.getItem('auth_token') !== null;
 };
 
+const getStoredUser = (): User | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [user, setUser] = useState<User | null>(getStoredUser);
+  const hasToken = hasAuthToken();
   
   const { data, loading, refetch } = useQuery<{ me: User }>(GET_ME, {
-    skip: !hasAuthToken(),
+    skip: !hasToken,
     fetchPolicy: 'network-only',
-    onCompleted: (data) => {
-      if (data?.me) {
-        setUser(data.me);
-        localStorage.setItem('user', JSON.stringify(data.me));
-      }
-      setIsInitialized(true);
-    },
-    onError: () => {
-      setUser(null);
-      localStorage.removeItem('user');
-      setIsInitialized(true);
-    }
   });
 
-  // Initialize user from localStorage on mount
-  useEffect(() => {
-    if (!hasAuthToken()) {
-      setIsInitialized(true);
-      setUser(null);
-      return;
-    }
-
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch {
-        localStorage.removeItem('user');
-      }
-    }
-  }, []);
-
-  // Update user when data changes
+  // Sync user from query result
   useEffect(() => {
     if (data?.me) {
       setUser(data.me);
@@ -88,14 +67,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [data]);
 
+  // Clear user if no token
+  useEffect(() => {
+    if (!hasToken) {
+      setUser(null);
+      localStorage.removeItem('user');
+    }
+  }, [hasToken]);
+
   // Listen for token changes (login/logout)
   useEffect(() => {
-    const handleStorageChange = () => {
-      if (!hasAuthToken()) {
-        setUser(null);
-        localStorage.removeItem('user');
-      } else {
-        refetch();
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'auth_token' || e.key === 'user') {
+        if (!hasAuthToken()) {
+          setUser(null);
+          localStorage.removeItem('user');
+        } else {
+          const storedUser = getStoredUser();
+          if (storedUser) {
+            setUser(storedUser);
+          }
+          refetch();
+        }
       }
     };
 
@@ -103,9 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [refetch]);
 
+  // Determine loading state
+  // If we have a stored user, show it immediately (optimistic)
+  // Only show loading if we have token but no stored user yet
+  const isLoading = hasToken && !user && loading;
+
   const value: AuthContextType = {
     user,
-    loading: !isInitialized || (hasAuthToken() && loading),
+    loading: isLoading,
     refetch
   };
 
