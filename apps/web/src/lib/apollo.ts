@@ -99,8 +99,9 @@ const authLink = setContext(async (_, { headers }) => {
 const securityLink = new ApolloLink((operation, forward) => {
   const token = getAccessToken();
   const refreshToken = localStorage.getItem('refresh_token');
+  const isOnLoginPage = window.location.pathname === '/login';
   
-  if (!token && !refreshToken && operation.operationName !== 'Login' && operation.operationName !== 'Register' && operation.operationName !== 'RefreshToken') {
+  if (!token && !refreshToken && operation.operationName !== 'Login' && operation.operationName !== 'Register' && operation.operationName !== 'RefreshToken' && !isOnLoginPage) {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');

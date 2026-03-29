@@ -533,5 +533,8 @@ export const typeDefs = gql`
 
     # Integration Status
     evolutionApiInstances: [EvolutionApiInstance!]!
+    
+    # Test Configuration
+    testPhoneLastDigits: String
   }
 `;

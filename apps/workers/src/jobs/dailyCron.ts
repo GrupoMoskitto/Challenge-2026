@@ -1,6 +1,7 @@
 import { format, differenceInDays, startOfDay, addDays } from 'date-fns';
 import { prisma } from '@crmed/database';
 import { whatsappQueue } from '../queues/whatsapp.processor';
+import { logger } from '../config/logger';
 
 /**
  * RN05:
@@ -11,7 +12,7 @@ import { whatsappQueue } from '../queues/whatsapp.processor';
  * • Dia da consulta (Última tentativa)
  */
 export async function processDailyAppointments() {
-  console.log(`[Cron] Executando varredura diária de consultas: ${new Date().toISOString()}`);
+  logger.info('Cron', 'Iniciando varredura diária de consultas...');
 
   try {
     // Buscar todos os templates do banco para fazer cache em memória local
@@ -39,7 +40,7 @@ export async function processDailyAppointments() {
       }
     });
 
-    console.log(`[Cron] Found ${appointments.length} upcoming appointments in the 4-day window`);
+    logger.info('Cron', `${appointments.length} consultas encontradas nos próximos 4 dias`);
 
     for (const appointment of appointments) {
       // TypeScript safety checks for included relation fields
@@ -74,7 +75,7 @@ export async function processDailyAppointments() {
       });
 
       if (alreadySent) {
-        console.log(`[Cron] Skipping... message for ${daysUntilApt} days already sent to Appointment ${appointment.id}`);
+        logger.debug('Cron', `Mensagem de ${daysUntilApt} dias já enviada para consulta ${appointment.id}`);
         continue;
       }
 
@@ -100,10 +101,10 @@ export async function processDailyAppointments() {
         jobId: `apt-${appointment.id}-t-${daysUntilApt}`, // unique job ID to prevent duplicates
       });
       
-      console.log(`[Cron] Added job to queue: ${leadData.name} -> trigger ${daysUntilApt}`);
+      logger.success('Cron', `Job adicionado: ${leadData.name} (${daysUntilApt} dias)`);
     }
 
   } catch (error) {
-    console.error(`[Cron] Fatal script error:`, error);
+    logger.error('Cron', 'Erro fatal na varredura diária', error);
   }
 }

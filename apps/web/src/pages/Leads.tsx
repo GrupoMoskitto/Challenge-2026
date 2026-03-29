@@ -810,6 +810,15 @@ const Leads = () => {
               <p className="text-sm text-red-500">{formErrors.submit}</p>
             )}
             
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleUpdateLead} disabled={updating}>
+                {updating ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </div>
+            
             </TabsContent>
 
             <TabsContent value="timeline" className="p-0 m-0">
@@ -831,6 +840,9 @@ const Leads = () => {
             </DialogDescription>
           </DialogHeader>
           
+          {formErrors.submit && (
+            <p className="text-sm text-red-500 mt-2">{formErrors.submit}</p>
+          )}
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancelar
