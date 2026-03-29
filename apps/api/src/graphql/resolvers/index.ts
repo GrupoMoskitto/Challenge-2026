@@ -496,7 +496,11 @@ export const resolvers = {
       status: LeadStatus;
       reason?: string;
     }}, context: Context) => {
-      if (!context.user) throw new Error('Usuário não autenticado');
+      // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
+      const criticalStatuses: LeadStatus[] = [LeadStatus.CONVERTED, LeadStatus.LOST];
+      if (criticalStatuses.includes(input.status) && !context.user) {
+        throw new Error('RN03_VIOLATION: Usuário não autenticado não pode converter ou perder leads');
+      }
       
       // ID já vem como texto puro do frontend
       const leadId = input.id;
@@ -512,11 +516,9 @@ export const resolvers = {
         }
 
         // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
-        const criticalStatuses: LeadStatus[] = [LeadStatus.CONVERTED, LeadStatus.LOST];
         if (
           criticalStatuses.includes(input.status) &&
-          context.user &&
-          context.user.role === 'RECEPTION'
+          context.user?.role === 'RECEPTION'
         ) {
           throw new Error('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
         }
