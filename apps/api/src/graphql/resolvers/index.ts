@@ -1063,6 +1063,10 @@ export const resolvers = {
     testMessageTemplate: async (_: unknown, { templateId, instanceName }: { templateId: string; instanceName: string }, context: Context) => {
       if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       
+      if (!instanceName || instanceName.trim() === '') {
+        throw new Error('Selecione uma instância WhatsApp válida');
+      }
+      
       const { dispatchTemplateTest } = await import('../../services/whatsappQueue');
       await dispatchTemplateTest(templateId, instanceName, context.user.userId);
       return true;
