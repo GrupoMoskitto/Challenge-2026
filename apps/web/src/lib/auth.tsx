@@ -31,32 +31,56 @@ const GET_ME = gql`
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  loading: false,
+  loading: true,
   refetch: () => {},
 });
 
 const hasAuthToken = (): boolean => {
+  if (typeof window === 'undefined') return false;
   return localStorage.getItem('auth_token') !== null;
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const storedUser = localStorage.getItem('user');
-  const initialUser = storedUser ? JSON.parse(storedUser) : null;
-  
-  const [user, setUser] = useState<User | null>(initialUser);
-  const [shouldQuery, setShouldQuery] = useState(hasAuthToken());
+  const [user, setUser] = useState<User | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const { data, loading, refetch } = useQuery<{ me: User }>(GET_ME, {
-    skip: !shouldQuery,
+    skip: !hasAuthToken(),
     fetchPolicy: 'network-only',
+    onCompleted: (data) => {
+      if (data?.me) {
+        setUser(data.me);
+        localStorage.setItem('user', JSON.stringify(data.me));
+      }
+      setIsInitialized(true);
+    },
     onError: () => {
-      // If query fails, don't retry
-      setShouldQuery(false);
       setUser(null);
       localStorage.removeItem('user');
+      setIsInitialized(true);
     }
   });
 
+  // Initialize user from localStorage on mount
+  useEffect(() => {
+    if (!hasAuthToken()) {
+      setIsInitialized(true);
+      setUser(null);
+      return;
+    }
+
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+      } catch {
+        localStorage.removeItem('user');
+      }
+    }
+  }, []);
+
+  // Update user when data changes
   useEffect(() => {
     if (data?.me) {
       setUser(data.me);
@@ -67,27 +91,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Listen for token changes (login/logout)
   useEffect(() => {
     const handleStorageChange = () => {
-      const hasToken = hasAuthToken();
-      setShouldQuery(hasToken);
-      if (!hasToken) {
+      if (!hasAuthToken()) {
         setUser(null);
         localStorage.removeItem('user');
+      } else {
+        refetch();
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [refetch]);
 
   const value: AuthContextType = {
     user,
-    loading: shouldQuery && loading,
-    refetch: () => {
-      if (hasAuthToken()) {
-        setShouldQuery(true);
-        refetch();
-      }
-    }
+    loading: !isInitialized || (hasAuthToken() && loading),
+    refetch
   };
 
   return (
