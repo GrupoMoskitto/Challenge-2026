@@ -342,7 +342,8 @@ export const resolvers = {
       if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       
       const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || 'crmed_evolution_api_token_123';
+      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
 
       try {
         const response = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
