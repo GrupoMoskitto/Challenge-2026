@@ -25,6 +25,8 @@ export const resolvers = {
       return prisma.user.findUnique({ where: { id: context.user.userId } });
     },
     leads: async (_: unknown, { status, first, after, search }: { status?: LeadStatus; first?: number; after?: string; search?: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const limit = first || 20;
       const cursor = after ? Buffer.from(after, 'base64url').toString('utf-8') : undefined;
       
@@ -101,6 +103,8 @@ export const resolvers = {
         createdTo?: string;
       } 
     }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const limit = first || 20;
       const cursor = after ? Buffer.from(after, 'base64url').toString('utf-8') : undefined;
 
@@ -180,6 +184,8 @@ export const resolvers = {
       });
     },
     appointments: async (_: unknown, { status }: { status?: AppointmentStatus }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const whereClause: any = status ? { status } : {};
       
       if (context.user?.role === 'SURGEON') {
@@ -292,28 +298,36 @@ export const resolvers = {
         orderBy: { createdAt: 'desc' },
       });
     },
-    contactsByLead: async (_: unknown, { leadId }: { leadId: string }) => {
+    contactsByLead: async (_: unknown, { leadId }: { leadId: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedId = Buffer.from(leadId, 'base64url').toString('utf-8');
       return prisma.contact.findMany({
         where: { leadId: decodedId },
         orderBy: { date: 'desc' },
       });
     },
-    documentsByPatient: async (_: unknown, { patientId }: { patientId: string }) => {
+    documentsByPatient: async (_: unknown, { patientId }: { patientId: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedId = Buffer.from(patientId, 'base64url').toString('utf-8');
       return prisma.document.findMany({
         where: { patientId: decodedId },
         orderBy: { date: 'desc' },
       });
     },
-    postOpsByPatient: async (_: unknown, { patientId }: { patientId: string }) => {
+    postOpsByPatient: async (_: unknown, { patientId }: { patientId: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedId = Buffer.from(patientId, 'base64url').toString('utf-8');
       return prisma.postOp.findMany({
         where: { patientId: decodedId },
         orderBy: { date: 'asc' },
       });
     },
-    upcomingPostOps: async (_: unknown, { days }: { days?: number }) => {
+    upcomingPostOps: async (_: unknown, { days }: { days?: number }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const targetDate = new Date();
       targetDate.setDate(targetDate.getDate() + (days || 7));
       
@@ -482,6 +496,8 @@ export const resolvers = {
       status: LeadStatus;
       reason?: string;
     }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       // ID já vem como texto puro do frontend
       const leadId = input.id;
       console.log('=== updateLeadStatus called ===');
@@ -549,6 +565,8 @@ export const resolvers = {
       notes?: string;
       status?: LeadStatus;
     }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const leadId = input.id;
       const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
       if (!currentLead) throw new Error('Lead não encontrado');
@@ -599,6 +617,11 @@ export const resolvers = {
     deleteLead: async (_: unknown, { id }: { id: string }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       
+      // RN03: Apenas ADMIN ou SALES podem deletar leads
+      if (context.user.role !== 'ADMIN' && context.user.role !== 'SALES') {
+        throw new Error('RN03_VIOLATION: Apenas administradores e vendedores podem excluir leads');
+      }
+      
       const existingLead = await prisma.lead.findUnique({ where: { id } });
       if (!existingLead) throw new Error('Lead não encontrado');
 
@@ -612,6 +635,8 @@ export const resolvers = {
       medicalRecord?: string;
       address?: string;
     }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedLeadId = Buffer.from(input.leadId, 'base64url').toString('utf-8');
       
       const lead = await prisma.lead.findUnique({ where: { id: decodedLeadId } });
@@ -665,6 +690,8 @@ export const resolvers = {
       scheduledAt: string;
       notes?: string;
     }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedPatientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
       const decodedSurgeonId = Buffer.from(input.surgeonId, 'base64url').toString('utf-8');
       
@@ -698,6 +725,8 @@ export const resolvers = {
       status: AppointmentStatus;
       reason?: string;
     }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
       const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
       if (!current) throw new Error('Agendamento não encontrado');
@@ -730,6 +759,8 @@ export const resolvers = {
       scheduledAt?: string;
       notes?: string;
     }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
       const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
       if (!current) throw new Error('Agendamento não encontrado');
@@ -762,6 +793,8 @@ export const resolvers = {
       return updated;
     },
     deleteAppointment: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
       if (!current) throw new Error('Agendamento não encontrado');
@@ -864,6 +897,8 @@ export const resolvers = {
       });
     },
     updatePatient: async (_: unknown, { input }: { input: { id: string; dateOfBirth?: string; medicalRecord?: string; address?: string; reason?: string } }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
       
       const current = await prisma.patient.findUnique({ where: { id: decodedId } });
@@ -916,6 +951,8 @@ export const resolvers = {
       return updated;
     },
     updateDocumentStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       const current = await prisma.document.findUnique({ where: { id: decodedId } });
       if (!current) throw new Error('Documento não encontrado');
@@ -937,6 +974,8 @@ export const resolvers = {
       });
     },
     updatePostOpStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       const current = await prisma.postOp.findUnique({ where: { id: decodedId } });
       if (!current) throw new Error('Pós-operatório não encontrado');
@@ -964,7 +1003,9 @@ export const resolvers = {
       direction: string;
       status: string;
       message: string;
-    }}) => {
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedLeadId = Buffer.from(input.leadId, 'base64url').toString('utf-8');
       
       return prisma.contact.create({
@@ -984,7 +1025,9 @@ export const resolvers = {
       type: string;
       date: string;
       status?: string;
-    }}) => {
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedPatientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
       
       return prisma.document.create({
@@ -1003,7 +1046,9 @@ export const resolvers = {
       type: string;
       description: string;
       status?: string;
-    }}) => {
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const decodedPatientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
       
       return prisma.postOp.create({
