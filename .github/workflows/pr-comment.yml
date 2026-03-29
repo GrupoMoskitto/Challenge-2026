@@ -6,6 +6,7 @@ on:
 
 permissions:
   pull-requests: write
+  contents: read
 
 jobs:
   comment:
@@ -16,18 +17,51 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Adicionar comentário no PR
+      - name: Adicionar comentário com template
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          TEMPLATE=$(cat .github/PULL_REQUEST_TEMPLATE/pull_request_template.md)
+          # Criar arquivo temporário com a mensagem
+          cat > /tmp/pr_comment.md << 'EOF'
+          ## 📋 Template de Descrição
           
-          MENSAGEM="Por favor, preencha a descrição do PR usando o template abaixo:
+          Por favor, preencha a descrição do PR usando o template abaixo. Copie, preencha e substitua este comentário:
           
-          \`\`\`
-          $TEMPLATE
-          \`\`\`"
+          ---
           
-          gh pr comment $PR_URL --body "$MENSAGEM"
+          ## Descrição
+          
+          <!-- Descreva brevemente o que este PR faz e por que. -->
+          
+          ## Tipo de Mudança
+          
+          - [ ] Bug fix
+          - [ ] Nova feature
+          - [ ] UI/UX
+          - [ ] Performance
+          - [ ] Refactor
+          - [ ] Security
+          - [ ] Docs
+          - [ ] Tests
+          - [ ] DevOps
+          
+          ## Task
+          
+          MOSK-XXXX
+          
+          ## Checklist
+          
+          - [ ] Testes passando (`pnpm test`)
+          - [ ] Build sem erros (`pnpm build`)
+          - [ ] Lint passando (`pnpm lint`)
+          - [ ] Sem credenciais expostas
+          - [ ] README atualizado (se necessário)
+          
+          ---
+          
+          *CRMed - Hospital São Rafael*
+          EOF
+          
+          # Enviar comentário
+          gh pr comment "$PR_URL" --body-file /tmp/pr_comment.md
