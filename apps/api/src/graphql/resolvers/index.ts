@@ -382,6 +382,16 @@ export const resolvers = {
         return [];
       }
     },
+    testPhoneLastDigits: async (_: unknown, __: unknown, context: Context) => {
+      if (context.user?.role !== 'ADMIN') return null;
+      
+      const testPhone = process.env.DEV_ALLOWED_PHONE;
+      if (!testPhone) return null;
+      
+      // Return only last 4 digits for security
+      const cleanedPhone = testPhone.replace(/[^0-9]/g, '');
+      return cleanedPhone.slice(-4);
+    },
   },
   Mutation: {
     login: async (_: unknown, { input }: { input: { email: string; password: string } }) => {

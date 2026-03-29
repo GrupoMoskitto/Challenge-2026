@@ -275,6 +275,12 @@ export const GET_EVOLUTION_API_INSTANCES = gql`
   }
 `;
 
+export const GET_TEST_PHONE_LAST_DIGITS = gql`
+  query GetTestPhoneLastDigits {
+    testPhoneLastDigits
+  }
+`;
+
 // Mutations
 export const UPDATE_LEAD_STATUS = gql`
   mutation UpdateLeadStatus($input: UpdateLeadStatusInput!) {
