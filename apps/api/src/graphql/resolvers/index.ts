@@ -596,7 +596,7 @@ export const resolvers = {
 
       return updatedLead;
     },
-    deleteUser: async (_: unknown, { id }: { id: string }, _context: Context) => {
+    deleteLead: async (_: unknown, { id }: { id: string }, _context: Context) => {
       const existingLead = await prisma.lead.findUnique({ where: { id } });
       if (!existingLead) throw new Error('Lead não encontrado');
 
