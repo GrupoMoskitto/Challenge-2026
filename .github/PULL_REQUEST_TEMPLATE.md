@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/GrupoMoskitto/Challenge-2026/MOSK-0000/fix/graphql-api-issues/assets/logo.png" alt="Hospital São Rafael" width="100">
+<img src="https://www.faviconextractor.com/favicon/hsaorafael.com.br?larger=true" alt="Hospital São Rafael" width="100">
 
 # CRMed - Pull Request
 
@@ -15,7 +15,6 @@
 
 <!-- Descreva brevemente o que este PR faz e por que. Inclua o número da tarefa se aplicável. -->
 
-<br/>
 
 ## Tipo de Mudança
 
@@ -74,8 +73,6 @@ MOSK-XXXX
 ## Notas Adicionais
 
 <!-- Informações extras para o revisor: decisões de design, trade-offs, etc. -->
-
----
 
 <div align="center">
   <sub><strong>Hospital São Rafael</strong> • CRM de Performance Clínica</sub>
