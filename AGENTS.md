@@ -82,6 +82,10 @@ infra/            → Docker, Evolution API
 - Ícones: Lucide React
 - Toast/notificações: Sonner
 - Tema dark/light via `next-themes`
+- **Autenticação** — `AuthProvider` em `src/lib/auth.tsx` gerencia estado global do usuário
+  - Use `useAuth()` hook para acessar `user`, `loading`, `refetch`
+  - Loading state é otimista: mostra usuário do localStorage imediatamente
+  - Query `GET_ME` executa em background para validar token
 
 ### Workers (apps/workers)
 
@@ -89,6 +93,11 @@ infra/            → Docker, Evolution API
 - Cada job deve respeitar `DEV_ALLOWED_PHONE` (sandbox mode)
 - Filtro de backlog: ignorar mensagens com timestamp > 10s de atraso
 - Roteamento dinâmico: responder pela mesma instância que recebeu a mensagem
+- **Logger estruturado** — Use `logger` de `src/config/logger.ts` para logs padronizados
+  - `logger.info(context, message)` — Informações gerais
+  - `logger.success(context, message)` — Operações concluídas
+  - `logger.error(context, message, error)` — Erros
+  - `logger.debug(context, message)` — Debug (apenas development)
 
 ### Database (packages/database)
 
@@ -96,6 +105,12 @@ infra/            → Docker, Evolution API
 - Após alterar schema: `pnpm --filter @crmed/database db:setup`
 - Exporte helpers de validação (como `checkUniqueness`) do pacote
 - Migrations devem ser reversíveis quando possível
+
+### Variáveis de Ambiente
+
+- **Arquivo central** — Use `.env.example` na raiz como referência
+- **Sincronização** — `DEV_ALLOWED_PHONE` deve ser o mesmo em API e Workers
+- **Segurança** — Nunca commite arquivos `.env` (apenas `.env.example`)
 
 ### Nomenclatura
 
