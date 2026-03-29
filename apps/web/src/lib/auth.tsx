@@ -41,7 +41,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
   const [user, setUser] = useState<User | null>(initialUser);
   const { data, loading, refetch } = useQuery<{ me: User }>(GET_ME, {
-    skip: !initialUser,
     fetchPolicy: 'network-only',
   });
 
@@ -49,8 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data?.me) {
       setUser(data.me);
       localStorage.setItem('user', JSON.stringify(data.me));
+    } else if (!loading && !data?.me) {
+      // User not authenticated, clear localStorage
+      localStorage.removeItem('user');
+      setUser(null);
     }
-  }, [data]);
+  }, [data, loading]);
 
   return (
     <AuthContext.Provider value={{ user, loading, refetch }}>

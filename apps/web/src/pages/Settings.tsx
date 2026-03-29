@@ -109,7 +109,7 @@ function highlightVariables(content: string) {
 }
 
 const Settings = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
   // Template state
@@ -395,6 +395,17 @@ const Settings = () => {
       )}
     </div>
   );
+
+  if (authLoading) {
+    return (
+      <AppLayout title="Configurações">
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout title="Configurações">
