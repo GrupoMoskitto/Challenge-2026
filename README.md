@@ -71,10 +71,8 @@ infra/
 git clone https://github.com/GrupoMoskitto/Challenge-2026.git
 cd Challenge-2026
 
-# Configure
-cp packages/database/.env.example packages/database/.env
-cp apps/api/.env.example apps/api/.env
-cp apps/workers/.env.example apps/workers/.env
+# Configure (arquivo central na raiz)
+cp .env.example .env
 
 # Instale e inicie tudo
 npm install --global pnpm
@@ -83,7 +81,7 @@ pnpm infra:dev
 ```
 
 > [!TIP]
-> O comando `pnpm infra:dev` automatiza **todo** o setup: Docker, banco de dados com seed, Evolution API (WhatsApp) e todos os apps em paralelo. Certifique-se de configurar a variável `DEV_ALLOWED_PHONE` nos arquivos `.env` para habilitar o envio de mensagens em desenvolvimento.
+> O comando `pnpm infra:dev` automatiza **todo** o setup: Docker, banco de dados com seed, Evolution API (WhatsApp) e todos os apps em paralelo. A variável `DEV_ALLOWED_PHONE` no arquivo `.env` da raiz restringe **todas** as mensagens apenas ao número definido em dev (sandbox mode).
 
 ### Instalação Manual
 
@@ -132,6 +130,8 @@ pnpm infra:dev
 
 ### Variáveis de Ambiente
 
+O projeto utiliza um arquivo central `.env.example` na raiz do repositório. Copie-o para `.env` e preencha os valores:
+
 | Variável | Descrição |
 | --- | --- |
 | `DATABASE_URL` | Conexão PostgreSQL |
@@ -140,6 +140,9 @@ pnpm infra:dev
 | `EVOLUTION_API_URL` | URL da Evolution API (padrão: `http://localhost:8080`) |
 | `EVOLUTION_INSTANCE_NAME` | Instância para lembretes automáticos |
 | `DEV_ALLOWED_PHONE` | **Sandbox** — Restringe mensagens a este nº em dev |
+
+> [!IMPORTANT]
+> **Sandbox Mode:** O número configurado em `DEV_ALLOWED_PHONE` é usado para **todos** os testes de envio. O diálogo de "Teste de Disparo" mostra os últimos 4 dígitos do número configurado.
 
 ---
 
@@ -267,7 +270,19 @@ curl http://localhost:8080/instance/connectionState/crmed-whatsapp \
 </details>
 
 > [!IMPORTANT]
-> **Sandbox Mode:** A variável `DEV_ALLOWED_PHONE` restringe **todas** as mensagens apenas ao número definido em dev. Mensagens bloqueadas são logadas como `[DEV MODE] 🛡️ Mensagem bloqueada`.
+> **Sandbox Mode:** A variável `DEV_ALLOWED_PHONE` restringe **todas** as mensagens apenas ao número definido em dev. Mensagens bloqueadas são logadas como `[INFO] [WhatsApp] Mensagem bloqueada para ...XXXX (sandbox ativo)`.
+
+### Workers e Logger
+
+Os workers utilizam um **logger estruturado** (`apps/workers/src/config/logger.ts`) que exibe logs limpos e coloridos:
+
+```
+[12:30:00] [OK] [WhatsApp] Mensagem enviada para 551196325xxxx
+[12:30:01] [INFO] [Worker] Processando job abc123: send-reminder
+[12:30:02] [ERR] [Chatbot] Erro processando mensagem de João
+```
+
+A Evolution API está configurada para exibir apenas logs de erro e aviso (`LOG_LEVEL: ERROR,WARN`), reduzindo a poluição do terminal.
 
 ---
 
