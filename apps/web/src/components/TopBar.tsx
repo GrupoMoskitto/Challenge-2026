@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, Settings, ChevronDown, Check } from "lucide-react";
+import { Search, Bell, User, LogOut, Settings, ChevronDown, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +70,73 @@ export function TopBar({ title }: TopBarProps) {
 
   const appointments = appointmentsData?.appointments || [];
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const { data: searchData, loading: searchLoading } = useQuery(gql`
+    query GlobalSearch($search: String!) {
+      leads(search: $search, first: 5) {
+        edges {
+          node {
+            id
+            name
+            phone
+            cpf
+            status
+          }
+        }
+      }
+      patients(first: 5, where: { search: $search }) {
+        edges {
+          node {
+            id
+            lead {
+              name
+              phone
+              cpf
+            }
+          }
+        }
+      }
+    }
+  `, {
+    skip: debouncedSearch.length < 2,
+    fetchPolicy: 'network-only',
+    variables: { search: debouncedSearch },
+  });
+
+  const searchResults = {
+    leads: searchData?.leads?.edges?.map((e: any) => e.node) || [],
+    patients: searchData?.patients?.edges?.map((e: any) => e.node) || [],
+  };
+
+  const handleSearch = useCallback((value: string) => {
+    setSearchQuery(value);
+    setShowSearchResults(value.length >= 2);
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setShowSearchResults(false);
+  }, []);
+
+  const handleResultClick = (type: 'lead' | 'patient', id: string) => {
+    clearSearch();
+    if (type === 'lead') {
+      navigate(`/leads?search=${encodeURIComponent(searchQuery)}`);
+    } else {
+      navigate(`/patients?search=${encodeURIComponent(searchQuery)}`);
+    }
+  };
+
   const markAsRead = (id: string) => {
     setNotifications(prev => 
       prev.map(n => n.id === id ? { ...n, read: true } : n)
@@ -100,8 +167,62 @@ export function TopBar({ title }: TopBarProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar paciente, CPF, telefone..."
-            className="pl-9 w-72 h-9 bg-background"
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => debouncedSearch.length >= 2 && setShowSearchResults(true)}
+            onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
+            className="pl-9 pr-8 w-72 h-9 bg-background"
           />
+          {searchQuery && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+          {showSearchResults && (
+            <div className="absolute top-full mt-1 w-80 bg-background border rounded-md shadow-lg z-50 max-h-80 overflow-auto">
+              {searchLoading ? (
+                <div className="p-3 text-sm text-muted-foreground">Buscando...</div>
+              ) : searchResults.leads.length === 0 && searchResults.patients.length === 0 ? (
+                <div className="p-3 text-sm text-muted-foreground">Nenhum resultado encontrado</div>
+              ) : (
+                <>
+                  {searchResults.leads.length > 0 && (
+                    <div className="p-2">
+                      <div className="text-xs font-medium text-muted-foreground px-2 py-1">Leads</div>
+                      {searchResults.leads.map((lead: any) => (
+                        <div
+                          key={lead.id}
+                          className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
+                          onClick={() => handleResultClick('lead', lead.id)}
+                        >
+                          <div className="text-sm font-medium">{lead.name}</div>
+                          <div className="text-xs text-muted-foreground">{lead.phone} • {lead.cpf}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.patients.length > 0 && (
+                    <div className="p-2 border-t">
+                      <div className="text-xs font-medium text-muted-foreground px-2 py-1">Pacientes</div>
+                      {searchResults.patients.map((patient: any) => (
+                        <div
+                          key={patient.id}
+                          className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
+                          onClick={() => handleResultClick('patient', patient.id)}
+                        >
+                          <div className="text-sm font-medium">{patient.lead?.name}</div>
+                          <div className="text-xs text-muted-foreground">{patient.lead?.phone} • {patient.lead?.cpf}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Notifications */}

@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'crmed-secret-key-change-in-production';
-const REFRESH_SECRET = process.env.REFRESH_SECRET || 'crmed-refresh-secret-key-change-in-production';
+const isProduction = process.env.NODE_ENV === 'production';
+
+const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? (() => { throw new Error('JWT_SECRET environment variable is required in production'); })() : 'dev-secret-do-not-use-in-prod');
+const REFRESH_SECRET = process.env.REFRESH_SECRET || (isProduction ? (() => { throw new Error('REFRESH_SECRET environment variable is required in production'); })() : 'dev-refresh-secret-do-not-use-in-prod');
 
 export interface JwtPayload {
   userId: string;

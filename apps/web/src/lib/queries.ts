@@ -33,8 +33,8 @@ export const GET_DASHBOARD_STATS = gql`
 `;
 
 export const GET_LEADS = gql`
-  query GetLeads($status: LeadStatus, $first: Int, $after: String) {
-    leads(status: $status, first: $first, after: $after) {
+  query GetLeads($status: LeadStatus, $first: Int, $after: String, $search: String) {
+    leads(status: $status, first: $first, after: $after, search: $search) {
       edges {
         node {
           id

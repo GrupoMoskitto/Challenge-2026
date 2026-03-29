@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '***REMOVED***';
+const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || (isProduction ? (() => { throw new Error('EVOLUTION_API_KEY is required in production'); })() : 'dev-token-do-not-use-in-prod');
 const DEV_ALLOWED_PHONE = process.env.DEV_ALLOWED_PHONE;
 
 const api = axios.create({

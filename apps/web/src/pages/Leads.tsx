@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -90,8 +91,17 @@ const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Fa
 const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Outro'];
 
 const Leads = () => {
-  const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
   const [filterOrigins, setFilterOrigins] = useState<string[]>([]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
   const [filterProcedures, setFilterProcedures] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
@@ -106,8 +116,8 @@ const Leads = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const { data, loading, refetch } = useQuery(GET_LEADS, {
-    variables: { first: 100 },
-    fetchPolicy: 'network-only',
+    variables: { first: 100, search: debouncedSearch || undefined },
+    fetchPolicy: 'cache-and-network',
   });
 
   const [updateStatus] = useMutation(UPDATE_LEAD_STATUS, {
