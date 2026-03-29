@@ -266,7 +266,8 @@ describe('patients query - Pagination', () => {
     patientFindManySpy.mockResolvedValue(mockPatients);
     patientCountSpy.mockResolvedValue(10);
 
-    const result = await resolvers.Query.patients(null, { first: 2 }, {});
+    const context: Context = { user: { userId: 'test-user', email: 'test@crmed.com', role: 'ADMIN' } };
+    const result = await resolvers.Query.patients(null, { first: 2 }, context);
 
     expect(result.edges).toHaveLength(2);
     expect(result.pageInfo.hasNextPage).toBe(false);
@@ -283,10 +284,11 @@ describe('patients query - Pagination', () => {
     patientFindManySpy.mockResolvedValue(mockPatients);
     patientCountSpy.mockResolvedValue(1);
 
+    const context: Context = { user: { userId: 'test-user', email: 'test@crmed.com', role: 'ADMIN' } };
     const result = await resolvers.Query.patients(null, { 
       first: 10, 
       where: { status: LeadStatus.CONVERTED } 
-    }, {});
+    }, context);
 
     expect(patientFindManySpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -307,10 +309,11 @@ describe('patients query - Pagination', () => {
     patientFindManySpy.mockResolvedValue(mockPatients);
     patientCountSpy.mockResolvedValue(1);
 
+    const context: Context = { user: { userId: 'test-user', email: 'test@crmed.com', role: 'ADMIN' } };
     const result = await resolvers.Query.patients(null, { 
       first: 10, 
       where: { search: 'João' } 
-    }, {});
+    }, context);
 
     expect(patientFindManySpy).toHaveBeenCalledWith(
       expect.objectContaining({
