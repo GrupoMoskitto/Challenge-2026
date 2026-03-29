@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { logger } from '../config/logger';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -22,12 +23,13 @@ export const WhatsAppService = {
     if (process.env.NODE_ENV !== 'production' && DEV_ALLOWED_PHONE) {
       const cleanDevPhone = DEV_ALLOWED_PHONE.replace(/[^0-9]/g, '');
       if (!number.includes(cleanDevPhone) && !cleanDevPhone.includes(number)) {
-        console.log(`[DEV MODE] 🛡️ Mensagem bloqueada para ${number}. O sistema está restrito para enviar apenas para: ${DEV_ALLOWED_PHONE}`);
+        logger.info('WhatsApp', `Mensagem bloqueada para ${number} (sandbox ativo)`);
         return { simulated: true, status: 'blocked_by_dev_sandbox' };
       }
     }
 
     try {
+      logger.info('WhatsApp', `Enviando mensagem para ${number} via ${instanceName}...`);
       const response = await api.post(`/message/sendText/${instanceName}`, {
         number,
         options: {
@@ -37,9 +39,10 @@ export const WhatsAppService = {
         text: text,
       });
 
+      logger.success('WhatsApp', `Mensagem enviada para ${number}`);
       return response.data;
     } catch (error: any) {
-      console.error(`Failed to send WhatsApp message via instance ${instanceName}:`, error?.response?.data || error.message);
+      logger.error('WhatsApp', `Falha ao enviar mensagem para ${number}`, error?.response?.data || error.message);
       throw error;
     }
   },
@@ -49,7 +52,7 @@ export const WhatsAppService = {
       const response = await api.get(`/instance/connectionState/${instanceName}`);
       return response.data;
     } catch (error: any) {
-      console.error(`Failed to get instance state for ${instanceName}:`, error?.response?.data || error.message);
+      logger.error('WhatsApp', `Falha ao obter estado da instância ${instanceName}`, error?.response?.data || error.message);
       return { instance: { state: 'disconnected' } };
     }
   }

@@ -2,6 +2,7 @@ import { Queue, Worker, Job } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import { WhatsAppService } from '../services/whatsapp.service';
 import { prisma } from '@crmed/database';
+import { logger } from '../config/logger';
 
 export const WHATSAPP_QUEUE_NAME = 'whatsapp-reminders';
 
@@ -24,7 +25,7 @@ interface WhatsAppJobData {
 export const whatsappWorker = new Worker<WhatsAppJobData>(
   WHATSAPP_QUEUE_NAME,
   async (job: Job) => {
-    console.log(`[WhatsApp Worker] Processing job ${job.id} (Name: ${job.name})`);
+    logger.info('Worker', `Processando job ${job.id}: ${job.name}`);
     const { appointmentId, leadId, patientName, phone, message, triggerDays, instanceName: jobInstanceName } = job.data as any;
 
     try {
@@ -32,9 +33,7 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
       // Use the instance name from the job if provided, otherwise fallback to default
       const defaultInstance = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
       const instanceName = jobInstanceName || defaultInstance;
-      console.log(`[WhatsApp Worker] Sending message via ${instanceName} to ${phone}...`);
       const result = await WhatsAppService.sendMessage(instanceName, phone, message);
-      console.log(`[WhatsApp Worker] API Response:`, JSON.stringify(result));
 
       // 2. Fulfill RN06: Create an AuditLog representing the successful delivery
       await prisma.auditLog.create({
@@ -50,7 +49,7 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
       return { success: true, deliveredAt: new Date() };
 
     } catch (error: any) {
-      console.error(`[WhatsApp Worker] Error sending message to ${phone}:`, error?.message);
+      logger.error('Worker', `Falha ao enviar para ${phone}`, error?.message);
       
       // Still logging the failure for audit purposes
       await prisma.auditLog.create({
@@ -73,9 +72,9 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
 );
 
 whatsappWorker.on('completed', (job) => {
-  console.log(`[WhatsApp Worker] Job ${job.id} has completed successfully`);
+  logger.success('Worker', `Job ${job.id} concluído`);
 });
 
 whatsappWorker.on('failed', (job, err) => {
-  console.error(`[WhatsApp Worker] Job ${job?.id} has failed with ${err.message}`);
+  logger.error('Worker', `Job ${job?.id} falhou`, err.message);
 });

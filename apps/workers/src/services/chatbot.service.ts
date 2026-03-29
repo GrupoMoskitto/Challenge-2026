@@ -1,6 +1,7 @@
 import { redisConnection } from '../config/redis';
 import { prisma } from '@crmed/database';
 import { WhatsAppService } from './whatsapp.service';
+import { logger } from '../config/logger';
 
 const STATE_PREFIX = 'whatsapp_state:';
 const STATE_TTL = 3600; // 1 hour
@@ -118,7 +119,7 @@ export const ChatbotService = {
             }
 
         } catch (error) {
-            console.error('[ChatbotService] Erro no fluxo:', error);
+            logger.error('Chatbot', `Erro processando mensagem de ${pushName}`, error);
             await WhatsAppService.sendMessage(instanceName, remoteJid, `Ocorreu um erro interno. Por favor, tente novamente mais tarde.`);
         }
     },
@@ -157,7 +158,7 @@ export const ChatbotService = {
                 }
             });
         } catch (e) {
-            console.error('Erro ao criar lead:', e);
+            logger.error('Chatbot', 'Erro ao criar lead', e);
         }
     },
 
