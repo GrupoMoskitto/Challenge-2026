@@ -596,7 +596,9 @@ export const resolvers = {
 
       return updatedLead;
     },
-    deleteLead: async (_: unknown, { id }: { id: string }, _context: Context) => {
+    deleteLead: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
       const existingLead = await prisma.lead.findUnique({ where: { id } });
       if (!existingLead) throw new Error('Lead não encontrado');
 
