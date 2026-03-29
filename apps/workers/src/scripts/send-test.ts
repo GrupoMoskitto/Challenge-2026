@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Queue } from 'bullmq';
 import { redisConnection } from '../config/redis';
+import { logger } from '../config/logger';
 
 // Inicializa a Queue simulando o disparo que o Cron Faria
 const WHATSAPP_QUEUE_NAME = 'whatsapp-reminders';
@@ -12,11 +13,11 @@ async function runTest() {
   const testPhone = process.env.DEV_ALLOWED_PHONE;
   
   if (!testPhone) {
-    console.error("❌ ERRO: Por favor defina DEV_ALLOWED_PHONE=551199999999 no seu .env para testar.");
+    logger.error('Test', 'Defina DEV_ALLOWED_PHONE no .env para testar');
     process.exit(1);
   }
 
-  console.log(`🚀 Adicionando mensagem de teste para a fila do Whatsapp (${testPhone})...`);
+  logger.info('Test', `Adicionando mensagem de teste para ${testPhone}...`);
 
   const patientName = 'Usuário de Testes';
 
@@ -29,8 +30,8 @@ async function runTest() {
     triggerDays: 0,
   });
 
-  console.log("✅ Job adicionado à fila com sucesso!");
-  console.log("⚠️ Verifique os logs do seu Worker (pnpm --filter @crmed/workers dev) para ver a execução.");
+  logger.success('Test', 'Job adicionado à fila com sucesso');
+  logger.info('Test', 'Verifique os logs do Worker para ver a execução');
   
   // Fecha a conexão com o Redis para sair do script
   setTimeout(() => process.exit(0), 1000);
