@@ -82,7 +82,8 @@ export default function Login() {
       setAuthToken(data.login.token, data.login.refreshToken);
       localStorage.setItem('user', JSON.stringify(data.login.user));
       setAttempts(0);
-      window.location.href = '/';
+      // Use navigate instead of full page reload
+      navigate('/');
     },
     onError: (err) => {
       const newAttempts = attempts + 1;
