@@ -35,8 +35,8 @@ describe('RN06 - Audit Logs', () => {
         entityId: 'lead-1',
         action: 'STATUS_CHANGE',
         userId: 'user-1',
-        oldValue: JSON.stringify(LeadStatus.NEW),
-        newValue: JSON.stringify(LeadStatus.CONTACTED),
+        oldValue: LeadStatus.NEW,
+        newValue: LeadStatus.CONTACTED,
         reason: 'Cliente demonstrou interesse',
       }
     });
@@ -55,7 +55,7 @@ describe('RN06 - Audit Logs', () => {
 
     const callData = createAuditLogSpy.mock.calls[0][0].data;
     expect(callData.userId).toBe('admin-1');
-    expect(callData.oldValue).toBe(JSON.stringify(LeadStatus.CONTACTED));
-    expect(callData.newValue).toBe(JSON.stringify(LeadStatus.QUALIFIED));
+    expect(callData.oldValue).toBe(LeadStatus.CONTACTED);
+    expect(callData.newValue).toBe(LeadStatus.QUALIFIED);
   });
 });
