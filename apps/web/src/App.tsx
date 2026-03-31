@@ -26,10 +26,11 @@ function PageLoader() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isChecking } = useAuth();
   
-  console.log('ProtectedRoute:', { user: !!user, loading, isChecking });
+  console.log('ProtectedRoute:', { user: !!user, loading, isChecking, userObj: user });
   
   // Show loading while checking authentication
   if (loading || isChecking) {
+    console.log('Showing loading screen');
     return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
   }
   
@@ -39,6 +40,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   
+  console.log('User exists, rendering children');
   return <>{children}</>;
 }
 

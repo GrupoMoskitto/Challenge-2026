@@ -78,12 +78,14 @@ export default function Login() {
 
   const [login, { loading }] = useMutation<LoginResponse>(LOGIN_MUTATION, {
     onCompleted: (data) => {
+      console.log('Login successful, storing token and user');
       // Store tokens and user in localStorage
       localStorage.setItem('auth_token', data.login.token);
       localStorage.setItem('refresh_token', data.login.refreshToken);
       localStorage.setItem('user', JSON.stringify(data.login.user));
       setAttempts(0);
       // Navigate to dashboard - the auth hook will detect the change
+      console.log('Navigating to dashboard');
       navigate('/');
     },
     onError: (err) => {
