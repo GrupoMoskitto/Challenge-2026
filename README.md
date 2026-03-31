@@ -64,6 +64,114 @@ infra/
 └── docker/           # Dockerfiles, Docker Compose e Evolution API
 ```
 
+### Documentação Visual
+
+#### Diagrama ER do Banco de Dados
+
+```mermaid
+erDiagram
+    USER {
+        string id PK
+        string email
+        string role
+        boolean isActive
+    }
+
+    LEAD {
+        string id PK
+        string name
+        string email
+        string phone
+        string cpf
+        string status
+    }
+
+    PATIENT {
+        string id PK
+        string leadId FK
+        string medicalRecord
+    }
+
+    SURGEON {
+        string id PK
+        string name
+        string specialty
+        string crm
+    }
+
+    APPOINTMENT {
+        string id PK
+        string patientId FK
+        string surgeonId FK
+        datetime scheduledAt
+        string status
+    }
+
+    CONTACT {
+        string id PK
+        string leadId FK
+        string type
+        string status
+    }
+
+    AUDIT_LOG {
+        string id PK
+        string entityType
+        string action
+        string userId FK
+        datetime createdAt
+    }
+
+    NOTIFICATION {
+        string id PK
+        string appointmentId FK
+        string type
+        string status
+    }
+
+    DOCUMENT {
+        string id PK
+        string patientId FK
+        string type
+        string status
+    }
+
+    POST_OP {
+        string id PK
+        string patientId FK
+        string type
+        string status
+    }
+
+    AVAILABILITY_SLOT {
+        string id PK
+        string surgeonId FK
+        int dayOfWeek
+        string startTime
+        string endTime
+    }
+
+    MESSAGE_TEMPLATE {
+        string id PK
+        string name
+        string channel
+        int triggerDays
+    }
+
+    LEAD ||--o| PATIENT : converte_em
+    LEAD ||--o{ CONTACT : possui
+    LEAD ||--o{ APPOINTMENT : origina
+    SURGEON ||--o{ APPOINTMENT : realiza
+    SURGEON ||--o{ AVAILABILITY_SLOT : agenda
+    PATIENT ||--o{ DOCUMENT : possui
+    PATIENT ||--o{ POST_OP : acompanha
+    USER ||--o{ AUDIT_LOG : registra
+    APPOINTMENT ||--o{ AUDIT_LOG : audita
+    APPOINTMENT ||--o{ NOTIFICATION : gera
+```
+> [!NOTE]
+> O diagrama resume a modelagem atual do [schema.prisma](packages/database/prisma/schema.prisma) e prioriza legibilidade visual.
+
 ### Quick Start
 
 ```bash
@@ -73,7 +181,7 @@ cd Challenge-2026
 
 # Configure (arquivo central na raiz)
 cp .env.example .env
-
+  
 # Instale e inicie tudo
 npm install --global pnpm
 pnpm install
