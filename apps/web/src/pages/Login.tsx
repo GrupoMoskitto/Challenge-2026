@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { validateEmail, sanitizeInput } from '@/lib/validation';
 import { Loader2, Moon, Sun } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
 
 const LOGIN_MUTATION = gql`
   mutation Login($input: LoginInput!) {
@@ -76,15 +77,14 @@ export default function Login() {
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(0);
 
-  const [login, { loading }] = useMutation<LoginResponse>(LOGIN_MUTATION, {
+  const { login: authLogin } = useAuth();
+  
+  const [loginMutation, { loading }] = useMutation<LoginResponse>(LOGIN_MUTATION, {
     onCompleted: (data) => {
-      console.log('Login successful, storing token and user');
-      // Store tokens and user in localStorage
-      localStorage.setItem('auth_token', data.login.token);
-      localStorage.setItem('refresh_token', data.login.refreshToken);
-      localStorage.setItem('user', JSON.stringify(data.login.user));
+      console.log('Login successful, using authLogin');
+      // Use the auth context login function
+      authLogin(data.login.token, data.login.refreshToken, data.login.user);
       setAttempts(0);
-      // Navigate to dashboard - the auth hook will detect the change
       console.log('Navigating to dashboard');
       navigate('/');
     },
@@ -129,7 +129,7 @@ export default function Login() {
       return;
     }
     
-    login({ variables: { input: { email: sanitizedEmail, password } } });
+    loginMutation({ variables: { input: { email: sanitizedEmail, password } } });
   };
 
   return (
