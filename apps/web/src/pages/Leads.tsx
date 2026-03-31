@@ -104,9 +104,13 @@ const Leads = () => {
   }, [search]);
   const [filterProcedures, setFilterProcedures] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [draggedLead, setDraggedLead] = useState<string | null>(null);
+  const [draggedLead, setDraggedLead] = useState<{ id: string; status: string } | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const clearDragState = () => {
+    setDraggedLead(null);
+    setDragOverColumn(null);
+  };
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -171,9 +175,24 @@ const Leads = () => {
     setFilterProcedures([]);
   };
 
-  const handleDragStart = (leadId: string, e: React.DragEvent) => {
+  const handleDragStart = (lead: Lead, e: React.DragEvent) => {
+    const target = e.target as HTMLElement | null;
+
+    if (
+      deleteDialogOpen ||
+      editDialogOpen ||
+      target?.closest('[data-no-drag="true"]')
+    ) {
+      e.preventDefault();
+      return;
+    }
+
     e.stopPropagation();
-    setDraggedLead(leadId);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', lead.id);
+    }
+    setDraggedLead({ id: lead.id, status: lead.status });
   };
 
   const handleDragOver = (e: React.DragEvent, status: string) => {
@@ -191,13 +210,16 @@ const Leads = () => {
     e.stopPropagation();
     setDragOverColumn(null);
     
-    if (!draggedLead) return;
+    if (deleteDialogOpen || editDialogOpen || !draggedLead || draggedLead.status === status) {
+      setDraggedLead(null);
+      return;
+    }
     
     try {
       await updateStatus({
         variables: {
           input: {
-            id: draggedLead,
+            id: draggedLead.id,
             status,
           },
         },
@@ -211,8 +233,9 @@ const Leads = () => {
         console.error('GraphQL errors:', error.graphQLErrors);
       }
       alert(error.message || 'Erro ao atualizar status');
+    } finally {
+      setDraggedLead(null);
     }
-    setDraggedLead(null);
   };
 
   const validateNewLead = (): boolean => {
@@ -281,6 +304,7 @@ const Leads = () => {
   };
 
   const handleEditClick = (lead: Lead) => {
+    clearDragState();
     setEditingLead(lead);
     setEditLead({
       name: lead.name,
@@ -359,6 +383,7 @@ const Leads = () => {
   };
 
   const handleDeleteClick = (leadId: string) => {
+    clearDragState();
     setDeletingLeadId(leadId);
     setDeleteDialogOpen(true);
   };
@@ -622,32 +647,54 @@ const Leads = () => {
                   key={lead.id}
                   className={cn(
                     "p-3 cursor-move transition-all duration-200 border-l-4 bg-card",
-                    draggedLead === lead.id ? "opacity-50 scale-95" : "hover:shadow-md hover:-translate-y-0.5",
+                    draggedLead?.id === lead.id ? "opacity-50 scale-95" : "hover:shadow-md hover:-translate-y-0.5",
                     status === 'NEW' && "border-l-slate-500",
                     status === 'CONTACTED' && "border-l-blue-500",
                     status === 'QUALIFIED' && "border-l-yellow-500",
                     status === 'CONVERTED' && "border-l-green-500",
                     status === 'LOST' && "border-l-red-500"
                   )}
-                  draggable
-                  onDragStart={(e) => handleDragStart(lead.id, e)}
-                  onDragEnd={() => setDraggedLead(null)}
+                  draggable={!deleteDialogOpen && !editDialogOpen}
+                  onDragStart={(e) => handleDragStart(lead, e)}
+                  onDragEnd={clearDragState}
                 >
                   <CardContent className="p-0">
                     <div className="flex items-start justify-between mb-2">
                       <p className="font-medium text-sm truncate flex-1">{lead.name}</p>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-accent" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-accent"
+                            aria-label={`Ações do lead ${lead.name}`}
+                            data-no-drag="true"
+                            draggable={false}
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              clearDragState();
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditClick(lead); }} className="cursor-pointer">
+                          <DropdownMenuItem
+                            data-no-drag="true"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); handleEditClick(lead); }}
+                            className="cursor-pointer"
+                          >
                             <Pencil className="h-4 w-4 mr-2" />
                             Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive cursor-pointer" onClick={(e) => { e.stopPropagation(); handleDeleteClick(lead.id); }}>
+                          <DropdownMenuItem
+                            data-no-drag="true"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            className="text-destructive cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(lead.id); }}
+                          >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Excluir
                           </DropdownMenuItem>

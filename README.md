@@ -282,7 +282,7 @@ Os workers utilizam um **logger estruturado** (`apps/workers/src/config/logger.t
 [12:30:02] [ERR] [Chatbot] Erro processando mensagem de João
 ```
 
-A Evolution API está configurada para exibir apenas logs de erro e aviso (`LOG_LEVEL: ERROR,WARN`), reduzindo a poluição do terminal.
+A Evolution API sobe em segundo plano e sem stream de logs no terminal local; a observabilidade do fluxo fica concentrada nos `workers`, que fazem a filtragem de forma mais limpa.
 
 ---
 
