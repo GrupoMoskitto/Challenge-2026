@@ -10,6 +10,7 @@ import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail,
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_LEADS, UPDATE_LEAD_STATUS, CREATE_LEAD, UPDATE_LEAD, DELETE_LEAD, GET_LEAD_CONTACTS } from "@/lib/queries";
 import { validateCPF, validatePhone, validateEmail, sanitizeInput } from "@/lib/validation";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -92,6 +93,7 @@ const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominopl
 
 const Leads = () => {
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
   const [filterOrigins, setFilterOrigins] = useState<string[]>([]);
@@ -107,6 +109,7 @@ const Leads = () => {
   const [draggedLead, setDraggedLead] = useState<{ id: string; status: string } | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const canDeleteLeads = user?.role === 'ADMIN' || user?.role === 'SALES';
   const clearDragState = () => {
     setDraggedLead(null);
     setDragOverColumn(null);
@@ -125,6 +128,7 @@ const Leads = () => {
   });
 
   const [updateStatus] = useMutation(UPDATE_LEAD_STATUS, {
+    errorPolicy: 'none',
     update(cache, { data }) {
       if (!data?.updateLeadStatus) return;
       
@@ -139,9 +143,9 @@ const Leads = () => {
       });
     },
   });
-  const [createLead, { loading: creating }] = useMutation(CREATE_LEAD);
-  const [updateLead, { loading: updating }] = useMutation(UPDATE_LEAD);
-  const [deleteLead, { loading: deleting }] = useMutation(DELETE_LEAD);
+  const [createLead, { loading: creating }] = useMutation(CREATE_LEAD, { errorPolicy: 'none' });
+  const [updateLead, { loading: updating }] = useMutation(UPDATE_LEAD, { errorPolicy: 'none' });
+  const [deleteLead, { loading: deleting }] = useMutation(DELETE_LEAD, { errorPolicy: 'none' });
 
   const allLeads: Lead[] = data?.leads?.edges?.map((e: any) => e.node) || [];
 
@@ -384,21 +388,50 @@ const Leads = () => {
 
   const handleDeleteClick = (leadId: string) => {
     clearDragState();
+    setFormErrors({});
     setDeletingLeadId(leadId);
     setDeleteDialogOpen(true);
+
+    if (!user) {
+      setFormErrors({ submit: 'Sessão expirada. Faça login novamente.' });
+      return;
+    }
+
+    if (!canDeleteLeads) {
+      setFormErrors({ submit: 'Apenas administradores e vendas podem excluir leads.' });
+    }
   };
 
   const handleDeleteLead = async () => {
     if (!deletingLeadId) return;
 
+    if (!user) {
+      setFormErrors({ submit: 'Sessão expirada. Faça login novamente.' });
+      return;
+    }
+
+    if (!canDeleteLeads) {
+      setFormErrors({ submit: 'Apenas administradores e vendas podem excluir leads.' });
+      return;
+    }
+
     try {
-      await deleteLead({ variables: { id: deletingLeadId } });
-      refetch();
+      const result = await deleteLead({ variables: { id: deletingLeadId } });
+      const graphQLError = result.errors?.[0]?.message;
+      const deleteResult = result.data?.deleteLead;
+
+      if (graphQLError || !deleteResult?.success) {
+        throw new Error(graphQLError || deleteResult?.message || 'Erro ao excluir lead');
+      }
+
+      await refetch();
       setDeleteDialogOpen(false);
       setDeletingLeadId(null);
+      setFormErrors({});
     } catch (error: any) {
       console.error('Error deleting lead:', error);
-      setFormErrors({ submit: error.message || 'Erro ao excluir lead' });
+      const errorMessage = error?.graphQLErrors?.[0]?.message || error?.message || 'Erro ao excluir lead';
+      setFormErrors({ submit: errorMessage });
     }
   };
 
@@ -691,12 +724,16 @@ const Leads = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             data-no-drag="true"
+                            disabled={!canDeleteLeads}
                             onPointerDown={(e) => e.stopPropagation()}
-                            className="text-destructive cursor-pointer"
+                            className={cn(
+                              "cursor-pointer",
+                              canDeleteLeads ? "text-destructive" : "text-muted-foreground opacity-60"
+                            )}
                             onClick={(e) => { e.stopPropagation(); handleDeleteClick(lead.id); }}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
-                            Excluir
+                            {canDeleteLeads ? 'Excluir' : 'Excluir (sem permissão)'}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -894,7 +931,7 @@ const Leads = () => {
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={handleDeleteLead} disabled={deleting}>
+            <Button variant="destructive" onClick={handleDeleteLead} disabled={deleting || !canDeleteLeads}>
               {deleting ? 'Excluindo...' : 'Excluir'}
             </Button>
           </div>
