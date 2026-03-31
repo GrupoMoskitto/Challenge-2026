@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -43,6 +44,8 @@ const Agenda = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ doctorId: string; time: string; date: string } | null>(null);
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
   const [newAppointment, setNewAppointment] = useState({
     patientName: '',
     patientPhone: '',
@@ -64,7 +67,7 @@ const Agenda = () => {
 
   const [createAppointment] = useMutation(CREATE_APPOINTMENT);
   const [updateAppointment] = useMutation(UPDATE_APPOINTMENT);
-  const [deleteAppointment] = useMutation(DELETE_APPOINTMENT);
+  const [deleteAppointment, { loading: deleting }] = useMutation(DELETE_APPOINTMENT);
 
   const appointments = appointmentsData?.appointmentsByDate || [];
   const surgeons = surgeonsData?.surgeons || [];
@@ -167,17 +170,23 @@ const Agenda = () => {
     }
   };
 
-  const handleDeleteAppointment = async () => {
-    if (!editingAppointmentId) return;
-    if (!confirm('Tem certeza que deseja desmarcar esta consulta?')) return;
+  const openDeleteDialog = (appointmentId: string) => {
+    setAppointmentToDelete(appointmentId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteAppointment = async () => {
+    if (!appointmentToDelete) return;
     
     try {
       await deleteAppointment({
-        variables: { input: { id: editingAppointmentId, confirmed: true } },
+        variables: { input: { id: appointmentToDelete, confirmed: true } },
       });
       refetchAppointments();
       setSheetOpen(false);
       setEditingAppointmentId(null);
+      setDeleteDialogOpen(false);
+      setAppointmentToDelete(null);
     } catch (error) {
       console.error('Error deleting appointment:', error);
       alert('Erro ao excluir agendamento.');
@@ -388,7 +397,7 @@ const Agenda = () => {
                 {editingAppointmentId ? 'Salvar Alterações' : 'Confirmar Agendamento'}
               </Button>
               {editingAppointmentId && (
-                <Button variant="destructive" size="icon" onClick={handleDeleteAppointment}>
+                <Button variant="destructive" size="icon" onClick={() => editingAppointmentId && openDeleteDialog(editingAppointmentId)}>
                   <Trash className="h-4 w-4" />
                 </Button>
               )}
@@ -396,6 +405,25 @@ const Agenda = () => {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteAppointment} disabled={deleting || !appointmentToDelete}>
+              {deleting ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
