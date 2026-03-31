@@ -647,6 +647,14 @@ export const resolvers = {
       const existingLead = await prisma.lead.findUnique({ where: { id } });
       if (!existingLead) throw new Error('Lead não encontrado');
 
+      // Check if there are appointments associated with this lead
+      const appointmentCount = await prisma.appointment.count({
+        where: { patientId: id },
+      });
+      if (appointmentCount > 0) {
+        throw new Error('Não é possível excluir lead com agendamentos associados');
+      }
+
       await prisma.lead.delete({ where: { id } });
 
       return { success: true, message: 'Lead excluído com sucesso' };
