@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, gql } from '@apollo/client';
 import { useLocalStorage } from './useLocalStorage';
 
@@ -29,8 +29,7 @@ const GET_ME = gql`
  */
 export function useAuthSimple() {
   const [storedUser, setStoredUser] = useLocalStorage('user');
-  const [authToken, setAuthToken] = useLocalStorage('auth_token');
-  const [isChecking, setIsChecking] = useState(true);
+  const [authToken] = useLocalStorage('auth_token');
   
   const hasToken = !!authToken;
   
@@ -38,6 +37,14 @@ export function useAuthSimple() {
     skip: !hasToken,
     fetchPolicy: 'network-only',
   });
+
+  // Determinar se ainda está verificando
+  const isChecking = useMemo(() => {
+    if (!hasToken) return false;
+    if (loading) return true;
+    if (error || data) return false;
+    return true;
+  }, [hasToken, loading, error, data]);
 
   // Processar resultado da query
   useEffect(() => {
@@ -49,38 +56,24 @@ export function useAuthSimple() {
         e.message.includes('Credenciais inválidas')
       )) {
         setStoredUser(null);
-        setAuthToken(null);
+        localStorage.removeItem('auth_token');
         localStorage.removeItem('refresh_token');
       }
-      setIsChecking(false);
       return;
     }
 
     if (data) {
-      setIsChecking(false);
       if (data.me) {
         // Usuário válido - atualizar storage
         setStoredUser(JSON.stringify(data.me));
       } else {
         // Usuário null - token inválido ou não existe
         setStoredUser(null);
-        setAuthToken(null);
+        localStorage.removeItem('auth_token');
         localStorage.removeItem('refresh_token');
       }
     }
-  }, [data, error, setStoredUser, setAuthToken]);
-
-  // Processar mudanças no token
-  useEffect(() => {
-    if (!hasToken) {
-      setStoredUser(null);
-      setIsChecking(false);
-    } else {
-      // Token existe, verificar se é válido
-      setIsChecking(true);
-      refetch();
-    }
-  }, [hasToken, setStoredUser, refetch]);
+  }, [data, error, setStoredUser]);
 
   // Determinar estado do usuário
   const user = storedUser ? JSON.parse(storedUser) : null;
@@ -93,7 +86,5 @@ export function useAuthSimple() {
     isChecking,
     isAuthenticated,
     refetch,
-    setAuthToken,
-    setStoredUser,
   };
 }
