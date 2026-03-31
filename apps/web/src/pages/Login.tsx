@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { validateEmail, sanitizeInput } from '@/lib/validation';
 import { Loader2, Moon, Sun } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
 
 const LOGIN_MUTATION = gql`
   mutation Login($input: LoginInput!) {
@@ -77,16 +76,14 @@ export default function Login() {
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(0);
 
-  const { setAuthToken: setAuthStateToken, setStoredUser } = useAuth();
-  
   const [login, { loading }] = useMutation<LoginResponse>(LOGIN_MUTATION, {
     onCompleted: (data) => {
-      // Use the new auth system
-      setAuthStateToken(data.login.token);
+      // Store tokens and user in localStorage
+      localStorage.setItem('auth_token', data.login.token);
       localStorage.setItem('refresh_token', data.login.refreshToken);
-      setStoredUser(JSON.stringify(data.login.user));
+      localStorage.setItem('user', JSON.stringify(data.login.user));
       setAttempts(0);
-      // Use navigate instead of full page reload
+      // Navigate to dashboard - the auth hook will detect the change
       navigate('/');
     },
     onError: (err) => {

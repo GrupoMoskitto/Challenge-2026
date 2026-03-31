@@ -7,8 +7,6 @@ interface AuthContextType {
   isChecking: boolean;
   isAuthenticated: boolean;
   refetch: () => void;
-  setAuthToken: (token: string | null) => void;
-  setStoredUser: (user: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -17,8 +15,6 @@ const AuthContext = createContext<AuthContextType>({
   isChecking: true,
   isAuthenticated: false,
   refetch: () => {},
-  setAuthToken: () => {},
-  setStoredUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -27,9 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading, 
     isChecking, 
     isAuthenticated,
-    refetch, 
-    setAuthToken, 
-    setStoredUser 
+    refetch
   } = useAuthSimple();
 
   const value: AuthContextType = {
@@ -38,8 +32,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isChecking,
     isAuthenticated,
     refetch,
-    setAuthToken,
-    setStoredUser,
   };
 
   return (
