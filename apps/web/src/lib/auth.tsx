@@ -75,15 +75,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sync user from query result
   useEffect(() => {
     if (data?.me) {
+      console.log('User authenticated:', data.me.email);
       setUser(data.me);
       localStorage.setItem('user', JSON.stringify(data.me));
     } else if (data && data.me === null) {
       // Query returned but user is null (invalid token or user not found)
+      console.log('GET_ME returned null - clearing tokens and redirecting to login');
       setUser(null);
       localStorage.removeItem('user');
       localStorage.removeItem('auth_token');
       localStorage.removeItem('refresh_token');
-      window.location.href = '/login';
+      // Only redirect if not already on login page to avoid loop
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
   }, [data]);
 
@@ -94,7 +99,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
   }, [error]);
 
