@@ -26,11 +26,14 @@ function PageLoader() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   
+  console.log('ProtectedRoute:', { user: !!user, loading });
+  
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
   }
   
   if (!user) {
+    console.log('No user, redirecting to login');
     return <Navigate to="/login" replace />;
   }
   
