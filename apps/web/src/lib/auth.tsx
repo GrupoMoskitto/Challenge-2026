@@ -13,6 +13,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isChecking: boolean;
   refetch: () => void;
 }
 
@@ -32,6 +33,7 @@ const GET_ME = gql`
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  isChecking: true,
   refetch: () => {},
 });
 
@@ -52,6 +54,7 @@ const getStoredUser = (): User | null => {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(getStoredUser);
+  const [isChecking, setIsChecking] = useState(true);
   const hasToken = hasAuthToken();
   
   const { data, loading, refetch, error } = useQuery<{ me: User }>(GET_ME, {
@@ -59,51 +62,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchPolicy: 'network-only',
     onCompleted: (data) => {
       console.log('GET_ME completed:', data);
+      setIsChecking(false);
+      if (data?.me) {
+        console.log('User authenticated:', data.me.email);
+        setUser(data.me);
+        localStorage.setItem('user', JSON.stringify(data.me));
+      } else if (data && data.me === null) {
+        console.log('GET_ME returned null - clearing tokens');
+        setUser(null);
+        localStorage.removeItem('user');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('refresh_token');
+      }
     },
     onError: (error) => {
       console.error('GET_ME query error:', error);
-      // If any GraphQL error occurs (likely auth error), clear tokens and redirect
+      setIsChecking(false);
+      // If any GraphQL error occurs (likely auth error), clear tokens
       if (error.graphQLErrors.some(e => e.message.includes('não autenticado') || e.message.includes('Credenciais inválidas'))) {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        setUser(null);
       }
     }
   });
-
-  // Sync user from query result
-  useEffect(() => {
-    if (data?.me) {
-      console.log('User authenticated:', data.me.email);
-      setUser(data.me);
-      localStorage.setItem('user', JSON.stringify(data.me));
-    } else if (data && data.me === null) {
-      // Query returned but user is null (invalid token or user not found)
-      console.log('GET_ME returned null - clearing tokens and redirecting to login');
-      setUser(null);
-      localStorage.removeItem('user');
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('refresh_token');
-      // Only redirect if not already on login page to avoid loop
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
-    }
-  }, [data]);
-
-  // Redirect on auth error
-  useEffect(() => {
-    if (error) {
-      console.error('Auth error:', error);
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
-    }
-  }, [error]);
 
   // Clear user if no token
   useEffect(() => {
@@ -111,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!hasToken) {
       setUser(null);
       localStorage.removeItem('user');
+      setIsChecking(false);
     }
   }, [hasToken]);
 
@@ -140,11 +124,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Only show loading if we have token but no stored user yet
   const isLoading = hasToken && !user && loading;
 
-  console.log('AuthProvider state:', { user: !!user, loading: isLoading, hasToken, data: !!data, error: !!error });
+  console.log('AuthProvider state:', { user: !!user, loading: isLoading, hasToken, data: !!data, error: !!error, isChecking });
 
   const value: AuthContextType = {
     user,
     loading: isLoading,
+    isChecking,
     refetch
   };
 

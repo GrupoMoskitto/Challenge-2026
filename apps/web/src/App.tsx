@@ -24,14 +24,16 @@ function PageLoader() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, isChecking } = useAuth();
   
-  console.log('ProtectedRoute:', { user: !!user, loading });
+  console.log('ProtectedRoute:', { user: !!user, loading, isChecking });
   
-  if (loading) {
+  // Show loading while checking authentication
+  if (loading || isChecking) {
     return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
   }
   
+  // Only redirect if we're done checking and still no user
   if (!user) {
     console.log('No user, redirecting to login');
     return <Navigate to="/login" replace />;
