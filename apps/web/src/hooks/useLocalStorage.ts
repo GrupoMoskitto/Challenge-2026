@@ -48,5 +48,17 @@ export function useLocalStorage(key: string): [string | null, (value: string | n
     };
   }, [key]);
 
+  // Sincronizar com mudanças externas no localStorage
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentValue = localStorage.getItem(key);
+      if (currentValue !== value) {
+        setValue(currentValue);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [key, value]);
+
   return [value, updateValue];
 }
