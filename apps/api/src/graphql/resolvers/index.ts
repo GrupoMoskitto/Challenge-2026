@@ -1,5 +1,5 @@
 import { prisma, checkUniqueness } from '@crmed/database';
-import { LeadStatus, AppointmentStatus } from '@prisma/client';
+import { LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel } from '@prisma/client';
 import { DateTimeScalar, IDScalar } from '../scalars';
 import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken } from '../../auth';
 import { dispatchLeadWelcome, dispatchLeadFollowup } from '../../services/whatsappQueue';
@@ -279,18 +279,21 @@ export const resolvers = {
       return surgeonsWithSlots.filter(s => s.availability.length > 0);
     },
     users: async (_: unknown, __: unknown, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       return prisma.user.findMany({
         orderBy: { name: 'asc' },
       });
     },
     user: async (_: unknown, { id }: { id: string }, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.user.findUnique({ where: { id: decodedId } });
     },
     auditLogs: async (_: unknown, { entityType, entityId }: { entityType?: string; entityId?: string }, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       return prisma.auditLog.findMany({
         where: {
           entityType: entityType || undefined,
@@ -354,7 +357,8 @@ export const resolvers = {
       return prisma.messageTemplate.findUnique({ where: { id: decodedId } });
     },
     evolutionApiInstances: async (_: unknown, __: unknown, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       
       const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
       const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
@@ -384,7 +388,8 @@ export const resolvers = {
       }
     },
     testPhoneLastDigits: async (_: unknown, __: unknown, context: Context) => {
-      if (context.user?.role !== 'ADMIN') return null;
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') return null;
       
       const testPhone = process.env.DEV_ALLOWED_PHONE;
       if (!testPhone) return null;
@@ -530,8 +535,8 @@ export const resolvers = {
               entityType: 'Lead',
               entityId: leadId,
               action: 'STATUS_CHANGE',
-              oldValue: JSON.stringify(currentLead.status),
-              newValue: JSON.stringify(input.status),
+              oldValue: currentLead.status,
+              newValue: input.status,
               reason: input.reason || 'Alteração de status',
               userId: context.user.userId,
             },
@@ -617,8 +622,8 @@ export const resolvers = {
             entityType: 'Lead',
             entityId: leadId,
             action: 'STATUS_CHANGE',
-            oldValue: JSON.stringify(oldStatus),
-            newValue: JSON.stringify(input.status),
+            oldValue: oldStatus,
+            newValue: input.status,
             reason: 'Atualização de status via updateLead',
             userId: context.user.userId,
           },
@@ -688,11 +693,11 @@ export const resolvers = {
           entityType: 'Patient',
           entityId: patient.id,
           action: 'CREATED',
-          newValue: JSON.stringify({
+          newValue: {
             dateOfBirth: input.dateOfBirth,
             medicalRecord: input.medicalRecord,
             address: input.address,
-          }),
+          },
           reason: 'Paciente criado a partir de lead',
           userId: context.user?.userId,
         },
@@ -728,7 +733,7 @@ export const resolvers = {
           entityType: 'Appointment',
           entityId: appointment.id,
           action: 'CREATED',
-          newValue: JSON.stringify({ procedure: input.procedure, scheduledAt: input.scheduledAt }),
+          newValue: { procedure: input.procedure, scheduledAt: input.scheduledAt },
           reason: 'Novo agendamento criado',
           userId: context.user?.userId,
           appointmentId: appointment.id,
@@ -758,8 +763,8 @@ export const resolvers = {
           entityType: 'Appointment',
           entityId: decodedId,
           action: 'STATUS_CHANGE',
-          oldValue: JSON.stringify(current.status),
-          newValue: JSON.stringify(input.status),
+          oldValue: current.status,
+          newValue: input.status,
           reason: input.reason || 'Alteração de status',
           userId: context.user?.userId,
           appointmentId: decodedId,
@@ -799,8 +804,8 @@ export const resolvers = {
           entityType: 'Appointment',
           entityId: decodedId,
           action: 'UPDATED',
-          oldValue: JSON.stringify({ procedure: current.procedure, scheduledAt: current.scheduledAt }),
-          newValue: JSON.stringify({ procedure: updated.procedure, scheduledAt: updated.scheduledAt }),
+          oldValue: { procedure: current.procedure, scheduledAt: current.scheduledAt },
+          newValue: { procedure: updated.procedure, scheduledAt: updated.scheduledAt },
           reason: 'Agendamento atualizado',
           userId: context.user?.userId,
           appointmentId: decodedId,
@@ -823,7 +828,7 @@ export const resolvers = {
           entityType: 'Appointment',
           entityId: decodedId,
           action: 'DELETED',
-          oldValue: JSON.stringify({ procedure: current.procedure, scheduledAt: current.scheduledAt }),
+          oldValue: { procedure: current.procedure, scheduledAt: current.scheduledAt },
           reason: 'Agendamento excluído',
           userId: context.user?.userId,
         },
@@ -853,7 +858,8 @@ export const resolvers = {
       role: string;
       password: string;
     }}, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       
       const existing = await prisma.user.findUnique({
         where: { email: input.email },
@@ -868,13 +874,14 @@ export const resolvers = {
         data: {
           email: input.email,
           name: input.name,
-          role: input.role as any,
+          role: input.role as UserRole,
           password: hashedPassword,
         } 
       });
     },
     toggleUserStatus: async (_: unknown, { id }: { id: string }, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       const user = await prisma.user.findUnique({ where: { id: decodedId } });
@@ -887,10 +894,10 @@ export const resolvers = {
           entityType: 'User',
           entityId: decodedId,
           action: 'STATUS_UPDATED',
-          oldValue: JSON.stringify({ isActive: user.isActive }),
-          newValue: JSON.stringify({ isActive: newStatus }),
+          oldValue: { isActive: user.isActive },
+          newValue: { isActive: newStatus },
           reason: 'Ativação/Desativação de usuário',
-          userId: (context.user as any).userId,
+          userId: context.user.userId,
         },
       });
 
@@ -954,12 +961,12 @@ export const resolvers = {
           entityType: 'Patient',
           entityId: decodedId,
           action: 'UPDATED',
-          oldValue: JSON.stringify({
+          oldValue: {
             dateOfBirth: current.dateOfBirth,
             medicalRecord: current.medicalRecord,
             address: current.address,
-          }),
-          newValue: JSON.stringify(changes),
+          },
+          newValue: changes as any,
           reason: input.reason || 'Atualização de dados do paciente',
           userId: context.user?.userId,
         },
@@ -979,15 +986,15 @@ export const resolvers = {
           entityType: 'Document',
           entityId: decodedId,
           action: 'STATUS_UPDATED',
-          oldValue: JSON.stringify({ status: current.status }),
-          newValue: JSON.stringify({ status }),
+          oldValue: { status: current.status },
+          newValue: { status },
           reason: 'Atualização do status do documento',
           userId: context.user?.userId,
         },
       });
       return prisma.document.update({
         where: { id: decodedId },
-        data: { status: status as any },
+        data: { status: status as DocumentStatus },
       });
     },
     updatePostOpStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: Context) => {
@@ -1002,15 +1009,15 @@ export const resolvers = {
           entityType: 'PostOp',
           entityId: decodedId,
           action: 'STATUS_UPDATED',
-          oldValue: JSON.stringify({ status: current.status }),
-          newValue: JSON.stringify({ status }),
+          oldValue: { status: current.status },
+          newValue: { status },
           reason: 'Atualização do status do retorno pós-operatório',
           userId: context.user?.userId,
         },
       });
       return prisma.postOp.update({
         where: { id: decodedId },
-        data: { status: status as any },
+        data: { status: status as PostOpStatus },
       });
     },
     createContact: async (_: unknown, { input }: { input: {
@@ -1029,9 +1036,9 @@ export const resolvers = {
         data: {
           leadId: decodedLeadId,
           date: new Date(input.date),
-          type: input.type as any,
-          direction: input.direction as any,
-          status: input.status as any,
+          type: input.type as ContactType,
+          direction: input.direction as ContactDirection,
+          status: input.status as ContactStatus,
           message: input.message,
         },
       });
@@ -1051,9 +1058,9 @@ export const resolvers = {
         data: {
           patientId: decodedPatientId,
           name: input.name,
-          type: input.type as any,
+          type: input.type as DocumentType,
           date: new Date(input.date),
-          status: input.status as any || 'PENDING',
+          status: (input.status as DocumentStatus) || 'PENDING',
         },
       });
     },
@@ -1072,9 +1079,9 @@ export const resolvers = {
         data: {
           patientId: decodedPatientId,
           date: new Date(input.date),
-          type: input.type as any,
+          type: input.type as PostOpType,
           description: input.description,
-          status: input.status as any || 'SCHEDULED',
+          status: (input.status as PostOpStatus) || 'SCHEDULED',
         },
       });
     },
@@ -1084,11 +1091,12 @@ export const resolvers = {
       content: string;
       triggerDays?: number;
     }}, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       return prisma.messageTemplate.create({
         data: {
           name: input.name,
-          channel: input.channel as any,
+          channel: input.channel as MessageChannel,
           content: input.content,
           triggerDays: input.triggerDays || 0,
         },
@@ -1101,7 +1109,8 @@ export const resolvers = {
       content?: string;
       triggerDays?: number;
     }}, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       const existing = await prisma.messageTemplate.findUnique({ where: { id: input.id } });
       if (!existing) throw new Error('Template não encontrado');
 
@@ -1117,7 +1126,8 @@ export const resolvers = {
       });
     },
     deleteMessageTemplate: async (_: unknown, { id }: { id: string }, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       const existing = await prisma.messageTemplate.findUnique({ where: { id } });
       if (!existing) throw new Error('Template não encontrado');
 
@@ -1125,7 +1135,8 @@ export const resolvers = {
       return { success: true, message: 'Template excluído com sucesso' };
     },
     testMessageTemplate: async (_: unknown, { templateId, instanceName }: { templateId: string; instanceName: string }, context: Context) => {
-      if (context.user?.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
       
       if (!instanceName || instanceName.trim() === '') {
         throw new Error('Selecione uma instância WhatsApp válida');
