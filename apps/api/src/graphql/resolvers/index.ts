@@ -208,9 +208,9 @@ export const resolvers = {
     },
     appointment: async (_: unknown, { id }: { id: string }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
-      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      // ID is already decoded by ID scalar
       return prisma.appointment.findUnique({
-        where: { id: decodedId },
+        where: { id },
         include: { patient: true, surgeon: true },
       });
     },
@@ -730,13 +730,11 @@ export const resolvers = {
     }}, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       
-      const decodedPatientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
-      const decodedSurgeonId = Buffer.from(input.surgeonId, 'base64url').toString('utf-8');
-      
+      // IDs are already decoded by ID scalar
       const appointment = await prisma.appointment.create({
         data: {
-          patientId: decodedPatientId,
-          surgeonId: decodedSurgeonId,
+          patientId: input.patientId,
+          surgeonId: input.surgeonId,
           procedure: input.procedure,
           scheduledAt: new Date(input.scheduledAt),
           notes: input.notes,
@@ -765,25 +763,25 @@ export const resolvers = {
     }}, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       
-      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
-      const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
+      // ID is already decoded by ID scalar
+      const current = await prisma.appointment.findUnique({ where: { id: input.id } });
       if (!current) throw new Error('Agendamento não encontrado');
 
       const updated = await prisma.appointment.update({
-        where: { id: decodedId },
+        where: { id: input.id },
         data: { status: input.status },
       });
 
       await prisma.auditLog.create({
         data: {
           entityType: 'Appointment',
-          entityId: decodedId,
+          entityId: input.id,
           action: 'STATUS_CHANGE',
           oldValue: current.status,
           newValue: input.status,
           reason: input.reason || 'Alteração de status',
           userId: context.user?.userId,
-          appointmentId: decodedId,
+          appointmentId: input.id,
         },
       });
 
@@ -799,32 +797,32 @@ export const resolvers = {
     }}, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       
-      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
-      const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
+      // ID is already decoded by ID scalar
+      const current = await prisma.appointment.findUnique({ where: { id: input.id } });
       if (!current) throw new Error('Agendamento não encontrado');
 
       const data: Record<string, unknown> = {};
-      if (input.patientId) data.patientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
-      if (input.surgeonId) data.surgeonId = Buffer.from(input.surgeonId, 'base64url').toString('utf-8');
+      if (input.patientId) data.patientId = input.patientId;
+      if (input.surgeonId) data.surgeonId = input.surgeonId;
       if (input.procedure) data.procedure = input.procedure;
       if (input.scheduledAt) data.scheduledAt = new Date(input.scheduledAt);
       if (input.notes !== undefined) data.notes = input.notes;
 
       const updated = await prisma.appointment.update({
-        where: { id: decodedId },
+        where: { id: input.id },
         data,
       });
 
       await prisma.auditLog.create({
         data: {
           entityType: 'Appointment',
-          entityId: decodedId,
+          entityId: input.id,
           action: 'UPDATED',
           oldValue: { procedure: current.procedure, scheduledAt: current.scheduledAt },
           newValue: { procedure: updated.procedure, scheduledAt: updated.scheduledAt },
           reason: 'Agendamento atualizado',
           userId: context.user?.userId,
-          appointmentId: decodedId,
+          appointmentId: input.id,
         },
       });
 
@@ -834,28 +832,20 @@ export const resolvers = {
       if (!context.user) throw new Error('Usuário não autenticado');
       
       const { id, confirmed } = input;
-      console.log('deleteAppointment input:', { id, confirmed });
       if (!confirmed) {
         throw new Error('Confirmação necessária para excluir agendamento. Defina confirmed: true.');
       }
       
-      let decodedId: string;
-      try {
-        decodedId = Buffer.from(id, 'base64url').toString('utf-8');
-      } catch (error) {
-        console.error('Failed to decode id:', id, error);
-        decodedId = id; // fallback to raw id
-      }
-      
-      const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
+      // ID is already decoded by ID scalar
+      const current = await prisma.appointment.findUnique({ where: { id } });
       if (!current) throw new Error('Agendamento não encontrado');
 
-      await prisma.appointment.delete({ where: { id: decodedId } });
+      await prisma.appointment.delete({ where: { id } });
 
       await prisma.auditLog.create({
         data: {
           entityType: 'Appointment',
-          entityId: decodedId,
+          entityId: id,
           action: 'DELETED',
           oldValue: { procedure: current.procedure, scheduledAt: current.scheduledAt },
           reason: 'Agendamento excluído',

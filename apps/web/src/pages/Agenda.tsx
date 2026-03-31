@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Trash } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
+import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_LEADS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
 import { validatePhone, sanitizeInput } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays, parse } from "date-fns";
@@ -52,6 +52,7 @@ const Agenda = () => {
     procedure: '',
     notes: '',
   });
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
   const dateObj = new Date(currentDate + "T12:00:00");
   const dateLabel = format(dateObj, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
@@ -65,12 +66,18 @@ const Agenda = () => {
     fetchPolicy: 'network-only',
   });
 
+  const { data: leadsData, loading: loadingLeads } = useQuery(GET_LEADS, {
+    variables: { first: 100 }, // Get up to 100 leads
+    fetchPolicy: 'network-only',
+  });
+
   const [createAppointment] = useMutation(CREATE_APPOINTMENT);
   const [updateAppointment] = useMutation(UPDATE_APPOINTMENT);
   const [deleteAppointment, { loading: deleting }] = useMutation(DELETE_APPOINTMENT);
 
   const appointments = appointmentsData?.appointmentsByDate || [];
   const surgeons = surgeonsData?.surgeons || [];
+  const leads = leadsData?.leads?.edges?.map((edge: any) => edge.node) || [];
 
   const prevDay = () => {
     const newDate = format(subDays(dateObj, 1), 'yyyy-MM-dd');
@@ -97,16 +104,17 @@ const Agenda = () => {
   const openNewAppointment = (surgeonId: string, time: string, apt?: any) => {
     setSelectedSlot({ doctorId: surgeonId, time, date: currentDate });
     if (apt) {
-      console.log('Appointment clicked:', apt);
       setEditingAppointmentId(apt.id);
+      setSelectedPatientId(apt.patient?.id || null);
       setNewAppointment({
         patientName: apt.patient?.name || '',
-        patientPhone: '',
+        patientPhone: apt.patient?.phone || '',
         procedure: apt.procedure || '',
         notes: apt.notes || '',
       });
     } else {
       setEditingAppointmentId(null);
+      setSelectedPatientId(null);
       setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '' });
     }
     setSheetOpen(true);
@@ -149,10 +157,14 @@ const Agenda = () => {
           },
         });
       } else {
+        if (!selectedPatientId) {
+          alert('Selecione um paciente');
+          return;
+        }
         await createAppointment({
           variables: {
             input: {
-              patientId: selectedSlot.doctorId,
+              patientId: selectedPatientId,
               surgeonId: selectedSlot.doctorId,
               procedure: sanitizedProcedure,
               scheduledAt: `${selectedSlot.date}T${selectedSlot.time}:00`,
@@ -165,6 +177,7 @@ const Agenda = () => {
       setSheetOpen(false);
       setEditingAppointmentId(null);
       setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '' });
+      setSelectedPatientId(null);
     } catch (error) {
       console.error('Error saving appointment:', error);
       alert('Erro ao salvar agendamento.');
@@ -177,27 +190,27 @@ const Agenda = () => {
   };
 
   const confirmDeleteAppointment = async () => {
-    if (!appointmentToDelete) return;
+    if (!appointmentToDelete) {
+      return;
+    }
     
     try {
-      console.log('Deleting appointment:', appointmentToDelete);
-      const result = await deleteAppointment({
+      await deleteAppointment({
         variables: { input: { id: appointmentToDelete, confirmed: true } },
       });
-      console.log('Delete result:', result);
+      
       refetchAppointments();
       setSheetOpen(false);
       setEditingAppointmentId(null);
       setDeleteDialogOpen(false);
       setAppointmentToDelete(null);
     } catch (error: any) {
-      console.error('Error deleting appointment:', error);
       const errorMsg = error?.message || 'Erro ao excluir agendamento.';
       alert(`Erro: ${errorMsg}`);
     }
   };
 
-  if (loadingSurgeons || loadingAppointments) {
+  if (loadingSurgeons || loadingAppointments || loadingLeads) {
     return (
       <AppLayout title="Agenda Médica">
         <div className="flex items-center justify-between mb-6">
@@ -349,12 +362,39 @@ const Agenda = () => {
             </div>
             
             <div className="space-y-2">
+              <Label htmlFor="patientId">Paciente</Label>
+              <Select
+                value={selectedPatientId || ""}
+                onValueChange={(val) => {
+                  setSelectedPatientId(val);
+                  const lead = leads?.find((l: any) => l.id === val);
+                  if (lead) {
+                    setNewAppointment({
+                      ...newAppointment,
+                      patientName: lead.name,
+                      patientPhone: lead.phone,
+                    });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o paciente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {leads?.map((lead: any) => (
+                    <SelectItem key={lead.id} value={lead.id}>{lead.name} ({lead.phone})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="patientName">Nome do Paciente</Label>
               <Input
                 id="patientName"
                 value={newAppointment.patientName}
                 onChange={(e) => setNewAppointment({ ...newAppointment, patientName: e.target.value })}
                 placeholder="Ex: João da Silva"
+                disabled={!!selectedPatientId}
               />
             </div>
             <div className="space-y-2">
@@ -364,6 +404,7 @@ const Agenda = () => {
                 value={newAppointment.patientPhone}
                 onChange={(e) => setNewAppointment({ ...newAppointment, patientPhone: e.target.value })}
                 placeholder="(11) 99999-9999"
+                disabled={!!selectedPatientId}
               />
             </div>
             <div className="space-y-2">
