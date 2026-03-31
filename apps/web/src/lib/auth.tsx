@@ -73,6 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data?.me) {
       setUser(data.me);
       localStorage.setItem('user', JSON.stringify(data.me));
+    } else if (data && data.me === null) {
+      // Query returned but user is null (invalid token or user not found)
+      setUser(null);
+      localStorage.removeItem('user');
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('refresh_token');
+      window.location.href = '/login';
     }
   }, [data]);
 

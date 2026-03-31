@@ -213,7 +213,8 @@ export const resolvers = {
         include: { patient: true, surgeon: true },
       });
     },
-    appointmentsByDate: async (_: unknown, { date }: { date: string | Date }) => {
+    appointmentsByDate: async (_: unknown, { date }: { date: string | Date }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
       const dateObj = typeof date === 'string' ? new Date(date) : (date as Date);
       const year = dateObj.getUTCFullYear();
       const month = dateObj.getUTCMonth();
