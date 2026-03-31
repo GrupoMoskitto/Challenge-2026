@@ -57,6 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { data, loading, refetch, error } = useQuery<{ me: User }>(GET_ME, {
     skip: !hasToken,
     fetchPolicy: 'network-only',
+    onCompleted: (data) => {
+      console.log('GET_ME completed:', data);
+    },
     onError: (error) => {
       console.error('GET_ME query error:', error);
       // If any GraphQL error occurs (likely auth error), clear tokens and redirect
@@ -97,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Clear user if no token
   useEffect(() => {
+    console.log('hasToken changed:', hasToken);
     if (!hasToken) {
       setUser(null);
       localStorage.removeItem('user');
