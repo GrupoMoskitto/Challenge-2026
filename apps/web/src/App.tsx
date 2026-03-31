@@ -5,7 +5,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { apolloClient, getAuthToken, isAuthenticated } from "./lib/apollo";
-import { AuthProvider } from "./lib/auth";
+import { AuthProvider, useAuth } from "./lib/auth";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Leads = lazy(() => import("./pages/Leads"));
@@ -24,7 +24,13 @@ function PageLoader() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  if (!isAuthenticated()) {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
+  }
+  
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
   
