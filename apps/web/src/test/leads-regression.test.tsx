@@ -21,6 +21,14 @@ vi.mock("@/components/AppLayout", () => ({
   ),
 }));
 
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({
+    user: { role: "ADMIN" },
+    loading: false,
+    refetch: vi.fn(),
+  }),
+}));
+
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -122,5 +130,29 @@ describe("Leads drag/delete regression", () => {
     await waitFor(() => {
       expect(mocks.updateStatus).not.toHaveBeenCalled();
     });
+  });
+
+  it("should show auth or permission errors when lead deletion is rejected", async () => {
+    mocks.deleteLead.mockResolvedValueOnce({
+      data: { deleteLead: null },
+      errors: [{ message: "Usuário não autenticado" }],
+    });
+
+    render(
+      <MemoryRouter>
+        <Leads />
+      </MemoryRouter>,
+    );
+
+    const card = screen.getByText("Karina Araujaa").closest('[draggable="true"]');
+    expect(card).not.toBeNull();
+
+    const menuButton = within(card as HTMLElement).getAllByRole("button")[0];
+    fireEvent.click(menuButton);
+    fireEvent.click(screen.getByText("Excluir"));
+    fireEvent.click(screen.getByRole("button", { name: "Excluir" }));
+
+    expect(await screen.findByText("Usuário não autenticado")).toBeInTheDocument();
+    expect(mocks.refetch).not.toHaveBeenCalled();
   });
 });
