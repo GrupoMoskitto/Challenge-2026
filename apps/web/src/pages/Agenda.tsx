@@ -97,6 +97,7 @@ const Agenda = () => {
   const openNewAppointment = (surgeonId: string, time: string, apt?: any) => {
     setSelectedSlot({ doctorId: surgeonId, time, date: currentDate });
     if (apt) {
+      console.log('Appointment clicked:', apt);
       setEditingAppointmentId(apt.id);
       setNewAppointment({
         patientName: apt.patient?.name || '',
@@ -179,17 +180,20 @@ const Agenda = () => {
     if (!appointmentToDelete) return;
     
     try {
-      await deleteAppointment({
+      console.log('Deleting appointment:', appointmentToDelete);
+      const result = await deleteAppointment({
         variables: { input: { id: appointmentToDelete, confirmed: true } },
       });
+      console.log('Delete result:', result);
       refetchAppointments();
       setSheetOpen(false);
       setEditingAppointmentId(null);
       setDeleteDialogOpen(false);
       setAppointmentToDelete(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting appointment:', error);
-      alert('Erro ao excluir agendamento.');
+      const errorMsg = error?.message || 'Erro ao excluir agendamento.';
+      alert(`Erro: ${errorMsg}`);
     }
   };
 

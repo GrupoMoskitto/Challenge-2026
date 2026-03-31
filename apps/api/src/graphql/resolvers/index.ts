@@ -832,11 +832,19 @@ export const resolvers = {
       if (!context.user) throw new Error('Usuário não autenticado');
       
       const { id, confirmed } = input;
+      console.log('deleteAppointment input:', { id, confirmed });
       if (!confirmed) {
         throw new Error('Confirmação necessária para excluir agendamento. Defina confirmed: true.');
       }
       
-      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      let decodedId: string;
+      try {
+        decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      } catch (error) {
+        console.error('Failed to decode id:', id, error);
+        decodedId = id; // fallback to raw id
+      }
+      
       const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
       if (!current) throw new Error('Agendamento não encontrado');
 
