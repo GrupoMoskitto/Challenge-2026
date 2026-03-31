@@ -822,8 +822,13 @@ export const resolvers = {
 
       return updated;
     },
-    deleteAppointment: async (_: unknown, { id }: { id: string }, context: Context) => {
+    deleteAppointment: async (_: unknown, { input }: { input: { id: string; confirmed?: boolean } }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
+      
+      const { id, confirmed } = input;
+      if (!confirmed) {
+        throw new Error('Confirmação necessária para excluir agendamento. Defina confirmed: true.');
+      }
       
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
