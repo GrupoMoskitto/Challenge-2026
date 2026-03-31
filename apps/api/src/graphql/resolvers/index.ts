@@ -206,7 +206,8 @@ export const resolvers = {
         orderBy: { scheduledAt: 'asc' },
       });
     },
-    appointment: async (_: unknown, { id }: { id: string }) => {
+    appointment: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.appointment.findUnique({
         where: { id: decodedId },
@@ -234,7 +235,8 @@ export const resolvers = {
         orderBy: { scheduledAt: 'asc' },
       });
     },
-    appointmentsBySurgeon: async (_: unknown, { surgeonId, startDate, endDate }: { surgeonId: string; startDate?: string; endDate?: string }) => {
+    appointmentsBySurgeon: async (_: unknown, { surgeonId, startDate, endDate }: { surgeonId: string; startDate?: string; endDate?: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
       const decodedId = Buffer.from(surgeonId, 'base64url').toString('utf-8');
       return prisma.appointment.findMany({
         where: {
@@ -248,20 +250,23 @@ export const resolvers = {
         orderBy: { scheduledAt: 'asc' },
       });
     },
-    surgeons: async () => {
+    surgeons: async (_: unknown, __: unknown, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
       return prisma.surgeon.findMany({
         where: { isActive: true },
         include: { availability: true },
       });
     },
-    surgeon: async (_: unknown, { id }: { id: string }) => {
+    surgeon: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.surgeon.findUnique({
         where: { id: decodedId },
         include: { availability: true },
       });
     },
-    availableSurgeons: async (_: unknown, { date }: { date: string }) => {
+    availableSurgeons: async (_: unknown, { date }: { date: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
       const targetDate = new Date(date);
       const dayOfWeek = targetDate.getDay();
       
