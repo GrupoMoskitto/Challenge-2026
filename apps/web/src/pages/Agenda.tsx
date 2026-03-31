@@ -173,7 +173,7 @@ const Agenda = () => {
     
     try {
       await deleteAppointment({
-        variables: { id: editingAppointmentId },
+        variables: { input: { id: editingAppointmentId, confirmed: true } },
       });
       refetchAppointments();
       setSheetOpen(false);

@@ -402,6 +402,11 @@ export const typeDefs = gql`
     notes: String
   }
 
+  input DeleteAppointmentInput {
+    id: ID!
+    confirmed: Boolean
+  }
+
   input CreateContactInput {
     leadId: ID!
     date: DateTime!
@@ -461,7 +466,7 @@ export const typeDefs = gql`
     createAppointment(input: CreateAppointmentInput!): Appointment!
     updateAppointment(input: UpdateAppointmentInput!): Appointment!
     updateAppointmentStatus(input: UpdateAppointmentStatusInput!): Appointment!
-    deleteAppointment(id: ID!): DeleteResult!
+    deleteAppointment(input: DeleteAppointmentInput!): DeleteResult!
 
     # Surgeons
     createSurgeon(input: CreateSurgeonInput!): Surgeon!

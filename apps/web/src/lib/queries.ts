@@ -372,8 +372,8 @@ export const UPDATE_APPOINTMENT = gql`
 `;
 
 export const DELETE_APPOINTMENT = gql`
-  mutation DeleteAppointment($id: ID!) {
-    deleteAppointment(id: $id) {
+  mutation DeleteAppointment($input: DeleteAppointmentInput!) {
+    deleteAppointment(input: $input) {
       success
       message
     }
