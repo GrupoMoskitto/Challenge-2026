@@ -1,144 +1,45 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { gql, useQuery } from '@apollo/client';
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  isActive: boolean;
-  createdAt: string;
-}
+import { createContext, useContext, ReactNode } from 'react';
+import { useAuthSimple, User } from '../hooks/useAuthSimple';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   isChecking: boolean;
+  isAuthenticated: boolean;
   refetch: () => void;
+  setAuthToken: (token: string | null) => void;
+  setStoredUser: (user: string | null) => void;
 }
-
-const GET_ME = gql`
-  query GetMe {
-    me {
-      id
-      name
-      email
-      role
-      isActive
-      createdAt
-    }
-  }
-`;
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   isChecking: true,
+  isAuthenticated: false,
   refetch: () => {},
+  setAuthToken: () => {},
+  setStoredUser: () => {},
 });
 
-const hasAuthToken = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  return localStorage.getItem('auth_token') !== null;
-};
-
-const getStoredUser = (): User | null => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(getStoredUser);
-  const [isChecking, setIsChecking] = useState(true);
-  const hasToken = hasAuthToken();
-  
-  const { data, loading, refetch, error } = useQuery<{ me: User }>(GET_ME, {
-    skip: !hasToken,
-    fetchPolicy: 'network-only',
-  });
-
-  // Handle query completion
-  useEffect(() => {
-    if (data) {
-      console.log('GET_ME completed:', data);
-      setIsChecking(false);
-      if (data.me) {
-        console.log('User authenticated:', data.me.email);
-        setUser(data.me);
-        localStorage.setItem('user', JSON.stringify(data.me));
-      } else {
-        console.log('GET_ME returned null - clearing tokens');
-        setUser(null);
-        localStorage.removeItem('user');
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('refresh_token');
-      }
-    }
-  }, [data]);
-
-  // Handle query error
-  useEffect(() => {
-    if (error) {
-      console.error('GET_ME query error:', error);
-      setIsChecking(false);
-      // If any GraphQL error occurs (likely auth error), clear tokens
-      if (error.graphQLErrors.some(e => e.message.includes('não autenticado') || e.message.includes('Credenciais inválidas'))) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        setUser(null);
-      }
-    }
-  }, [error]);
-
-  // Clear user if no token
-  useEffect(() => {
-    console.log('hasToken changed:', hasToken);
-    if (!hasToken) {
-      setUser(null);
-      localStorage.removeItem('user');
-      setIsChecking(false);
-    }
-  }, [hasToken]);
-
-  // Listen for token changes (login/logout)
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'auth_token' || e.key === 'user') {
-        if (!hasAuthToken()) {
-          setUser(null);
-          localStorage.removeItem('user');
-        } else {
-          const storedUser = getStoredUser();
-          if (storedUser) {
-            setUser(storedUser);
-          }
-          refetch();
-        }
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [refetch]);
-
-  // Determine loading state
-  // If we have a stored user, show it immediately (optimistic)
-  // Only show loading if we have token but no stored user yet
-  const isLoading = hasToken && !user && loading;
-
-  console.log('AuthProvider state:', { user: !!user, loading: isLoading, hasToken, data: !!data, error: !!error, isChecking });
+  const { 
+    user, 
+    loading, 
+    isChecking, 
+    isAuthenticated,
+    refetch, 
+    setAuthToken, 
+    setStoredUser 
+  } = useAuthSimple();
 
   const value: AuthContextType = {
     user,
-    loading: isLoading,
+    loading,
     isChecking,
-    refetch
+    isAuthenticated,
+    refetch,
+    setAuthToken,
+    setStoredUser,
   };
 
   return (
