@@ -42,7 +42,7 @@ interface Notification {
 
 const GET_NOTIFICATIONS = gql`
   query GetNotifications {
-    appointments(status: SCHEDULED, first: 5) {
+    appointments(status: SCHEDULED) {
       id
       procedure
       scheduledAt
