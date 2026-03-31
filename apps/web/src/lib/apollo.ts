@@ -188,5 +188,5 @@ export const removeAuthToken = () => {
 };
 
 export const isAuthenticated = (): boolean => {
-  return getAuthToken() !== null;
+  return getAccessToken() !== null;
 };
