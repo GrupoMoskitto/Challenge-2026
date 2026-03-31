@@ -54,9 +54,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(getStoredUser);
   const hasToken = hasAuthToken();
   
-  const { data, loading, refetch } = useQuery<{ me: User }>(GET_ME, {
+  const { data, loading, refetch, error } = useQuery<{ me: User }>(GET_ME, {
     skip: !hasToken,
     fetchPolicy: 'network-only',
+    onError: (error) => {
+      // If any GraphQL error occurs (likely auth error), clear tokens and redirect
+      if (error.graphQLErrors.some(e => e.message.includes('não autenticado') || e.message.includes('Credenciais inválidas'))) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    }
   });
 
   // Sync user from query result
@@ -66,6 +75,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('user', JSON.stringify(data.me));
     }
   }, [data]);
+
+  // Redirect on auth error
+  useEffect(() => {
+    if (error) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+  }, [error]);
 
   // Clear user if no token
   useEffect(() => {
