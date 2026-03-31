@@ -21,6 +21,11 @@ const initializeTheme = () => {
 
 initializeTheme();
 
+window.onerror = (msg, url, line, col, error) => {
+  console.error('Global error:', msg, url, line, col, error);
+  return false;
+};
+
 createRoot(document.getElementById("root")!).render(
   <App />
 );

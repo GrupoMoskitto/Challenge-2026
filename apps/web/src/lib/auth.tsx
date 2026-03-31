@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     skip: !hasToken,
     fetchPolicy: 'network-only',
     onError: (error) => {
+      console.error('GET_ME query error:', error);
       // If any GraphQL error occurs (likely auth error), clear tokens and redirect
       if (error.graphQLErrors.some(e => e.message.includes('não autenticado') || e.message.includes('Credenciais inválidas'))) {
         localStorage.removeItem('auth_token');
@@ -86,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Redirect on auth error
   useEffect(() => {
     if (error) {
+      console.error('Auth error:', error);
       localStorage.removeItem('auth_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
@@ -126,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // If we have a stored user, show it immediately (optimistic)
   // Only show loading if we have token but no stored user yet
   const isLoading = hasToken && !user && loading;
+
+  console.log('AuthProvider state:', { user: !!user, loading: isLoading, hasToken, data: !!data, error: !!error });
 
   const value: AuthContextType = {
     user,

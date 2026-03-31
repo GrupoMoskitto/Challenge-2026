@@ -1,5 +1,6 @@
 import { ApolloClient, InMemoryCache, createHttpLink, ApolloLink, Observable } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
+import { onError } from '@apollo/client/link/error';
 import { gql } from '@apollo/client';
 
 const httpLink = createHttpLink({
@@ -112,8 +113,37 @@ const securityLink = new ApolloLink((operation, forward) => {
   return forward(operation);
 });
 
+const errorLink = onError(({ graphQLErrors, networkError }) => {
+  if (graphQLErrors) {
+    graphQLErrors.forEach(({ message, locations, path, extensions }) => {
+      console.error(
+        `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
+      );
+      // Check for authentication errors
+      if (extensions?.code === 'UNAUTHENTICATED' || 
+          message.includes('não autenticado') || 
+          message.includes('Credenciais inválidas')) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    });
+  }
+  if (networkError) {
+    console.error(`[Network error]: ${networkError}`);
+    // If network error is 401 Unauthorized, redirect to login
+    if ('statusCode' in networkError && networkError.statusCode === 401) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+  }
+});
+
 export const apolloClient = new ApolloClient({
-  link: securityLink.concat(authLink).concat(httpLink),
+  link: errorLink.concat(securityLink).concat(authLink).concat(httpLink),
   cache: new InMemoryCache(),
   defaultOptions: {
     watchQuery: {
