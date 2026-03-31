@@ -35,6 +35,12 @@ export const typeDefs = gql`
     LAST_ATTEMPT
   }
 
+  enum NotificationStatus {
+    PENDING
+    SENT
+    FAILED
+  }
+
   enum ContactType {
     WHATSAPP
     CALL
@@ -235,7 +241,7 @@ export const typeDefs = gql`
     id: ID!
     appointmentId: ID!
     type: NotificationType!
-    status: String!
+    status: NotificationStatus!
     sentAt: DateTime
     errorMessage: String
     createdAt: DateTime!
@@ -439,7 +445,6 @@ export const typeDefs = gql`
   type Mutation {
     # Auth
     login(input: LoginInput!): AuthPayload!
-    register(input: CreateUserInput!): AuthPayload!
     refreshToken(token: String!): RefreshPayload!
 
     # Leads

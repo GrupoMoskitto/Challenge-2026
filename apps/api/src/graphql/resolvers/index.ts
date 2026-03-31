@@ -3,6 +3,7 @@ import { LeadStatus, AppointmentStatus } from '@prisma/client';
 import { DateTimeScalar, IDScalar } from '../scalars';
 import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken } from '../../auth';
 import { dispatchLeadWelcome, dispatchLeadFollowup } from '../../services/whatsappQueue';
+import { logger } from '../../config/logger';
 
 const encodeBase64 = (id: string): string => {
   return Buffer.from(id).toString('base64url');
@@ -130,7 +131,7 @@ export const resolvers = {
       }
 
       if (where?.createdFrom || where?.createdTo) {
-        whereClause.createdAt = {};
+        whereClause.createdAt = {} as any;
         if (where.createdFrom) whereClause.createdAt.gte = new Date(where.createdFrom);
         if (where.createdTo) whereClause.createdAt.lte = new Date(where.createdTo);
       }
@@ -212,7 +213,7 @@ export const resolvers = {
         include: { patient: true, surgeon: true },
       });
     },
-    appointmentsByDate: async (_: unknown, { date }: { date: any }) => {
+    appointmentsByDate: async (_: unknown, { date }: { date: string | Date }) => {
       const dateObj = typeof date === 'string' ? new Date(date) : (date as Date);
       const year = dateObj.getUTCFullYear();
       const month = dateObj.getUTCMonth();
@@ -454,18 +455,7 @@ export const resolvers = {
       
       return { token: newToken, refreshToken: newRefreshToken };
     },
-    register: async (_: unknown, { input }: { input: { email: string; name: string; role: string; password: string } }) => {
-      const hashedPassword = await hashPassword(input.password);
-      
-      return prisma.user.create({
-        data: {
-          email: input.email,
-          name: input.name,
-          role: input.role as any,
-          password: hashedPassword,
-        },
-      });
-    },
+    // register mutation removed for security - use createUser (ADMIN only) instead
     createLead: async (_: unknown, { input }: { input: {
       name: string;
       email: string;
@@ -514,13 +504,9 @@ export const resolvers = {
       
       // ID já vem como texto puro do frontend
       const leadId = input.id;
-      console.log('=== updateLeadStatus called ===');
-      console.log('input:', JSON.stringify(input));
-      console.log('leadId:', leadId);
       
       try {
         const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
-        console.log('currentLead:', currentLead);
         if (!currentLead) {
           throw new Error('Lead não encontrado');
         }
@@ -559,7 +545,6 @@ export const resolvers = {
 
         return updatedLead;
       } catch (error) {
-        console.error('updateLeadStatus error:', error);
         throw error;
       }
     },
@@ -590,7 +575,7 @@ export const resolvers = {
         excludeId: leadId,
       });
 
-      const updateData: any = {};
+      const updateData: Record<string, unknown> = {};
       if (input.name !== undefined) updateData.name = input.name;
       if (input.email !== undefined) updateData.email = input.email;
       if (input.phone !== undefined) updateData.phone = input.phone;
@@ -602,6 +587,8 @@ export const resolvers = {
       if (input.whatsappActive !== undefined) updateData.whatsappActive = input.whatsappActive;
       if (input.notes !== undefined) updateData.notes = input.notes;
       
+      let oldStatus = currentLead.status;
+      let statusChanged = false;
       if (input.status !== undefined) {
         // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
         const criticalStatuses: LeadStatus[] = [LeadStatus.CONVERTED, LeadStatus.LOST];
@@ -612,6 +599,9 @@ export const resolvers = {
         ) {
           throw new Error('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
         }
+        if (input.status !== oldStatus) {
+          statusChanged = true;
+        }
         updateData.status = input.status;
       }
 
@@ -619,6 +609,21 @@ export const resolvers = {
         where: { id: leadId },
         data: updateData,
       });
+
+      // RN06: Criar AuditLog para mudança de status
+      if (statusChanged && context.user?.userId) {
+        await prisma.auditLog.create({
+          data: {
+            entityType: 'Lead',
+            entityId: leadId,
+            action: 'STATUS_CHANGE',
+            oldValue: JSON.stringify(oldStatus),
+            newValue: JSON.stringify(input.status),
+            reason: 'Atualização de status via updateLead',
+            userId: context.user.userId,
+          },
+        });
+      }
 
       if (input.status === LeadStatus.CONTACTED && currentLead.status === LeadStatus.NEW) {
         await dispatchLeadFollowup(updatedLead.id, updatedLead.name, updatedLead.phone, updatedLead.procedure || undefined, 7);
@@ -777,7 +782,7 @@ export const resolvers = {
       const current = await prisma.appointment.findUnique({ where: { id: decodedId } });
       if (!current) throw new Error('Agendamento não encontrado');
 
-      const data: any = {};
+      const data: Record<string, unknown> = {};
       if (input.patientId) data.patientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
       if (input.surgeonId) data.surgeonId = Buffer.from(input.surgeonId, 'base64url').toString('utf-8');
       if (input.procedure) data.procedure = input.procedure;
@@ -897,7 +902,7 @@ export const resolvers = {
     updateProfile: async (_: unknown, { input }: { input: { name?: string; password?: string } }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       
-      const updateData: any = {};
+      const updateData: Record<string, unknown> = {};
       if (input.name !== undefined) updateData.name = input.name;
       if (input.password) {
         updateData.password = await hashPassword(input.password);
@@ -923,8 +928,8 @@ export const resolvers = {
         }
       }
       
-      const updateData: any = {};
-      const changes: any = {};
+      const updateData: Record<string, unknown> = {};
+      const changes: Record<string, unknown> = {};
       if (input.dateOfBirth !== undefined) {
         updateData.dateOfBirth = new Date(input.dateOfBirth);
         changes.dateOfBirth = { from: current.dateOfBirth, to: new Date(input.dateOfBirth) };
@@ -1100,7 +1105,7 @@ export const resolvers = {
       const existing = await prisma.messageTemplate.findUnique({ where: { id: input.id } });
       if (!existing) throw new Error('Template não encontrado');
 
-      const updateData: any = {};
+      const updateData: Record<string, unknown> = {};
       if (input.name !== undefined) updateData.name = input.name;
       if (input.channel !== undefined) updateData.channel = input.channel;
       if (input.content !== undefined) updateData.content = input.content;
