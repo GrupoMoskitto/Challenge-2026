@@ -82,7 +82,7 @@ export default function Login() {
       setAuthToken(data.login.token, data.login.refreshToken);
       localStorage.setItem('user', JSON.stringify(data.login.user));
       setAttempts(0);
-      navigate('/');
+      window.location.href = '/';
     },
     onError: (err) => {
       const newAttempts = attempts + 1;
