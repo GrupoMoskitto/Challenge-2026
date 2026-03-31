@@ -224,7 +224,7 @@ export const resolvers = {
       const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
       const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
       
-      return prisma.appointment.findMany({
+      const appointments = await prisma.appointment.findMany({
         where: {
           scheduledAt: {
             gte: startOfDay,
@@ -234,6 +234,8 @@ export const resolvers = {
         include: { patient: true, surgeon: true },
         orderBy: { scheduledAt: 'asc' },
       });
+      console.log('appointmentsByDate returning', appointments.length, 'appointments. First ID sample:', appointments[0]?.id);
+      return appointments;
     },
     appointmentsBySurgeon: async (_: unknown, { surgeonId, startDate, endDate }: { surgeonId: string; startDate?: string; endDate?: string }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');

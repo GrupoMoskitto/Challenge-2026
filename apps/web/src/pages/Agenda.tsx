@@ -181,8 +181,14 @@ const Agenda = () => {
     
     try {
       console.log('Deleting appointment:', appointmentToDelete);
+      // Encode ID to base64url (backend expects this format)
+      const encodedId = btoa(appointmentToDelete)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      console.log('Encoded ID:', encodedId);
       const result = await deleteAppointment({
-        variables: { input: { id: appointmentToDelete, confirmed: true } },
+        variables: { input: { id: encodedId, confirmed: true } },
       });
       console.log('Delete result:', result);
       refetchAppointments();
