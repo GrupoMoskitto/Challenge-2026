@@ -1,19 +1,8 @@
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-function getEnvPath(): string {
-  const customPath = process.env.DOTENV_CONFIG_PATH;
-  if (customPath) return customPath;
-  
-  const basePath = typeof __dirname !== 'undefined' 
-    ? __dirname 
-    : path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = path.resolve(basePath, '../../..');
-  return path.join(projectRoot, '.env');
-}
-
-dotenv.config({ path: getEnvPath() });
+const projectRoot = path.resolve(__dirname, '../../..');
+dotenv.config({ path: path.join(projectRoot, '.env') });
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@as-integrations/express5';
 import { typeDefs } from './graphql/schema';
