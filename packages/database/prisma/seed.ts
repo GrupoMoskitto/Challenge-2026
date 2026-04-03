@@ -323,6 +323,7 @@ async function main() {
   // Create some NEW/CONTACTED leads with appointments scheduled
   // Now we need to create patients first, then appointments
   const newLeads = leads.filter(l => l.status === LeadStatus.NEW || l.status === LeadStatus.CONTACTED);
+  const newLeadPatients = [];
   for (let i = 0; i < Math.min(5, newLeads.length); i++) {
     const patient = await prisma.patient.create({
       data: {
@@ -332,6 +333,7 @@ async function main() {
         address: 'Rua Teste, 123',
       },
     });
+    newLeadPatients.push(patient);
     await prisma.appointment.create({
       data: {
         patientId: patient.id,
@@ -345,7 +347,11 @@ async function main() {
   console.log('✅ Created additional appointments for new leads');
 
   // Create additional patients for today's appointments
-  const todayLeads = leads.slice(0, 5);
+  // Include all patients created so far
+  const allPatients = [...patients, ...newLeadPatients];
+  const leadsWithPatients = new Set(allPatients.map(p => p.leadId));
+  const availableLeads = leads.filter(l => !leadsWithPatients.has(l.id));
+  const todayLeads = availableLeads.slice(0, 5);
   const todayPatients = [];
   for (let i = 0; i < todayLeads.length; i++) {
     const patient = await prisma.patient.create({
