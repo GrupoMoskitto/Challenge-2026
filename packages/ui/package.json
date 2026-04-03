@@ -13,6 +13,6 @@
     "@crmed/config": "workspace:*",
     "@types/react": "^18",
     "eslint": "^9.14.0",
-    "typescript": "^5"
+    "typescript": "^6"
   }
 }
