@@ -3,8 +3,33 @@ import bcrypt from 'bcryptjs';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? (() => { throw new Error('JWT_SECRET environment variable is required in production'); })() : 'dev-secret-do-not-use-in-prod');
-const REFRESH_SECRET = process.env.REFRESH_SECRET || (isProduction ? (() => { throw new Error('REFRESH_SECRET environment variable is required in production'); })() : 'dev-refresh-secret-do-not-use-in-prod');
+const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? (() => { throw new Error('JWT_SECRET is required in production'); })() : 'dev-secret-do-not-use-in-prod');
+const REFRESH_SECRET = process.env.REFRESH_SECRET || (isProduction ? (() => { throw new Error('REFRESH_SECRET is required in production'); })() : 'dev-refresh-secret-do-not-use-in-prod');
+
+const loginAttempts = new Map<string, { count: number; firstAttempt: number }>();
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
+
+export function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const attempt = loginAttempts.get(ip);
+  
+  if (!attempt || now - attempt.firstAttempt > RATE_LIMIT_WINDOW) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+  
+  if (attempt.count >= RATE_LIMIT_MAX_ATTEMPTS) {
+    return false;
+  }
+  
+  attempt.count++;
+  return true;
+}
+
+export function resetRateLimit(ip: string): void {
+  loginAttempts.delete(ip);
+}
 
 export interface JwtPayload {
   userId: string;

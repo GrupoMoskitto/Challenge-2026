@@ -32,8 +32,9 @@ describe('Role Permissions & Access Control', () => {
     it('should allow ADMIN to access users query', async () => {
       const context: Context = { user: { userId: '1', email: 'admin@test.com', role: 'ADMIN' } };
       findManyUserSpy.mockResolvedValue([{ id: '1', email: 'admin@test.com' }]);
-      const result = await resolvers.Query.users(null, {}, context);
-      expect(result).toHaveLength(1);
+      vi.spyOn(prisma.user, 'count').mockResolvedValue(1);
+      const result = await resolvers.Query.users(null, { first: 20 }, context);
+      expect(result.edges).toHaveLength(1);
     });
 
     it('should block non-ADMIN from accessing auditLogs query', async () => {

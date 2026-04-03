@@ -1,7 +1,7 @@
 import { prisma, checkUniqueness } from '@crmed/database';
 import { LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel } from '@prisma/client';
 import { DateTimeScalar, IDScalar } from '../scalars';
-import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken } from '../../auth';
+import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit } from '../../auth';
 import { dispatchLeadWelcome, dispatchLeadFollowup } from '../../services/whatsappQueue';
 import { logger } from '../../config/logger';
 
@@ -15,6 +15,20 @@ export interface Context {
     email: string;
     role: string;
   };
+  _surgeonCache?: string | null;
+}
+
+const SURGEON_CACHE_KEY = '_surgeonCache';
+
+function getSurgeonFromContext(context: Context): string | null {
+  if (SURGEON_CACHE_KEY in context) {
+    return context._surgeonCache ?? null;
+  }
+  return null;
+}
+
+function setSurgeonInContext(context: Context, surgeonId: string | null): void {
+  (context as any)[SURGEON_CACHE_KEY] = surgeonId;
 }
 
 export const resolvers = {
@@ -34,20 +48,25 @@ export const resolvers = {
       const whereClause: any = status ? { status } : {};
 
       if (search) {
+        const sanitizedSearch = search.trim().substring(0, 100); // Limit search length
         whereClause.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { cpf: { contains: search, mode: 'insensitive' } },
-          { phone: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
+          { name: { contains: sanitizedSearch, mode: 'insensitive' } },
+          { cpf: { contains: sanitizedSearch, mode: 'insensitive' } },
+          { phone: { contains: sanitizedSearch, mode: 'insensitive' } },
+          { email: { contains: sanitizedSearch, mode: 'insensitive' } },
         ];
       }
       
       if (context.user?.role === 'SURGEON') {
-        const surgeon = await prisma.surgeon.findFirst({ where: { email: context.user.email } });
-        if (surgeon) {
-          whereClause.preferredDoctor = surgeon.id;
+        let surgeonId = getSurgeonFromContext(context);
+        if (!surgeonId) {
+          const surgeon = await prisma.surgeon.findFirst({ where: { email: context.user.email } });
+          surgeonId = surgeon?.id ?? null;
+          setSurgeonInContext(context, surgeonId);
+        }
+        if (surgeonId) {
+          whereClause.preferredDoctor = surgeonId;
         } else {
-          // If the user is a surgeon but has no surgeon profile, they see no leads
           return {
             edges: [],
             pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
@@ -90,7 +109,8 @@ export const resolvers = {
         include: { contacts: true },
       });
     },
-    leadByCpf: async (_: unknown, { cpf }: { cpf: string }) => {
+    leadByCpf: async (_: unknown, { cpf }: { cpf: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
       return prisma.lead.findUnique({ where: { cpf } });
     },
     patients: async (_: unknown, { first, after, where }: { 
@@ -116,10 +136,11 @@ export const resolvers = {
       }
 
       if (where?.search) {
+        const sanitizedSearch = where.search.trim().substring(0, 100);
         whereClause.OR = [
-          { lead: { name: { contains: where.search, mode: 'insensitive' } } },
-          { lead: { cpf: { contains: where.search, mode: 'insensitive' } } },
-          { lead: { phone: { contains: where.search, mode: 'insensitive' } } },
+          { lead: { name: { contains: sanitizedSearch, mode: 'insensitive' } } },
+          { lead: { cpf: { contains: sanitizedSearch, mode: 'insensitive' } } },
+          { lead: { phone: { contains: sanitizedSearch, mode: 'insensitive' } } },
         ];
       }
 
@@ -190,9 +211,14 @@ export const resolvers = {
       const whereClause: any = status ? { status } : {};
       
       if (context.user?.role === 'SURGEON') {
-        const surgeon = await prisma.surgeon.findFirst({ where: { email: context.user.email } });
-        if (surgeon) {
-          whereClause.surgeonId = surgeon.id;
+        let surgeonId = getSurgeonFromContext(context);
+        if (!surgeonId) {
+          const surgeon = await prisma.surgeon.findFirst({ where: { email: context.user.email } });
+          surgeonId = surgeon?.id ?? null;
+          setSurgeonInContext(context, surgeonId);
+        }
+        if (surgeonId) {
+          whereClause.surgeonId = surgeonId;
         } else {
           return [];
         }
@@ -217,18 +243,20 @@ export const resolvers = {
     appointmentsByDate: async (_: unknown, { date }: { date: string | Date }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       const dateObj = typeof date === 'string' ? new Date(date) : (date as Date);
+      
+      // Use UTC consistently to avoid timezone issues
       const year = dateObj.getUTCFullYear();
       const month = dateObj.getUTCMonth();
       const day = dateObj.getUTCDate();
       
-      const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
-      const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
+      const startOfDay = Date.UTC(year, month, day, 0, 0, 0, 0);
+      const endOfDay = Date.UTC(year, month, day, 23, 59, 59, 999);
       
       const appointments = await prisma.appointment.findMany({
         where: {
           scheduledAt: {
-            gte: startOfDay,
-            lte: endOfDay,
+            gte: new Date(startOfDay),
+            lte: new Date(endOfDay),
           },
         },
         include: { patient: true, surgeon: true },
@@ -286,12 +314,36 @@ export const resolvers = {
       
       return surgeonsWithSlots.filter(s => s.availability.length > 0);
     },
-    users: async (_: unknown, __: unknown, context: Context) => {
+    users: async (_: unknown, { first, after }: { first?: number; after?: string }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
-      return prisma.user.findMany({
+      
+      const limit = first || 20;
+      const cursor = after ? Buffer.from(after, 'base64url').toString('utf-8') : undefined;
+      
+      const users = await prisma.user.findMany({
+        take: limit + 1,
+        cursor: cursor ? { id: cursor } : undefined,
+        skip: cursor ? 1 : 0,
         orderBy: { name: 'asc' },
       });
+      
+      const hasNextPage = users.length > limit;
+      const edges = users.slice(0, limit).map((user) => ({
+        node: user,
+        cursor: encodeBase64(user.id),
+      }));
+      
+      return {
+        edges,
+        pageInfo: {
+          hasNextPage,
+          hasPreviousPage: !!after,
+          startCursor: edges[0]?.cursor || null,
+          endCursor: edges[edges.length - 1]?.cursor || null,
+        },
+        totalCount: await prisma.user.count(),
+      };
     },
     user: async (_: unknown, { id }: { id: string }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
@@ -355,12 +407,14 @@ export const resolvers = {
         orderBy: { date: 'asc' },
       });
     },
-    messageTemplates: async () => {
+    messageTemplates: async (_: unknown, __: unknown, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
       return prisma.messageTemplate.findMany({
         orderBy: { name: 'asc' },
       });
     },
-    messageTemplate: async (_: unknown, { id }: { id: string }) => {
+    messageTemplate: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.messageTemplate.findUnique({ where: { id: decodedId } });
     },
@@ -408,7 +462,13 @@ export const resolvers = {
     },
   },
   Mutation: {
-    login: async (_: unknown, { input }: { input: { email: string; password: string } }) => {
+    login: async (_: unknown, { input }: { input: { email: string; password: string } }, context: Context) => {
+      // Rate limiting - use IP from context or default
+      const clientIp = (context as any)?.ip || 'default-ip';
+      if (!checkRateLimit(clientIp)) {
+        throw new Error('Muitas tentativas de login. Tente novamente em 15 minutos.');
+      }
+      
       const user = await prisma.user.findUnique({
         where: { email: input.email },
       });
@@ -425,6 +485,9 @@ export const resolvers = {
       if (!user.isActive) {
         throw new Error('Usuário inativo');
       }
+      
+      // Reset rate limit on successful login
+      resetRateLimit(clientIp);
       
       const token = generateToken({
         userId: user.id,
@@ -482,6 +545,12 @@ export const resolvers = {
       notes?: string;
     }}) => {
       await checkUniqueness({ cpf: input.cpf, email: input.email, phone: input.phone });
+
+      // Validate preferredDoctor if provided
+      if (input.preferredDoctor) {
+        const surgeon = await prisma.surgeon.findUnique({ where: { id: input.preferredDoctor } });
+        if (!surgeon) throw new Error('Médico não encontrado');
+      }
 
       const newLead = await prisma.lead.create({
         data: {
@@ -655,14 +724,23 @@ export const resolvers = {
       const existingLead = await prisma.lead.findUnique({ where: { id } });
       if (!existingLead) throw new Error('Lead não encontrado');
 
-      // Check if there are appointments associated with this lead
-      const appointmentCount = await prisma.appointment.count({
-        where: { patientId: id },
-      });
-      if (appointmentCount > 0) {
-        throw new Error('Não é possível excluir lead com agendamentos associados');
+      // Check if there's a patient associated with this lead
+      const patient = await prisma.patient.findUnique({ where: { leadId: id } });
+      
+      // Check if there are appointments associated with this patient
+      if (patient) {
+        const appointmentCount = await prisma.appointment.count({
+          where: { patientId: patient.id },
+        });
+        if (appointmentCount > 0) {
+          throw new Error('Não é possível excluir lead com agendamentos associados');
+        }
       }
 
+      // Delete patient first (if exists), then lead
+      if (patient) {
+        await prisma.patient.delete({ where: { id: patient.id } });
+      }
       await prisma.lead.delete({ where: { id } });
 
       return { success: true, message: 'Lead excluído com sucesso' };
@@ -729,6 +807,14 @@ export const resolvers = {
       notes?: string;
     }}, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
+      
+      // Validate patient exists
+      const patient = await prisma.patient.findUnique({ where: { id: input.patientId } });
+      if (!patient) throw new Error('Paciente não encontrado');
+      
+      // Validate surgeon exists
+      const surgeon = await prisma.surgeon.findUnique({ where: { id: input.surgeonId } });
+      if (!surgeon) throw new Error('Médico não encontrado');
       
       // IDs are already decoded by ID scalar
       const appointment = await prisma.appointment.create({
@@ -800,6 +886,18 @@ export const resolvers = {
       // ID is already decoded by ID scalar
       const current = await prisma.appointment.findUnique({ where: { id: input.id } });
       if (!current) throw new Error('Agendamento não encontrado');
+
+      // Validate patient if provided
+      if (input.patientId) {
+        const patient = await prisma.patient.findUnique({ where: { id: input.patientId } });
+        if (!patient) throw new Error('Paciente não encontrado');
+      }
+      
+      // Validate surgeon if provided
+      if (input.surgeonId) {
+        const surgeon = await prisma.surgeon.findUnique({ where: { id: input.surgeonId } });
+        if (!surgeon) throw new Error('Médico não encontrado');
+      }
 
       const data: Record<string, unknown> = {};
       if (input.patientId) data.patientId = input.patientId;
