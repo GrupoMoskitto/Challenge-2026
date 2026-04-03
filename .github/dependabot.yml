@@ -19,16 +19,12 @@ updates:
     labels:
       - "dependencies"
       - "security"
-    versioning-strategy: "increase"
   - package-ecosystem: "npm"
     directory: "/apps/api"
     schedule:
       interval: "weekly"
     commit-message:
       prefix: "deps(api)"
-    dependencies:
-      - package-ecosystem: "npm"
-        directory: "/apps/api"
     update-types:
       - "minor"
       - "patch"
@@ -38,12 +34,18 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "deps(web)"
+    update-types:
+      - "minor"
+      - "patch"
   - package-ecosystem: "npm"
     directory: "/apps/workers"
     schedule:
       interval: "weekly"
     commit-message:
       prefix: "deps(workers)"
+    update-types:
+      - "minor"
+      - "patch"
   - package-ecosystem: "npm"
     directory: "/packages/database"
     schedule:
@@ -52,13 +54,17 @@ updates:
       prefix: "deps(database)"
     ignore:
       - dependency-name: "@prisma/client"
-        update-types: ["major"]
+        update-types:
+          - "version-update:semver-major"
   - package-ecosystem: "npm"
     directory: "/packages/ui"
     schedule:
       interval: "weekly"
     commit-message:
       prefix: "deps(ui)"
+    update-types:
+      - "minor"
+      - "patch"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
