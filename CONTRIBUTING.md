@@ -19,8 +19,7 @@ git clone https://github.com/GrupoMoskitto/Challenge-2026.git
 cd Challenge-2026
 
 # Configure as variáveis de ambiente
-cp packages/database/.env.example packages/database/.env
-cp infra/evolution-api-local/.env.example infra/evolution-api-local/.env
+cp .env.example .env
 
 # Instale dependências e inicie tudo
 npm install --global pnpm
