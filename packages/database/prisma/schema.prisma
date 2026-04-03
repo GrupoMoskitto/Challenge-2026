@@ -48,7 +48,6 @@ model Lead {
   updatedAt         DateTime   @updatedAt
 
   patient        Patient?
-  appointments   Appointment[]
   contacts       Contact[]
 
   @@index([cpf])
@@ -65,6 +64,7 @@ model Patient {
   address       String?  // Endereço completo
 
   lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  appointments  Appointment[]
 
   documents     Document[]
   postOps       PostOp[]
@@ -120,7 +120,7 @@ model Appointment {
   status      AppointmentStatus @default(SCHEDULED)
   notes       String?
 
-  patient     Lead              @relation(fields: [patientId], references: [id])
+  patient     Patient           @relation(fields: [patientId], references: [id])
   surgeon     Surgeon           @relation(fields: [surgeonId], references: [id])
 
   auditLogs   AuditLog[]

@@ -1,5 +1,5 @@
 import { redisConnection } from '../config/redis';
-import { prisma } from '@crmed/database';
+import { prisma, checkUniqueness } from '@crmed/database';
 import { WhatsAppService } from './whatsapp.service';
 import { logger } from '../config/logger';
 
@@ -143,13 +143,20 @@ export const ChatbotService = {
     async createLead(name: string, phone: string, procedureInterest: string) {
         try {
             const cleanPhone = phone.replace(/[^0-9]/g, '');
-            const timestamp = Date.now();
+            const uniqueId = `WPP_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+            
+            await checkUniqueness({ 
+                cpf: `WPP.${uniqueId}`, 
+                email: `wpp.${uniqueId}@local.lead`, 
+                phone: cleanPhone 
+            });
+            
             await prisma.lead.create({
                 data: {
                     name: name,
                     phone: cleanPhone,
-                    cpf: `WPP.${timestamp}`,
-                    email: `wpp.${timestamp}@local.lead`,
+                    cpf: `WPP.${uniqueId}`,
+                    email: `wpp.${uniqueId}@local.lead`,
                     source: 'WHATSAPP',
                     origin: 'Whatsapp',
                     procedure: procedureInterest,
@@ -157,8 +164,12 @@ export const ChatbotService = {
                     notes: 'Lead criado pelo atendimento automatizado do WhatsApp. Não foi informado o e-mail e CPF.'
                 }
             });
-        } catch (e) {
-            logger.error('Chatbot', 'Erro ao criar lead', e);
+        } catch (e: any) {
+            if (e.code === 'P2002' || e.message?.includes('RN01_VIOLATION')) {
+                logger.warn('Chatbot', 'Lead já existe para este telefone, ignorando criação');
+            } else {
+                logger.error('Chatbot', 'Erro ao criar lead', e);
+            }
         }
     },
 

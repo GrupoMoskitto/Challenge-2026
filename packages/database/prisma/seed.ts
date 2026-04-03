@@ -308,7 +308,7 @@ async function main() {
   for (const patient of patients) {
     const appointment = await prisma.appointment.create({
       data: {
-        patientId: patient.leadId,
+        patientId: patient.id,
         surgeonId: randomElement(surgeons).id,
         procedure: randomElement(procedures),
         scheduledAt: randomDate(new Date('2026-03-01'), new Date('2026-06-30')),
@@ -321,11 +321,20 @@ async function main() {
   console.log(`✅ Created ${appointments.length} appointments`);
 
   // Create some NEW/CONTACTED leads with appointments scheduled
+  // Now we need to create patients first, then appointments
   const newLeads = leads.filter(l => l.status === LeadStatus.NEW || l.status === LeadStatus.CONTACTED);
-  for (let i = 0; i < Math.min(10, newLeads.length); i++) {
+  for (let i = 0; i < Math.min(5, newLeads.length); i++) {
+    const patient = await prisma.patient.create({
+      data: {
+        leadId: newLeads[i].id,
+        dateOfBirth: randomDate(new Date('1990-01-01'), new Date('2000-12-31')),
+        medicalRecord: `PR-SEED-${i}`,
+        address: 'Rua Teste, 123',
+      },
+    });
     await prisma.appointment.create({
       data: {
-        patientId: newLeads[i].id,
+        patientId: patient.id,
         surgeonId: randomElement(surgeons).id,
         procedure: randomElement(procedures),
         scheduledAt: randomDate(new Date('2026-03-10'), new Date('2026-04-30')),
@@ -335,11 +344,26 @@ async function main() {
   }
   console.log('✅ Created additional appointments for new leads');
 
+  // Create additional patients for today's appointments
+  const todayLeads = leads.slice(0, 5);
+  const todayPatients = [];
+  for (let i = 0; i < todayLeads.length; i++) {
+    const patient = await prisma.patient.create({
+      data: {
+        leadId: todayLeads[i].id,
+        dateOfBirth: randomDate(new Date('1980-01-01'), new Date('1995-12-31')),
+        medicalRecord: `PR-TODAY-${i}`,
+        address: 'Rua Hoje, 123',
+      },
+    });
+    todayPatients.push(patient);
+  }
+
   // Create TODAY appointments to populate the UI automatically
   const todayStr = new Date().toISOString().split('T')[0];
   const todayAppointments = [
     {
-      patientId: patients[0]?.leadId || leads[0].id,
+      patientId: todayPatients[0]?.id,
       surgeonId: surgeons[0].id,
       procedure: 'Primeira Consulta',
       scheduledAt: new Date(`${todayStr}T09:00:00`),
@@ -347,7 +371,7 @@ async function main() {
       notes: 'Paciente muito interessado'
     },
     {
-      patientId: patients[1]?.leadId || leads[1].id,
+      patientId: todayPatients[1]?.id,
       surgeonId: surgeons[1].id,
       procedure: 'Rinoplastia',
       scheduledAt: new Date(`${todayStr}T10:00:00`),
@@ -355,7 +379,7 @@ async function main() {
       notes: 'Cirurgia agendada'
     },
     {
-      patientId: patients[2]?.leadId || leads[2].id,
+      patientId: todayPatients[2]?.id,
       surgeonId: surgeons[2].id,
       procedure: 'Retorno',
       scheduledAt: new Date(`${todayStr}T14:00:00`),
@@ -363,7 +387,7 @@ async function main() {
       notes: 'Tudo certo com a recuperação'
     },
     {
-      patientId: patients[3]?.leadId || leads[3].id,
+      patientId: todayPatients[3]?.id,
       surgeonId: surgeons[0].id,
       procedure: 'Avaliação',
       scheduledAt: new Date(`${todayStr}T15:00:00`),
@@ -371,7 +395,7 @@ async function main() {
       notes: 'Cancelou por imprevisto'
     },
     {
-      patientId: patients[4]?.leadId || leads[4].id,
+      patientId: todayPatients[4]?.id,
       surgeonId: surgeons[1].id,
       procedure: 'Lipoaspiração',
       scheduledAt: new Date(`${todayStr}T16:00:00`),
