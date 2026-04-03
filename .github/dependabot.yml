@@ -1,0 +1,67 @@
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "security"
+    versioning-strategy: "increase"
+
+  - package-ecosystem: "npm"
+    directory: "/apps/api"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(api)"
+
+  - package-ecosystem: "npm"
+    directory: "/apps/web"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(web)"
+
+  - package-ecosystem: "npm"
+    directory: "/apps/workers"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(workers)"
+
+  - package-ecosystem: "npm"
+    directory: "/packages/database"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(database)"
+    ignore:
+      - dependency-name: "@prisma/client"
+        versions:
+          - ">=5.0.0"
+
+  - package-ecosystem: "npm"
+    directory: "/packages/ui"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(ui)"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "ci"
+      - "dependencies"
