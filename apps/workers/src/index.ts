@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ path: '../../.env' });
 import { processDailyAppointments } from './jobs/dailyCron';
 import './queues/whatsapp.processor';
 import { CronJob } from 'cron';
