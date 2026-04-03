@@ -6,7 +6,7 @@
   "scripts": {
     "infra:up": "cd infra/docker && docker-compose up -d postgres redis evolution-api",
     "infra:down": "cd infra/docker && docker-compose down",
-    "infra:dev": "pnpm infra:up && pnpm --filter @crmed/database db:push && pnpm --filter @crmed/database db:seed && pnpm dev",
+    "infra:dev": "pnpm infra:up && pnpm -F @crmed/database db:push && pnpm -F @crmed/database db:seed && pnpm dev",
     "dev": "kill-port 3001 3000 || true && turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
@@ -34,6 +34,7 @@
     "@types/node": "^25.5.0",
     "@vitest/coverage-v8": "^4.1.2",
     "concurrently": "^9.2.1",
+    "dotenv-cli": "^11.0.0",
     "kill-port": "^2.0.1",
     "turbo": "^2.8.21",
     "vite-tsconfig-paths": "^6.1.1",
