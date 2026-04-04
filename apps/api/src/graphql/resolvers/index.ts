@@ -29,6 +29,28 @@ function setSurgeonInContext(context: Context, surgeonId: string | null): void {
 export const resolvers = {
   ID: IDScalar,
   DateTime: DateTimeScalar,
+  Patient: {
+    lead: async (parent: { leadId: string }) => {
+      return prisma.lead.findUnique({ where: { id: parent.leadId } });
+    },
+    name: async (parent: { leadId: string }) => {
+      const lead = await prisma.lead.findUnique({ where: { id: parent.leadId } });
+      return lead?.name ?? null;
+    },
+    email: async (parent: { leadId: string }) => {
+      const lead = await prisma.lead.findUnique({ where: { id: parent.leadId } });
+      return lead?.email ?? null;
+    },
+    phone: async (parent: { leadId: string }) => {
+      const lead = await prisma.lead.findUnique({ where: { id: parent.leadId } });
+      return lead?.phone ?? null;
+    },
+  },
+  Appointment: {
+    patient: async (parent: { patientId: string }) => {
+      return prisma.patient.findUnique({ where: { id: parent.patientId } });
+    },
+  },
   Query: {
     me: async (_: unknown, __: unknown, context: Context) => {
       if (!context.user) return null;
