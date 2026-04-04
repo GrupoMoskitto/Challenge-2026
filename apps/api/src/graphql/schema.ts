@@ -165,6 +165,9 @@ export const typeDefs = gql`
     dateOfBirth: DateTime!
     medicalRecord: String
     address: String
+    name: String
+    email: String
+    phone: String
     lead: Lead!
     contacts: [Contact!]!
     documents: [Document!]!
@@ -205,7 +208,7 @@ export const typeDefs = gql`
     scheduledAt: DateTime!
     status: AppointmentStatus!
     notes: String
-    patient: Lead!
+    patient: Patient!
     surgeon: Surgeon!
     auditLogs: [AuditLog!]!
     notifications: [Notification!]!
