@@ -3,7 +3,6 @@ import { LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection,
 import { DateTimeScalar, IDScalar } from '../scalars';
 import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit } from '../../auth';
 import { dispatchLeadWelcome, dispatchLeadFollowup } from '../../services/whatsappQueue';
-import { logger } from '../../config/logger';
 
 const encodeBase64 = (id: string): string => {
   return Buffer.from(id).toString('base64url');
@@ -15,25 +14,43 @@ export interface Context {
     email: string;
     role: string;
   };
-  _surgeonCache?: string | null;
 }
 
-const SURGEON_CACHE_KEY = '_surgeonCache';
+const surgeonCache = new WeakMap<Context, string | null>();
 
 function getSurgeonFromContext(context: Context): string | null {
-  if (SURGEON_CACHE_KEY in context) {
-    return context._surgeonCache ?? null;
-  }
-  return null;
+  return surgeonCache.get(context) ?? null;
 }
 
 function setSurgeonInContext(context: Context, surgeonId: string | null): void {
-  (context as any)[SURGEON_CACHE_KEY] = surgeonId;
+  surgeonCache.set(context, surgeonId);
 }
 
 export const resolvers = {
   ID: IDScalar,
   DateTime: DateTimeScalar,
+  Patient: {
+    lead: async (parent: { leadId: string }) => {
+      return prisma.lead.findUnique({ where: { id: parent.leadId } });
+    },
+    name: async (parent: { leadId: string }) => {
+      const lead = await prisma.lead.findUnique({ where: { id: parent.leadId } });
+      return lead?.name ?? null;
+    },
+    email: async (parent: { leadId: string }) => {
+      const lead = await prisma.lead.findUnique({ where: { id: parent.leadId } });
+      return lead?.email ?? null;
+    },
+    phone: async (parent: { leadId: string }) => {
+      const lead = await prisma.lead.findUnique({ where: { id: parent.leadId } });
+      return lead?.phone ?? null;
+    },
+  },
+  Appointment: {
+    patient: async (parent: { patientId: string }) => {
+      return prisma.patient.findUnique({ where: { id: parent.patientId } });
+    },
+  },
   Query: {
     me: async (_: unknown, __: unknown, context: Context) => {
       if (!context.user) return null;
@@ -77,13 +94,16 @@ export const resolvers = {
 
       const where = Object.keys(whereClause).length > 0 ? whereClause : undefined;
 
-      const leads = await prisma.lead.findMany({
-        where,
-        take: limit + 1,
-        cursor: cursor ? { id: cursor } : undefined,
-        skip: cursor ? 1 : 0,
-        orderBy: { createdAt: 'desc' },
-      });
+      const [leads, totalCount] = await Promise.all([
+        prisma.lead.findMany({
+          where,
+          take: limit + 1,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : 0,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.lead.count({ where }),
+      ]);
 
       const hasNextPage = leads.length > limit;
       const edges = leads.slice(0, limit).map((lead) => ({
@@ -99,7 +119,7 @@ export const resolvers = {
           startCursor: edges[0]?.cursor || null,
           endCursor: edges[edges.length - 1]?.cursor || null,
         },
-        totalCount: await prisma.lead.count({ where }),
+        totalCount,
       };
     },
     lead: async (_: unknown, { id }: { id: string }) => {
@@ -159,14 +179,17 @@ export const resolvers = {
 
       const whereFinal = Object.keys(whereClause).length > 0 ? whereClause : undefined;
 
-      const patients = await prisma.patient.findMany({
-        where: whereFinal,
-        include: { lead: true },
-        take: limit + 1,
-        cursor: cursor ? { id: cursor } : undefined,
-        skip: cursor ? 1 : 0,
-        orderBy: { createdAt: 'desc' },
-      });
+      const [patients, totalCount] = await Promise.all([
+        prisma.patient.findMany({
+          where: whereFinal,
+          include: { lead: true },
+          take: limit + 1,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : 0,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.patient.count({ where: whereFinal }),
+      ]);
 
       const hasNextPage = patients.length > limit;
       const edges = patients.slice(0, limit).map((patient) => ({
@@ -182,7 +205,7 @@ export const resolvers = {
           startCursor: edges[0]?.cursor || null,
           endCursor: edges[edges.length - 1]?.cursor || null,
         },
-        totalCount: await prisma.patient.count({ where: whereFinal }),
+        totalCount,
       };
     },
     patient: async (_: unknown, { id }: { id: string }) => {
@@ -262,7 +285,6 @@ export const resolvers = {
         include: { patient: true, surgeon: true },
         orderBy: { scheduledAt: 'asc' },
       });
-      console.log('appointmentsByDate returning', appointments.length, 'appointments. First ID sample:', appointments[0]?.id);
       return appointments;
     },
     appointmentsBySurgeon: async (_: unknown, { surgeonId, startDate, endDate }: { surgeonId: string; startDate?: string; endDate?: string }, context: Context) => {
@@ -321,12 +343,15 @@ export const resolvers = {
       const limit = first || 20;
       const cursor = after ? Buffer.from(after, 'base64url').toString('utf-8') : undefined;
       
-      const users = await prisma.user.findMany({
-        take: limit + 1,
-        cursor: cursor ? { id: cursor } : undefined,
-        skip: cursor ? 1 : 0,
-        orderBy: { name: 'asc' },
-      });
+      const [users, totalCount] = await Promise.all([
+        prisma.user.findMany({
+          take: limit + 1,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : 0,
+          orderBy: { name: 'asc' },
+        }),
+        prisma.user.count(),
+      ]);
       
       const hasNextPage = users.length > limit;
       const edges = users.slice(0, limit).map((user) => ({
@@ -342,7 +367,7 @@ export const resolvers = {
           startCursor: edges[0]?.cursor || null,
           endCursor: edges[edges.length - 1]?.cursor || null,
         },
-        totalCount: await prisma.user.count(),
+        totalCount,
       };
     },
     user: async (_: unknown, { id }: { id: string }, context: Context) => {
@@ -587,48 +612,44 @@ export const resolvers = {
       // ID já vem como texto puro do frontend
       const leadId = input.id;
       
-      try {
-        const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
-        if (!currentLead) {
-          throw new Error('Lead não encontrado');
-        }
-
-        // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
-        if (
-          criticalStatuses.includes(input.status) &&
-          context.user?.role === 'RECEPTION'
-        ) {
-          throw new Error('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
-        }
-
-        const updatedLead = await prisma.lead.update({
-          where: { id: leadId },
-          data: { status: input.status },
-        });
-
-        if (context.user?.userId) {
-          await prisma.auditLog.create({
-            data: {
-              entityType: 'Lead',
-              entityId: leadId,
-              action: 'STATUS_CHANGE',
-              oldValue: currentLead.status,
-              newValue: input.status,
-              reason: input.reason || 'Alteração de status',
-              userId: context.user.userId,
-            },
-          });
-        }
-
-        // Trigger Follow up logic if changed to CONTACTED
-        if (input.status === LeadStatus.CONTACTED && currentLead.status === LeadStatus.NEW) {
-          await dispatchLeadFollowup(updatedLead.id, updatedLead.name, updatedLead.phone, updatedLead.procedure || undefined, 7);
-        }
-
-        return updatedLead;
-      } catch (error) {
-        throw error;
+      const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
+      if (!currentLead) {
+        throw new Error('Lead não encontrado');
       }
+
+      // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
+      if (
+        criticalStatuses.includes(input.status) &&
+        context.user?.role === 'RECEPTION'
+      ) {
+        throw new Error('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
+      }
+
+      const updatedLead = await prisma.lead.update({
+        where: { id: leadId },
+        data: { status: input.status },
+      });
+
+      if (context.user?.userId) {
+        await prisma.auditLog.create({
+          data: {
+            entityType: 'Lead',
+            entityId: leadId,
+            action: 'STATUS_CHANGE',
+            oldValue: currentLead.status,
+            newValue: input.status,
+            reason: input.reason || 'Alteração de status',
+            userId: context.user.userId,
+          },
+        });
+      }
+
+      // Trigger Follow up logic if changed to CONTACTED
+      if (input.status === LeadStatus.CONTACTED && currentLead.status === LeadStatus.NEW) {
+        await dispatchLeadFollowup(updatedLead.id, updatedLead.name, updatedLead.phone, updatedLead.procedure || undefined, 7);
+      }
+
+      return updatedLead;
     },
     updateLead: async (_: unknown, { input }: { input: {
       id: string;
@@ -669,7 +690,7 @@ export const resolvers = {
       if (input.whatsappActive !== undefined) updateData.whatsappActive = input.whatsappActive;
       if (input.notes !== undefined) updateData.notes = input.notes;
       
-      let oldStatus = currentLead.status;
+      const oldStatus = currentLead.status;
       let statusChanged = false;
       if (input.status !== undefined) {
         // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
