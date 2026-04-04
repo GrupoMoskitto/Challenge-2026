@@ -41,7 +41,11 @@ const statusColors: Record<string, string> = {
 const Agenda = () => {
   const [currentDate, setCurrentDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [newConsultCalendarOpen, setNewConsultCalendarOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [newConsultDialogOpen, setNewConsultDialogOpen] = useState(false);
+  const [newConsultDate, setNewConsultDate] = useState<Date>(new Date());
+  const [newConsultTime, setNewConsultTime] = useState("09:00");
   const [selectedSlot, setSelectedSlot] = useState<{ doctorId: string; time: string; date: string } | null>(null);
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -256,7 +260,7 @@ const Agenda = () => {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button onClick={() => openNewAppointment(surgeons[0]?.id, '09:00')}>
+        <Button onClick={() => setNewConsultDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Consulta
         </Button>
@@ -465,6 +469,70 @@ const Agenda = () => {
             </Button>
             <Button variant="destructive" onClick={confirmDeleteAppointment} disabled={deleting || !appointmentToDelete}>
               {deleting ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={newConsultDialogOpen} onOpenChange={setNewConsultDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nova Consulta</DialogTitle>
+            <DialogDescription>
+              Selecione a data e horário para a nova consulta
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Data</Label>
+              <Popover open={newConsultCalendarOpen} onOpenChange={setNewConsultCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(newConsultDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={newConsultDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        setNewConsultDate(date);
+                        setNewConsultCalendarOpen(false);
+                      }
+                    }}
+                    locale={ptBR}
+                    className="rounded-md"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label>Horário</Label>
+              <Select value={newConsultTime} onValueChange={setNewConsultTime}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {timeSlots.map((time) => (
+                    <SelectItem key={time} value={time}>{time}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setNewConsultDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => {
+              const selectedDateStr = format(newConsultDate, 'yyyy-MM-dd');
+              setNewConsultDialogOpen(false);
+              setSelectedSlot({ doctorId: surgeons[0]?.id || '', time: newConsultTime, date: selectedDateStr });
+              setSheetOpen(true);
+            }}>
+              Confirmar
             </Button>
           </div>
         </DialogContent>
