@@ -1,5 +1,8 @@
 import dotenv from 'dotenv';
-dotenv.config({ path: '../../.env' });
+import path from 'path';
+
+const projectRoot = path.resolve(__dirname, '../../..');
+dotenv.config({ path: path.join(projectRoot, '.env') });
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@as-integrations/express5';
 import { typeDefs } from './graphql/schema';

@@ -7,8 +7,22 @@ const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? (() => { throw new 
 const REFRESH_SECRET = process.env.REFRESH_SECRET || (isProduction ? (() => { throw new Error('REFRESH_SECRET is required in production'); })() : 'dev-refresh-secret-do-not-use-in-prod');
 
 const loginAttempts = new Map<string, { count: number; firstAttempt: number }>();
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000;
 const RATE_LIMIT_MAX_ATTEMPTS = 5;
+const CLEANUP_INTERVAL = 60 * 60 * 1000;
+
+function cleanupOldAttempts(): void {
+  const now = Date.now();
+  for (const ip of loginAttempts.keys()) {
+    const attempt = loginAttempts.get(ip);
+    if (attempt && now - attempt.firstAttempt > RATE_LIMIT_WINDOW) {
+      loginAttempts.delete(ip);
+    }
+  }
+}
+
+setInterval(cleanupOldAttempts, CLEANUP_INTERVAL);
+cleanupOldAttempts();
 
 export function checkRateLimit(ip: string): boolean {
   const now = Date.now();
