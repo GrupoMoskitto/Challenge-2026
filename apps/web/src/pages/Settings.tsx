@@ -44,7 +44,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, Bell, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Mail, Phone as PhoneIcon, Eye, Plug, X, Check } from "lucide-react";
+import { User, Bell, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Mail, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2 } from "lucide-react";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrador",
@@ -480,8 +480,8 @@ const Settings = () => {
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={handleUpdateProfile} disabled={updatingProfile || (profileForm.name === user?.name && !profileForm.password)}>
-                  {updatingProfile ? "Salvando..." : "Salvar Alterações"}
+                <Button onClick={handleUpdateProfile} disabled={updatingProfile || (profileForm.name === user?.name && !profileForm.password)} className="min-w-[160px]">
+                  {updatingProfile ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar Alterações"}
                 </Button>
               </div>
             </CardContent>
@@ -758,8 +758,8 @@ const Settings = () => {
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleUpdate} disabled={updating}>
-              {updating ? "Salvando..." : "Salvar"}
+            <Button onClick={handleUpdate} disabled={updating} className="min-w-[120px]">
+              {updating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar"}
             </Button>
           </div>
         </DialogContent>
