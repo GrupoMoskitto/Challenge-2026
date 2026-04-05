@@ -150,6 +150,11 @@ describe("Leads drag/delete regression", () => {
     const menuButton = within(card as HTMLElement).getAllByRole("button")[0];
     fireEvent.click(menuButton);
     fireEvent.click(screen.getByText("Excluir"));
+    
+    // Now requires typing "deletar" to enable delete button
+    const confirmInput = screen.getByPlaceholderText("deletar");
+    fireEvent.change(confirmInput, { target: { value: "deletar" } });
+    
     fireEvent.click(screen.getByRole("button", { name: "Excluir" }));
 
     expect(await screen.findByText("Usuário não autenticado")).toBeInTheDocument();

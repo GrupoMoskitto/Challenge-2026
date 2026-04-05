@@ -42,7 +42,12 @@ export const WhatsAppService = {
       logger.success('WhatsApp', `Mensagem enviada para ${number}`);
       return response.data;
     } catch (error: any) {
-      logger.error('WhatsApp', `Falha ao enviar mensagem para ${number}`, error?.response?.data || error.message);
+      const status = error?.response?.status;
+      const isAuthError = status === 401 || status === 403;
+      
+      if (!isAuthError) {
+        logger.error('WhatsApp', `Falha ao enviar mensagem para ${number}`, error?.response?.data || error.message);
+      }
       throw error;
     }
   },

@@ -7,7 +7,7 @@
     "infra:up": "cd infra/docker && docker-compose up -d postgres redis evolution-api",
     "infra:down": "cd infra/docker && docker-compose down",
     "infra:dev": "pnpm infra:up && pnpm -F @crmed/database db:push && pnpm -F @crmed/database db:seed && pnpm dev",
-    "dev": "kill-port 3001 3000 || true && turbo dev",
+    "dev": "kill-port 3000 3001 2>/dev/null || true && turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "vitest run"

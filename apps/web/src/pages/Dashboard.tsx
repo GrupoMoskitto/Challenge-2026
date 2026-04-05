@@ -13,7 +13,6 @@ import {
   Phone,
   DollarSign,
   Activity,
-  Download,
   FileText,
   ArrowUpRight,
   ArrowDownRight,
@@ -39,7 +38,7 @@ import {
   LabelList,
 } from "recharts";
 import { useQuery } from "@apollo/client";
-import { GET_DASHBOARD_STATS, GET_LEADS, GET_APPOINTMENTS } from "@/lib/queries";
+import { GET_DASHBOARD_STATS, GET_LEADS, GET_APPOINTMENTS, GET_PERFORMANCE_METRICS } from "@/lib/queries";
 import { format, subDays, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -151,22 +150,34 @@ const Dashboard = () => {
   });
   const { data: appointmentsData, loading: appointmentsLoading } = useQuery(GET_APPOINTMENTS);
 
-  const loading = statsLoading || leadsLoading || appointmentsLoading;
-
   const leads = useMemo(() => leadsData?.leads?.edges?.map((e: any) => e.node) || [], [leadsData]);
   const appointments = appointmentsData?.appointments || [];
   const surgeons = statsData?.surgeons || [];
-
-  const today = new Date();
-  const todayStr = format(today, 'yyyy-MM-dd');
   
+  const today = useMemo(() => new Date(), []);
+  const todayStr = format(today, 'yyyy-MM-dd');
+
   const dateRange = useMemo(() => {
     const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
     return {
       start: subDays(today, days),
       end: today,
     };
-  }, [timeRange]);
+  }, [timeRange, today]);
+
+  const performanceVars = useMemo(() => {
+    const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+    const start = subDays(today, days);
+    return {
+      startDate: start.toISOString(),
+      endDate: today.toISOString(),
+    };
+  }, [timeRange, today]);
+
+  const { data: performanceData, loading: performanceLoading } = useQuery(GET_PERFORMANCE_METRICS, {
+    variables: performanceVars,
+    fetchPolicy: 'cache-first',
+  });
 
   const filteredLeads = useMemo(() => {
     return leads.filter((l: any) => {
@@ -174,6 +185,8 @@ const Dashboard = () => {
       return isWithinInterval(createdAt, { start: dateRange.start, end: dateRange.end });
     });
   }, [leads, dateRange]);
+
+  const loading = statsLoading || leadsLoading || appointmentsLoading || performanceLoading;
 
   const todayAppointments = appointments.filter((a: any) => 
     format(new Date(a.scheduledAt), 'yyyy-MM-dd') === todayStr
@@ -269,21 +282,6 @@ const Dashboard = () => {
   const recentLeads = [...leads]
     .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
-
-  const handleExportCSV = () => {
-    const exportData = filteredLeads.map((l: any) => ({
-      Nome: l.name,
-      Email: l.email,
-      Telefone: l.phone,
-      CPF: l.cpf,
-      Origem: l.origin,
-      Procedimento: l.procedure,
-      Status: statusLabels[l.status] || l.status,
-      'Data Criação': l.createdAt,
-      'WhatsApp': l.whatsappActive ? 'Sim' : 'Não',
-    }));
-    exportToCSV(exportData, 'leads');
-  };
 
   const kpis = [
     { 
@@ -382,12 +380,6 @@ const Dashboard = () => {
               </Button>
             ))}
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar CSV
-            </Button>
-          </div>
         </div>
 
         {/* KPI Cards */}
@@ -409,6 +401,64 @@ const Dashboard = () => {
             </Card>
           ))}
         </div>
+
+        {/* Performance Metrics */}
+        {performanceData?.performanceMetrics && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="h-10 w-10 rounded-lg bg-blue-500 flex items-center justify-center mb-3">
+                  <Clock className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-2xl font-bold">
+                  {performanceData.performanceMetrics.avgFirstContactTime 
+                    ? `${performanceData.performanceMetrics.avgFirstContactTime.toFixed(1)}h` 
+                    : '-'}
+                </p>
+                <p className="text-sm text-muted-foreground">Tempo até 1º contato</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="h-10 w-10 rounded-lg bg-green-500 flex items-center justify-center mb-3">
+                  <TrendingUp className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-2xl font-bold">
+                  {performanceData.performanceMetrics.avgConversionTime 
+                    ? `${performanceData.performanceMetrics.avgConversionTime.toFixed(1)} dias` 
+                    : '-'}
+                </p>
+                <p className="text-sm text-muted-foreground">Tempo até conversão</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="h-10 w-10 rounded-lg bg-purple-500 flex items-center justify-center mb-3">
+                  <CalendarCheck className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-2xl font-bold">
+                  {performanceData.performanceMetrics.avgSchedulingTime 
+                    ? `${performanceData.performanceMetrics.avgSchedulingTime.toFixed(1)} dias` 
+                    : '-'}
+                </p>
+                <p className="text-sm text-muted-foreground">Tempo até agendamento</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="h-10 w-10 rounded-lg bg-yellow-500 flex items-center justify-center mb-3">
+                  <Phone className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-2xl font-bold">
+                  {performanceData.performanceMetrics.responseRate 
+                    ? `${performanceData.performanceMetrics.responseRate.toFixed(1)}%` 
+                    : '-'}
+                </p>
+                <p className="text-sm text-muted-foreground">Taxa de resposta</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Charts Row 1 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

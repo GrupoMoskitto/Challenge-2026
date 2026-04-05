@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, Filter } from "lucide-react";
+import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, Filter, Download, Upload } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_LEADS, UPDATE_LEAD_STATUS, CREATE_LEAD, UPDATE_LEAD, DELETE_LEAD, GET_LEAD_CONTACTS } from "@/lib/queries";
+import { GET_LEADS, UPDATE_LEAD_STATUS, CREATE_LEAD, UPDATE_LEAD, DELETE_LEAD, GET_LEAD_CONTACTS, EXPORT_LEADS, IMPORT_LEADS } from "@/lib/queries";
 import { validateCPF, validatePhone, validateEmail, sanitizeInput } from "@/lib/validation";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -118,9 +118,12 @@ const Leads = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [newLead, setNewLead] = useState<NewLeadForm>(initialNewLead);
   const [editLead, setEditLead] = useState<NewLeadForm>(initialNewLead);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [importExportLoading, setImportExportLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, loading, refetch } = useQuery(GET_LEADS, {
     variables: { first: 100, search: debouncedSearch || undefined },
@@ -146,6 +149,8 @@ const Leads = () => {
   const [createLead, { loading: creating }] = useMutation(CREATE_LEAD, { errorPolicy: 'none' });
   const [updateLead, { loading: updating }] = useMutation(UPDATE_LEAD, { errorPolicy: 'none' });
   const [deleteLead, { loading: deleting }] = useMutation(DELETE_LEAD, { errorPolicy: 'none' });
+  const [exportLeads] = useMutation(EXPORT_LEADS);
+  const [importLeads] = useMutation(IMPORT_LEADS);
 
   const allLeads: Lead[] = data?.leads?.edges?.map((e: any) => e.node) || [];
 
@@ -405,6 +410,11 @@ const Leads = () => {
   const handleDeleteLead = async () => {
     if (!deletingLeadId) return;
 
+    if (deleteConfirmText.toLowerCase() !== 'deletar') {
+      setFormErrors({ submit: 'Digite "deletar" para confirmar a exclusão' });
+      return;
+    }
+
     if (!user) {
       setFormErrors({ submit: 'Sessão expirada. Faça login novamente.' });
       return;
@@ -427,6 +437,7 @@ const Leads = () => {
       await refetch();
       setDeleteDialogOpen(false);
       setDeletingLeadId(null);
+      setDeleteConfirmText("");
       setFormErrors({});
     } catch (error: any) {
       console.error('Error deleting lead:', error);
@@ -435,8 +446,83 @@ const Leads = () => {
     }
   };
 
+  const handleCloseDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setDeleteConfirmText("");
+    setFormErrors({});
+  };
+
   const getLeadsByStatus = (status: string) => 
     filteredLeads.filter((l) => l.status === status);
+
+  const handleExportLeads = async () => {
+    try {
+      setImportExportLoading(true);
+      const result = await exportLeads({ variables: { format: 'csv' } });
+      const csvContent = result.data?.exportLeads;
+      
+      if (!csvContent) {
+        alert('Erro ao exportar leads');
+        return;
+      }
+
+      const base64Data = csvContent.split(',')[1];
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const csvText = new TextDecoder('utf-8').decode(bytes);
+      const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `leads_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (error: any) {
+      console.error('Error exporting leads:', error);
+      alert(error.message || 'Erro ao exportar leads');
+    } finally {
+      setImportExportLoading(false);
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImportExportLoading(true);
+      const content = await file.text();
+      
+      const result = await importLeads({ variables: { csvContent: content } });
+      const importResult = result.data?.importLeads;
+
+      if (!importResult) {
+        alert('Erro ao importar leads');
+        return;
+      }
+
+      if (importResult.success) {
+        alert(`Importação concluída! ${importResult.imported} leads importados.`);
+        refetch();
+      } else {
+        alert(`Erros na importação: ${importResult.errors?.join(', ')}`);
+      }
+    } catch (error: any) {
+      console.error('Error importing leads:', error);
+      alert(error.message || 'Erro ao importar leads');
+    } finally {
+      setImportExportLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -522,6 +608,24 @@ const Leads = () => {
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImportFile}
+          accept=".csv"
+          className="hidden"
+        />
+
+        <Button variant="outline" onClick={handleImportClick} disabled={importExportLoading}>
+          <Upload className="h-4 w-4 mr-2" />
+          {importExportLoading ? 'Importando...' : 'Importar'}
+        </Button>
+
+        <Button variant="outline" onClick={handleExportLeads} disabled={importExportLoading}>
+          <Download className="h-4 w-4 mr-2" />
+          {importExportLoading ? 'Exportando...' : 'Exportar'}
+        </Button>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -915,23 +1019,31 @@ const Leads = () => {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <Dialog open={deleteDialogOpen} onOpenChange={handleCloseDeleteDialog}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Confirmar Exclusão</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja excluir este lead? Esta ação não pode ser desfeita.
+            <DialogDescription className="space-y-2">
+              <p>Tem certeza que deseja excluir este lead? Esta ação não pode ser desfeita.</p>
+              <p className="text-sm font-medium">Digite <span className="text-destructive font-bold">deletar</span> para confirmar:</p>
             </DialogDescription>
           </DialogHeader>
+          
+          <Input
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            placeholder="deletar"
+            className="border-2 border-destructive"
+          />
           
           {formErrors.submit && (
             <p className="text-sm text-red-500 mt-2">{formErrors.submit}</p>
           )}
           <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            <Button variant="outline" onClick={handleCloseDeleteDialog}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={handleDeleteLead} disabled={deleting || !canDeleteLeads}>
+            <Button variant="destructive" onClick={handleDeleteLead} disabled={deleting || !canDeleteLeads || deleteConfirmText.toLowerCase() !== 'deletar'}>
               {deleting ? 'Excluindo...' : 'Excluir'}
             </Button>
           </div>
