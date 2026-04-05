@@ -1,5 +1,27 @@
 import { gql } from '@apollo/client';
 
+export const GET_PERFORMANCE_METRICS = gql`
+  query GetPerformanceMetrics($startDate: DateTime, $endDate: DateTime) {
+    performanceMetrics(startDate: $startDate, endDate: $endDate) {
+      avgFirstContactTime
+      avgConversionTime
+      avgSchedulingTime
+      responseRate
+      totalContacts
+      totalConversions
+      leadsByDay {
+        date
+        count
+        converted
+      }
+      conversionFunnel {
+        status
+        count
+      }
+    }
+  }
+`;
+
 export const GET_DASHBOARD_STATS = gql`
   query GetDashboardStats {
     leads {
@@ -138,6 +160,11 @@ export const GET_PATIENTS = gql`
           dateOfBirth
           medicalRecord
           address
+          sex
+          weight
+          height
+          bmi
+          howMet
           lead {
             id
             name
@@ -167,6 +194,11 @@ export const GET_PATIENT = gql`
       dateOfBirth
       medicalRecord
       address
+      sex
+      weight
+      height
+      bmi
+      howMet
       lead {
         id
         name
@@ -253,14 +285,26 @@ export const GET_MESSAGE_TEMPLATES = gql`
 `;
 
 export const GET_USERS = gql`
-  query GetUsers {
-    users {
-      id
-      name
-      email
-      role
-      isActive
-      createdAt
+  query GetUsers($first: Int, $after: String) {
+    users(first: $first, after: $after) {
+      edges {
+        node {
+          id
+          name
+          email
+          role
+          isActive
+          createdAt
+        }
+        cursor
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+      totalCount
     }
   }
 `;
@@ -316,6 +360,22 @@ export const DELETE_LEAD = gql`
     deleteLead(id: $id) {
       success
       message
+    }
+  }
+`;
+
+export const EXPORT_LEADS = gql`
+  mutation ExportLeads($format: String) {
+    exportLeads(format: $format)
+  }
+`;
+
+export const IMPORT_LEADS = gql`
+  mutation ImportLeads($csvContent: String!) {
+    importLeads(csvContent: $csvContent) {
+      success
+      imported
+      errors
     }
   }
 `;
@@ -472,6 +532,11 @@ export const CREATE_PATIENT = gql`
       dateOfBirth
       medicalRecord
       address
+      sex
+      weight
+      height
+      bmi
+      howMet
       lead {
         id
         name

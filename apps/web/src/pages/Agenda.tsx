@@ -14,13 +14,23 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Trash } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_LEADS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
+import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_LEADS, GET_PATIENTS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
 import { validatePhone, sanitizeInput } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-const timeSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
+const generateTimeSlots = () => {
+  const slots: string[] = [];
+  for (let hour = 8; hour <= 18; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+    }
+  }
+  return slots;
+};
+
+const timeSlots = generateTimeSlots();
 
 const statusLabels: Record<string, string> = {
   SCHEDULED: "Agendado",
@@ -50,6 +60,7 @@ const Agenda = () => {
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [newAppointment, setNewAppointment] = useState({
     patientName: '',
     patientPhone: '',
@@ -75,6 +86,11 @@ const Agenda = () => {
     fetchPolicy: 'network-only',
   });
 
+  const { data: patientsData } = useQuery(GET_PATIENTS, {
+    variables: { first: 100 },
+    fetchPolicy: 'network-only',
+  });
+
   const [createAppointment] = useMutation(CREATE_APPOINTMENT);
   const [updateAppointment] = useMutation(UPDATE_APPOINTMENT);
   const [deleteAppointment, { loading: deleting }] = useMutation(DELETE_APPOINTMENT);
@@ -82,6 +98,7 @@ const Agenda = () => {
   const appointments = appointmentsData?.appointmentsByDate || [];
   const surgeons = surgeonsData?.surgeons || [];
   const leads = leadsData?.leads?.edges?.map((edge: any) => edge.node) || [];
+  const patients = patientsData?.patients?.edges?.map((edge: any) => edge.node) || [];
 
   const prevDay = () => {
     const newDate = format(subDays(dateObj, 1), 'yyyy-MM-dd');
@@ -109,10 +126,10 @@ const Agenda = () => {
     setSelectedSlot({ doctorId: surgeonId, time, date: currentDate });
     if (apt) {
       setEditingAppointmentId(apt.id);
-      setSelectedPatientId(apt.patient?.id || null);
+      setSelectedPatientId(apt.patient?.id || null); // Use patient ID, not lead ID
       setNewAppointment({
-        patientName: apt.patient?.name || '',
-        patientPhone: apt.patient?.phone || '',
+        patientName: apt.patient?.lead?.name || apt.patient?.name || '',
+        patientPhone: apt.patient?.lead?.phone || apt.patient?.phone || '',
         procedure: apt.procedure || '',
         notes: apt.notes || '',
       });
@@ -125,7 +142,36 @@ const Agenda = () => {
   };
 
   const handleSaveAppointment = async () => {
-    if (!selectedSlot) return;
+    if (!selectedSlot) {
+      alert('Selecione um horário');
+      return;
+    }
+
+    // Validar cirurgião
+    if (!selectedSlot.doctorId) {
+      alert('Selecione o cirurgião');
+      return;
+    }
+
+    // Validar data
+    if (!selectedSlot.date) {
+      alert('Selecione a data');
+      return;
+    }
+
+    // Validar horário
+    if (!selectedSlot.time) {
+      alert('Selecione o horário');
+      return;
+    }
+
+    // Validar minuto múltiplo de 5 (segurança)
+    const timeParts = selectedSlot.time.split(':');
+    const minute = parseInt(timeParts[1], 10);
+    if (minute % 5 !== 0) {
+      alert('Minutos devem ser múltiplos de 5 (00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)');
+      return;
+    }
 
     const sanitizedName = sanitizeInput(newAppointment.patientName);
     const sanitizedPhone = sanitizeInput(newAppointment.patientPhone);
@@ -197,6 +243,11 @@ const Agenda = () => {
     if (!appointmentToDelete) {
       return;
     }
+
+    if (deleteConfirmText.toLowerCase() !== 'deletar') {
+      alert('Digite "deletar" para confirmar a exclusão');
+      return;
+    }
     
     try {
       await deleteAppointment({
@@ -208,10 +259,16 @@ const Agenda = () => {
       setEditingAppointmentId(null);
       setDeleteDialogOpen(false);
       setAppointmentToDelete(null);
+      setDeleteConfirmText("");
     } catch (error: any) {
       const errorMsg = error?.message || 'Erro ao excluir agendamento.';
       alert(`Erro: ${errorMsg}`);
     }
+  };
+
+  const handleCloseDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setDeleteConfirmText("");
   };
 
   if (loadingSurgeons || loadingAppointments || loadingLeads) {
@@ -348,6 +405,73 @@ const Agenda = () => {
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-5 py-6">
+            {/* Data e Hora - Sempre visível */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Data</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedSlot?.date ? format(parse(selectedSlot.date, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy', { locale: ptBR }) : 'Selecione'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedSlot?.date ? parse(selectedSlot.date, 'yyyy-MM-dd', new Date()) : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          setSelectedSlot((prev: any) => ({ ...prev, date: format(date, 'yyyy-MM-dd') }));
+                        }
+                      }}
+                      locale={ptBR}
+                      className="rounded-md"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label>Horário</Label>
+                <div className="flex gap-2">
+                  <Select 
+                    value={selectedSlot?.time ? selectedSlot.time.split(':')[0] : ''}
+                    onValueChange={(val) => {
+                      const minute = selectedSlot?.time ? selectedSlot.time.split(':')[1] : '00';
+                      setSelectedSlot((prev: any) => ({ ...prev, time: `${val}:${minute}` }));
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Hora" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 11 }, (_, i) => i + 8).map((hour) => (
+                        <SelectItem key={hour} value={hour.toString().padStart(2, '0')}>
+                          {hour.toString().padStart(2, '0')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select 
+                    value={selectedSlot?.time ? selectedSlot.time.split(':')[1] : ''}
+                    onValueChange={(val) => {
+                      const hour = selectedSlot?.time ? selectedSlot.time.split(':')[0] : '08';
+                      setSelectedSlot((prev: any) => ({ ...prev, time: `${hour}:${val}` }));
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Min" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i * 5).map((minute) => (
+                        <SelectItem key={minute} value={minute.toString().padStart(2, '0')}>{minute.toString().padStart(2, '0')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="surgeonId">Cirurgião</Label>
               <Select
@@ -365,52 +489,45 @@ const Agenda = () => {
               </Select>
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="patientId">Paciente</Label>
-              <Select
-                value={selectedPatientId || ""}
-                onValueChange={(val) => {
-                  setSelectedPatientId(val);
-                  const lead = leads?.find((l: any) => l.id === val);
-                  if (lead) {
-                    setNewAppointment({
-                      ...newAppointment,
-                      patientName: lead.name,
-                      patientPhone: lead.phone,
-                    });
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o paciente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {leads?.map((lead: any) => (
-                    <SelectItem key={lead.id} value={lead.id}>{lead.name} ({lead.phone})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="patientName">Nome do Paciente</Label>
-              <Input
-                id="patientName"
-                value={newAppointment.patientName}
-                onChange={(e) => setNewAppointment({ ...newAppointment, patientName: e.target.value })}
-                placeholder="Ex: João da Silva"
-                disabled={!!selectedPatientId}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="patientPhone">Telefone</Label>
-              <Input
-                id="patientPhone"
-                value={newAppointment.patientPhone}
-                onChange={(e) => setNewAppointment({ ...newAppointment, patientPhone: e.target.value })}
-                placeholder="(11) 99999-9999"
-                disabled={!!selectedPatientId}
-              />
-            </div>
+            {editingAppointmentId ? (
+              <div className="space-y-2">
+                <Label>Paciente</Label>
+                <div className="p-3 bg-muted rounded-md">
+                  <p className="font-medium">{newAppointment.patientName}</p>
+                  <p className="text-sm text-muted-foreground">{newAppointment.patientPhone}</p>
+                </div>
+                <p className="text-xs text-orange-500">Para alterar o paciente, exclua e crie um novo agendamento.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="patientId">Paciente</Label>
+                <Select
+                  value={selectedPatientId || ""}
+                  onValueChange={(val) => {
+                    setSelectedPatientId(val);
+                    const patient = patients?.find((p: any) => p.id === val);
+                    if (patient) {
+                      setNewAppointment({
+                        ...newAppointment,
+                        patientName: patient.lead?.name || patient.name || '',
+                        patientPhone: patient.lead?.phone || patient.phone || '',
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o paciente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {patients?.map((patient: any) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.lead?.name || patient.name || 'Paciente'} ({patient.lead?.phone || patient.phone || 'sem telefone'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="procedure">Procedimento / Etapa</Label>
               <Select
@@ -455,19 +572,26 @@ const Agenda = () => {
         </SheetContent>
       </Sheet>
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <Dialog open={deleteDialogOpen} onOpenChange={handleCloseDeleteDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Exclusão</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
+            <DialogDescription className="space-y-2">
+              <p>Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.</p>
+              <p className="text-sm font-medium">Digite <span className="text-destructive font-bold">deletar</span> para confirmar:</p>
             </DialogDescription>
           </DialogHeader>
+          <Input
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            placeholder="deletar"
+            className="border-2 border-destructive"
+          />
           <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            <Button variant="outline" onClick={handleCloseDeleteDialog}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={confirmDeleteAppointment} disabled={deleting || !appointmentToDelete}>
+            <Button variant="destructive" onClick={confirmDeleteAppointment} disabled={deleting || !appointmentToDelete || deleteConfirmText.toLowerCase() !== 'deletar'}>
               {deleting ? 'Excluindo...' : 'Excluir'}
             </Button>
           </div>
@@ -521,19 +645,19 @@ const Agenda = () => {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setNewConsultDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={() => {
-              const selectedDateStr = format(newConsultDate, 'yyyy-MM-dd');
-              setNewConsultDialogOpen(false);
-              setSelectedSlot({ doctorId: surgeons[0]?.id || '', time: newConsultTime, date: selectedDateStr });
-              setSheetOpen(true);
-            }}>
-              Confirmar
-            </Button>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setNewConsultDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={() => {
+                const selectedDateStr = format(newConsultDate, 'yyyy-MM-dd');
+                setNewConsultDialogOpen(false);
+                setSelectedSlot({ doctorId: surgeons[0]?.id || '', time: newConsultTime, date: selectedDateStr });
+                setSheetOpen(true);
+              }}>
+                Confirmar
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

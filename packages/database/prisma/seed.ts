@@ -224,7 +224,7 @@ async function main() {
         whatsappActive: Math.random() > 0.3,
         status: status,
         notes: randomElement(notes),
-        createdAt: randomDate(new Date('2026-01-01'), new Date('2026-03-07')),
+        createdAt: randomDate(new Date('2026-01-01'), new Date()),
       },
     });
     leads.push(lead);

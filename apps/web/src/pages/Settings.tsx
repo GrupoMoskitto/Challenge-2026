@@ -164,7 +164,7 @@ const Settings = () => {
   const [updateProfile, { loading: updatingProfile }] = useMutation(UPDATE_PROFILE);
 
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
-  const systemUsers = usersData?.users || [];
+  const systemUsers = usersData?.users?.edges?.map((e: any) => e.node) || [];
   const evolutionInstances: any[] = evoData?.evolutionApiInstances || [];
 
   const handleUpdateProfile = async () => {

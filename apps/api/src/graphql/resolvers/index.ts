@@ -1,5 +1,6 @@
 import { prisma, checkUniqueness } from '@crmed/database';
-import { LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel } from '@prisma/client';
+import { LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel, BudgetStatus, ComplaintStatus } from '@prisma/client';
+import { format, subDays } from 'date-fns';
 import { DateTimeScalar, IDScalar } from '../scalars';
 import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit } from '../../auth';
 import { dispatchLeadWelcome, dispatchLeadFollowup } from '../../services/whatsappQueue';
@@ -45,10 +46,68 @@ export const resolvers = {
       const lead = await prisma.lead.findUnique({ where: { id: parent.leadId } });
       return lead?.phone ?? null;
     },
+    bmi: async (parent: { weight: number | null; height: number | null }) => {
+      if (!parent.weight || !parent.height || parent.height <= 0) {
+        return null;
+      }
+      const heightInMeters = parent.height / 100;
+      const bmi = parent.weight / (heightInMeters * heightInMeters);
+      return Math.round(bmi * 10) / 10;
+    },
+  },
+  Lead: {
+    contacts: async (parent: { id: string }) => {
+      const contacts = await prisma.contact.findMany({
+        where: { leadId: parent.id },
+      });
+      return contacts.length > 0 ? contacts : [];
+    },
   },
   Appointment: {
     patient: async (parent: { patientId: string }) => {
+      return prisma.patient.findUnique({ 
+        where: { id: parent.patientId },
+        include: { lead: true },
+      });
+    },
+  },
+  Budget: {
+    patient: async (parent: { patientId: string }) => {
       return prisma.patient.findUnique({ where: { id: parent.patientId } });
+    },
+    surgeon: async (parent: { surgeonId: string }) => {
+      return prisma.surgeon.findUnique({ where: { id: parent.surgeonId } });
+    },
+    followUps: async (parent: { id: string }) => {
+      return prisma.budgetFollowUp.findMany({
+        where: { budgetId: parent.id },
+        orderBy: { date: 'desc' },
+      });
+    },
+  },
+  Complaint: {
+    patient: async (parent: { patientId: string }) => {
+      return prisma.patient.findUnique({ where: { id: parent.patientId } });
+    },
+    treatments: async (parent: { id: string }) => {
+      return prisma.treatment.findMany({
+        where: { complaintId: parent.id },
+        orderBy: { date: 'asc' },
+      });
+    },
+  },
+  Surgeon: {
+    extraAvailability: async (parent: { id: string }) => {
+      return prisma.extraAvailabilitySlot.findMany({
+        where: { surgeonId: parent.id },
+        orderBy: { date: 'asc' },
+      });
+    },
+    blocks: async (parent: { id: string }) => {
+      return prisma.scheduleBlock.findMany({
+        where: { surgeonId: parent.id },
+        orderBy: { startDate: 'desc' },
+      });
     },
   },
   Query: {
@@ -306,7 +365,7 @@ export const resolvers = {
       if (!context.user) throw new Error('Usuário não autenticado');
       return prisma.surgeon.findMany({
         where: { isActive: true },
-        include: { availability: true },
+        include: { availability: true, extraAvailability: true, blocks: true },
       });
     },
     surgeon: async (_: unknown, { id }: { id: string }, context: Context) => {
@@ -314,7 +373,7 @@ export const resolvers = {
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.surgeon.findUnique({
         where: { id: decodedId },
-        include: { availability: true },
+        include: { availability: true, extraAvailability: true, blocks: true },
       });
     },
     availableSurgeons: async (_: unknown, { date }: { date: string }, context: Context) => {
@@ -484,6 +543,257 @@ export const resolvers = {
       // Return only last 4 digits for security
       const cleanedPhone = testPhone.replace(/[^0-9]/g, '');
       return cleanedPhone.slice(-4);
+    },
+    budgets: async (_: unknown, { status, surgeonId }: { status?: BudgetStatus; surgeonId?: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
+      const where: Record<string, unknown> = {};
+      if (status) where.status = status;
+      if (surgeonId) {
+        const decodedId = Buffer.from(surgeonId, 'base64url').toString('utf-8');
+        where.surgeonId = decodedId;
+      }
+      
+      return prisma.budget.findMany({
+        where,
+        include: { patient: { include: { lead: true } }, surgeon: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    },
+    budget: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      return prisma.budget.findUnique({
+        where: { id: decodedId },
+        include: { patient: { include: { lead: true } }, surgeon: true, followUps: true },
+      });
+    },
+    budgetsByPatient: async (_: unknown, { patientId }: { patientId: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      const decodedId = Buffer.from(patientId, 'base64url').toString('utf-8');
+      return prisma.budget.findMany({
+        where: { patientId: decodedId },
+        include: { surgeon: true, followUps: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    },
+    complaints: async (_: unknown, { status, area }: { status?: ComplaintStatus; area?: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
+      const where: Record<string, unknown> = {};
+      if (status) where.status = status;
+      if (area) where.area = area;
+      
+      return prisma.complaint.findMany({
+        where,
+        include: { patient: { include: { lead: true } }, treatments: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    },
+    complaint: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      return prisma.complaint.findUnique({
+        where: { id: decodedId },
+        include: { patient: { include: { lead: true } }, treatments: true },
+      });
+    },
+    complaintsByPatient: async (_: unknown, { patientId }: { patientId: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      const decodedId = Buffer.from(patientId, 'base64url').toString('utf-8');
+      return prisma.complaint.findMany({
+        where: { patientId: decodedId },
+        include: { treatments: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    },
+    dashboardStats: async (_: unknown, { startDate, endDate }: { startDate?: string; endDate?: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
+      const start = startDate ? new Date(startDate) : new Date(0);
+      const end = endDate ? new Date(endDate) : new Date();
+      
+      const [totalLeads, totalPatients, appointments, leadsByStatus, leadsBySource] = await Promise.all([
+        prisma.lead.count({
+          where: { createdAt: { gte: start, lte: end } },
+        }),
+        prisma.patient.count({
+          where: { createdAt: { gte: start, lte: end } },
+        }),
+        prisma.appointment.findMany({
+          where: { scheduledAt: { gte: start, lte: end } },
+          include: { surgeon: true },
+        }),
+        prisma.lead.groupBy({
+          by: ['status'],
+          _count: true,
+          where: { createdAt: { gte: start, lte: end } },
+        }),
+        prisma.lead.groupBy({
+          by: ['source'],
+          _count: true,
+          where: { createdAt: { gte: start, lte: end } },
+        }),
+      ]);
+      
+      const appointmentsByStatus = appointments.reduce((acc, appt) => {
+        const status = appt.status;
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const appointmentsByStatusList = Object.entries(appointmentsByStatus).map(([status, count]) => ({
+        status,
+        count,
+      }));
+      
+      const leadsByStatusList = leadsByStatus.map(item => ({
+        status: item.status,
+        count: item._count,
+      }));
+      
+      const leadsBySourceList = leadsBySource.map(item => ({
+        source: item.source,
+        count: item._count,
+      }));
+      
+      const convertedLeads = leadsByStatus.find(l => l.status === LeadStatus.CONVERTED)?._count || 0;
+      const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;
+      
+      const surgeonMap = new Map<string, { name: string; total: number; converted: number }>();
+      for (const appt of appointments) {
+        const existing = surgeonMap.get(appt.surgeonId) || { name: appt.surgeon.name, total: 0, converted: 0 };
+        existing.total += 1;
+        if (appt.status === AppointmentStatus.COMPLETED) {
+          existing.converted += 1;
+        }
+        surgeonMap.set(appt.surgeonId, existing);
+      }
+      
+      const surgeonConversion = Array.from(surgeonMap.entries()).map(([surgeonId, data]) => ({
+        surgeonId,
+        surgeonName: data.name,
+        totalAppointments: data.total,
+        totalConverted: data.converted,
+        conversionRate: data.total > 0 ? (data.converted / data.total) * 100 : 0,
+      }));
+      
+      return {
+        totalLeads,
+        totalPatients,
+        totalAppointments: appointments.length,
+        conversionRate,
+        appointmentsByStatus: appointmentsByStatusList,
+        leadsBySource: leadsBySourceList,
+        leadsByStatus: leadsByStatusList,
+        surgeonConversion,
+      };
+    },
+    performanceMetrics: async (_: unknown, { startDate, endDate }: { startDate?: string; endDate?: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
+      const start = startDate ? new Date(startDate) : subDays(new Date(), 30);
+      const end = endDate ? new Date(endDate) : new Date();
+      
+      const [leads, contacts, appointments] = await Promise.all([
+        prisma.lead.findMany({
+          where: { createdAt: { gte: start, lte: end } },
+          orderBy: { createdAt: 'asc' },
+        }),
+        prisma.contact.findMany({
+          where: { createdAt: { gte: start, lte: end } },
+          orderBy: { createdAt: 'asc' },
+        }),
+        prisma.appointment.findMany({
+          where: { scheduledAt: { gte: start, lte: end } },
+          include: { patient: { include: { lead: true } } },
+        }),
+      ]);
+
+      const totalContacts = contacts.length;
+      const totalConversions = leads.filter(l => l.status === LeadStatus.CONVERTED).length;
+      
+      const leadsWithContact = new Set<string>();
+      contacts.forEach(c => leadsWithContact.add(c.leadId));
+      const responseRate = leads.length > 0 ? (leadsWithContact.size / leads.length) * 100 : 0;
+
+      let totalFirstContactTime = 0;
+      let firstContactCount = 0;
+      for (const lead of leads) {
+        const leadContacts = contacts.filter(c => c.leadId === lead.id);
+        if (leadContacts.length > 0) {
+          const firstContact = leadContacts[0];
+          const leadCreated = new Date(lead.createdAt).getTime();
+          const contactCreated = new Date(firstContact.createdAt).getTime();
+          if (contactCreated >= leadCreated) {
+            totalFirstContactTime += (contactCreated - leadCreated) / (1000 * 60 * 60);
+            firstContactCount++;
+          }
+        }
+      }
+      const avgFirstContactTime = firstContactCount > 0 ? totalFirstContactTime / firstContactCount : null;
+
+      let totalConversionTime = 0;
+      let conversionCount = 0;
+      const convertedLeads = leads.filter(l => l.status === LeadStatus.CONVERTED);
+      for (const lead of convertedLeads) {
+        const leadCreated = new Date(lead.createdAt).getTime();
+        const convertedAt = new Date(lead.updatedAt).getTime();
+        totalConversionTime += (convertedAt - leadCreated) / (1000 * 60 * 60 * 24);
+        conversionCount++;
+      }
+      const avgConversionTime = conversionCount > 0 ? totalConversionTime / conversionCount : null;
+
+      let totalSchedulingTime = 0;
+      let schedulingCount = 0;
+      for (const appt of appointments) {
+        if (appt.patient?.lead) {
+          const leadCreated = new Date(appt.patient.lead.createdAt).getTime();
+          const apptScheduled = new Date(appt.scheduledAt).getTime();
+          if (apptScheduled >= leadCreated) {
+            totalSchedulingTime += (apptScheduled - leadCreated) / (1000 * 60 * 60 * 24);
+            schedulingCount++;
+          }
+        }
+      }
+      const avgSchedulingTime = schedulingCount > 0 ? totalSchedulingTime / schedulingCount : null;
+
+      const dateMap = new Map<string, { count: number; converted: number }>();
+      leads.forEach(lead => {
+        const dateKey = format(new Date(lead.createdAt), 'yyyy-MM-dd');
+        const existing = dateMap.get(dateKey) || { count: 0, converted: 0 };
+        existing.count++;
+        if (lead.status === LeadStatus.CONVERTED) {
+          existing.converted++;
+        }
+        dateMap.set(dateKey, existing);
+      });
+      const leadsByDay = Array.from(dateMap.entries())
+        .map(([date, data]) => ({ date, count: data.count, converted: data.converted }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const statusCounts = leads.reduce((acc, lead) => {
+        acc[lead.status] = (acc[lead.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      const conversionFunnel = [
+        { status: 'Novo', count: statusCounts[LeadStatus.NEW] || 0 },
+        { status: 'Contatado', count: statusCounts[LeadStatus.CONTACTED] || 0 },
+        { status: 'Qualificado', count: statusCounts[LeadStatus.QUALIFIED] || 0 },
+        { status: 'Convertido', count: statusCounts[LeadStatus.CONVERTED] || 0 },
+        { status: 'Perdido', count: statusCounts[LeadStatus.LOST] || 0 },
+      ];
+
+      return {
+        avgFirstContactTime,
+        avgConversionTime,
+        avgSchedulingTime,
+        responseRate,
+        totalContacts,
+        totalConversions,
+        leadsByDay,
+        conversionFunnel,
+      };
     },
   },
   Mutation: {
@@ -766,11 +1076,106 @@ export const resolvers = {
 
       return { success: true, message: 'Lead excluído com sucesso' };
     },
+    exportLeads: async (_: unknown, { format }: { format?: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
+      const leads = await prisma.lead.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+      
+      const headers = ['Nome', 'Email', 'Telefone', 'CPF', 'Source', 'Origin', 'Procedimento', 'Status', 'Data Criação'];
+      const rows = leads.map(lead => [
+        lead.name,
+        lead.email,
+        lead.phone,
+        lead.cpf,
+        lead.source,
+        lead.origin || '',
+        lead.procedure || '',
+        lead.status,
+        new Date(lead.createdAt).toLocaleDateString('pt-BR'),
+      ]);
+      
+      const csvContent = [headers.join(','), ...rows.map(row => row.map(cell => `"${cell || ''}"`).join(','))].join('\n');
+      
+      const base64 = Buffer.from(csvContent, 'utf-8').toString('base64');
+      return `data:text/csv;base64,${base64}`;
+    },
+    importLeads: async (_: unknown, { csvContent }: { csvContent: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN' && context.user.role !== 'SALES') {
+        throw new Error('Acesso restrito a administradores e vendedores');
+      }
+      
+      try {
+        const decoded = Buffer.from(csvContent, 'base64').toString('utf-8');
+        const lines = decoded.split('\n').filter(line => line.trim());
+        
+        if (lines.length < 2) {
+          return { success: false, imported: 0, errors: ['Arquivo vazio ou sem dados'] };
+        }
+        
+        const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim().toLowerCase());
+        const errors: string[] = [];
+        let imported = 0;
+        
+        for (let i = 1; i < lines.length; i++) {
+          try {
+            const values = lines[i].match(/("([^"]*)"|[^,]+)/g) || [];
+            const row = values.map(v => v.replace(/^"|"$/g, '').trim());
+            
+            const leadData: Record<string, string> = {};
+            headers.forEach((header, idx) => {
+              leadData[header] = row[idx] || '';
+            });
+            
+            if (!leadData.nome || !leadData.email || !leadData.cpf) {
+              errors.push(`Linha ${i + 1}: Dados obrigatórios ausentes`);
+              continue;
+            }
+            
+            const existingLead = await prisma.lead.findFirst({
+              where: { OR: [{ email: leadData.email }, { cpf: leadData.cpf }] },
+            });
+            
+            if (existingLead) {
+              errors.push(`Linha ${i + 1}: Lead já existe (${leadData.email})`);
+              continue;
+            }
+            
+            await prisma.lead.create({
+              data: {
+                name: leadData.nome,
+                email: leadData.email,
+                phone: leadData.telefone || '',
+                cpf: leadData.cpf,
+                source: leadData.source || 'Importação',
+                origin: leadData.origin || 'Importação',
+                procedure: leadData.procedimento || '',
+                status: 'NEW',
+              },
+            });
+            
+            imported++;
+          } catch (err) {
+            errors.push(`Linha ${i + 1}: Erro ao processar`);
+          }
+        }
+        
+        return { success: true, imported, errors: errors.slice(0, 10) };
+      } catch (error: any) {
+        return { success: false, imported: 0, errors: [error.message] };
+      }
+    },
     createPatient: async (_: unknown, { input }: { input: {
       leadId: string;
       dateOfBirth: string;
       medicalRecord?: string;
       address?: string;
+      sex?: string;
+      weight?: number;
+      height?: number;
+      howMet?: string;
     }}, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       
@@ -799,6 +1204,10 @@ export const resolvers = {
           dateOfBirth: new Date(input.dateOfBirth),
           medicalRecord: input.medicalRecord,
           address: input.address,
+          sex: input.sex,
+          weight: input.weight,
+          height: input.height,
+          howMet: input.howMet || lead.origin,
         },
         include: { lead: true },
       });
@@ -812,6 +1221,10 @@ export const resolvers = {
             dateOfBirth: input.dateOfBirth,
             medicalRecord: input.medicalRecord,
             address: input.address,
+            sex: input.sex,
+            weight: input.weight,
+            height: input.height,
+            howMet: input.howMet,
           },
           reason: 'Paciente criado a partir de lead',
           userId: context.user?.userId,
@@ -988,7 +1401,12 @@ export const resolvers = {
         throw new Error('RN01_VIOLATION: CRM ou e-mail já cadastrado');
       }
 
-      return prisma.surgeon.create({ data: input });
+      return prisma.surgeon.create({ 
+        data: {
+          ...input,
+          appointmentDuration: 30,
+        }
+      });
     },
     createUser: async (_: unknown, { input }: { input: {
       email: string;
@@ -1058,7 +1476,7 @@ export const resolvers = {
         data: updateData,
       });
     },
-    updatePatient: async (_: unknown, { input }: { input: { id: string; dateOfBirth?: string; medicalRecord?: string; address?: string; reason?: string } }, context: Context) => {
+    updatePatient: async (_: unknown, { input }: { input: { id: string; dateOfBirth?: string; medicalRecord?: string; address?: string; sex?: string; weight?: number; height?: number; howMet?: string; reason?: string } }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       
       const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
@@ -1087,6 +1505,22 @@ export const resolvers = {
         updateData.address = input.address;
         changes.address = { from: current.address, to: input.address };
       }
+      if (input.sex !== undefined) {
+        updateData.sex = input.sex;
+        changes.sex = { from: current.sex, to: input.sex };
+      }
+      if (input.weight !== undefined) {
+        updateData.weight = input.weight;
+        changes.weight = { from: current.weight, to: input.weight };
+      }
+      if (input.height !== undefined) {
+        updateData.height = input.height;
+        changes.height = { from: current.height, to: input.height };
+      }
+      if (input.howMet !== undefined) {
+        updateData.howMet = input.howMet;
+        changes.howMet = { from: current.howMet, to: input.howMet };
+      }
       
       const updated = await prisma.patient.update({
         where: { id: decodedId },
@@ -1103,6 +1537,10 @@ export const resolvers = {
             dateOfBirth: current.dateOfBirth,
             medicalRecord: current.medicalRecord,
             address: current.address,
+            sex: current.sex,
+            weight: current.weight,
+            height: current.height,
+            howMet: current.howMet,
           },
           newValue: changes as any,
           reason: input.reason || 'Atualização de dados do paciente',
@@ -1283,6 +1721,392 @@ export const resolvers = {
       const { dispatchTemplateTest } = await import('../../services/whatsappQueue');
       await dispatchTemplateTest(templateId, instanceName, context.user.userId);
       return true;
+    },
+    createBudget: async (_: unknown, { input }: { input: {
+      patientId: string;
+      surgeonId: string;
+      procedure: string;
+      amount: number;
+      returnDeadline?: string;
+      notes?: string;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN' && context.user.role !== 'SALES' && context.user.role !== 'CALL_CENTER') {
+        throw new Error('Acesso restrito a administradores, vendedores ou atendentes');
+      }
+      
+      const decodedPatientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
+      const decodedSurgeonId = Buffer.from(input.surgeonId, 'base64url').toString('utf-8');
+      
+      const [patient, surgeon] = await Promise.all([
+        prisma.patient.findUnique({ where: { id: decodedPatientId } }),
+        prisma.surgeon.findUnique({ where: { id: decodedSurgeonId } }),
+      ]);
+      
+      if (!patient) throw new Error('Paciente não encontrado');
+      if (!surgeon) throw new Error('Médico não encontrado');
+      
+      const budget = await prisma.budget.create({
+        data: {
+          patientId: decodedPatientId,
+          surgeonId: decodedSurgeonId,
+          procedure: input.procedure,
+          amount: input.amount,
+          returnDeadline: input.returnDeadline ? new Date(input.returnDeadline) : null,
+          notes: input.notes,
+          status: BudgetStatus.OPEN,
+        },
+        include: { patient: { include: { lead: true } }, surgeon: true },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Budget',
+          entityId: budget.id,
+          action: 'CREATED',
+          newValue: {
+            procedure: input.procedure,
+            amount: input.amount,
+            status: BudgetStatus.OPEN,
+          },
+          reason: 'Orçamento criado',
+          userId: context.user?.userId,
+        },
+      });
+
+      return budget;
+    },
+    updateBudget: async (_: unknown, { input }: { input: {
+      id: string;
+      procedure?: string;
+      amount?: number;
+      returnDeadline?: string;
+      status?: BudgetStatus;
+      notes?: string;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN' && context.user.role !== 'SALES' && context.user.role !== 'CALL_CENTER') {
+        throw new Error('Acesso restrito a administradores, vendedores ou atendentes');
+      }
+      
+      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      const current = await prisma.budget.findUnique({ where: { id: decodedId } });
+      if (!current) throw new Error('Orçamento não encontrado');
+      
+      const updateData: Record<string, unknown> = {};
+      const changes: Record<string, unknown> = {};
+      if (input.procedure !== undefined) {
+        updateData.procedure = input.procedure;
+        changes.procedure = { from: current.procedure, to: input.procedure };
+      }
+      if (input.amount !== undefined) {
+        updateData.amount = input.amount;
+        changes.amount = { from: current.amount, to: input.amount };
+      }
+      if (input.returnDeadline !== undefined) {
+        updateData.returnDeadline = input.returnDeadline ? new Date(input.returnDeadline) : null;
+        changes.returnDeadline = { from: current.returnDeadline, to: input.returnDeadline };
+      }
+      if (input.status !== undefined) {
+        updateData.status = input.status;
+        changes.status = { from: current.status, to: input.status };
+      }
+      if (input.notes !== undefined) {
+        updateData.notes = input.notes;
+        changes.notes = { from: current.notes, to: input.notes };
+      }
+      
+      const updated = await prisma.budget.update({
+        where: { id: decodedId },
+        data: updateData,
+        include: { patient: { include: { lead: true } }, surgeon: true },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Budget',
+          entityId: decodedId,
+          action: 'UPDATED',
+          oldValue: {
+            procedure: current.procedure,
+            amount: current.amount,
+            status: current.status,
+          },
+          newValue: changes as any,
+          reason: 'Orçamento atualizado',
+          userId: context.user?.userId,
+        },
+      });
+
+      return updated;
+    },
+    deleteBudget: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN' && context.user.role !== 'SALES') {
+        throw new Error('Acesso restrito a administradores e vendedores');
+      }
+      
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const existing = await prisma.budget.findUnique({ where: { id: decodedId } });
+      if (!existing) throw new Error('Orçamento não encontrado');
+      
+      if (existing.status === BudgetStatus.CONTRACT_SIGNED) {
+        throw new Error('Não é possível excluir orçamento com contrato fechado');
+      }
+      
+      await prisma.budget.delete({ where: { id: decodedId } });
+      return { success: true, message: 'Orçamento excluído com sucesso' };
+    },
+    createBudgetFollowUp: async (_: unknown, { input }: { input: {
+      budgetId: string;
+      date: string;
+      notes?: string;
+      respondedBy?: string;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN' && context.user.role !== 'SALES' && context.user.role !== 'CALL_CENTER') {
+        throw new Error('Acesso restrito a administradores, vendedores ou atendentes');
+      }
+      
+      const decodedBudgetId = Buffer.from(input.budgetId, 'base64url').toString('utf-8');
+      
+      return prisma.budgetFollowUp.create({
+        data: {
+          budgetId: decodedBudgetId,
+          date: new Date(input.date),
+          notes: input.notes,
+          respondedBy: input.respondedBy,
+        },
+      });
+    },
+    createComplaint: async (_: unknown, { input }: { input: {
+      patientId: string;
+      area: string;
+      description: string;
+      responseDeadline?: string;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN' && context.user.role !== 'RECEPTION' && context.user.role !== 'CALL_CENTER') {
+        throw new Error('Acesso restrito a administradores ou atendimento');
+      }
+      
+      const decodedPatientId = Buffer.from(input.patientId, 'base64url').toString('utf-8');
+      
+      const patient = await prisma.patient.findUnique({ where: { id: decodedPatientId } });
+      if (!patient) throw new Error('Paciente não encontrado');
+      
+      return prisma.complaint.create({
+        data: {
+          patientId: decodedPatientId,
+          area: input.area,
+          description: input.description,
+          responseDeadline: input.responseDeadline ? new Date(input.responseDeadline) : null,
+          status: ComplaintStatus.OPEN,
+        },
+        include: { patient: { include: { lead: true } } },
+      });
+    },
+    updateComplaint: async (_: unknown, { input }: { input: {
+      id: string;
+      status?: ComplaintStatus;
+      resolution?: string;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') {
+        throw new Error('Acesso restrito a administradores');
+      }
+      
+      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      const current = await prisma.complaint.findUnique({ where: { id: decodedId } });
+      if (!current) throw new Error('Reclamação não encontrada');
+      
+      const updateData: Record<string, unknown> = {};
+      if (input.status !== undefined) updateData.status = input.status;
+      if (input.resolution !== undefined) updateData.resolution = input.resolution;
+      
+      return prisma.complaint.update({
+        where: { id: decodedId },
+        data: updateData,
+        include: { patient: { include: { lead: true } } },
+      });
+    },
+    deleteComplaint: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') {
+        throw new Error('Acesso restrito a administradores');
+      }
+      
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const existing = await prisma.complaint.findUnique({ where: { id: decodedId } });
+      if (!existing) throw new Error('Reclamação não encontrada');
+      
+      await prisma.complaint.delete({ where: { id: decodedId } });
+      return { success: true, message: 'Reclamação excluída com sucesso' };
+    },
+    createTreatment: async (_: unknown, { input }: { input: {
+      complaintId: string;
+      date: string;
+      sector: string;
+      description: string;
+      solution?: string;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') {
+        throw new Error('Acesso restrito a administradores');
+      }
+      
+      const decodedComplaintId = Buffer.from(input.complaintId, 'base64url').toString('utf-8');
+      
+      const complaint = await prisma.complaint.findUnique({ where: { id: decodedComplaintId } });
+      if (!complaint) throw new Error('Reclamação não encontrada');
+      
+      const treatment = await prisma.treatment.create({
+        data: {
+          complaintId: decodedComplaintId,
+          date: new Date(input.date),
+          sector: input.sector,
+          description: input.description,
+          solution: input.solution,
+        },
+      });
+      
+      if (input.solution) {
+        await prisma.complaint.update({
+          where: { id: decodedComplaintId },
+          data: { status: ComplaintStatus.RESOLVED },
+        });
+      }
+      
+      return treatment;
+    },
+    createExtraAvailability: async (_: unknown, { input }: { input: {
+      surgeonId: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') {
+        throw new Error('Acesso restrito a administradores');
+      }
+      
+      const decodedSurgeonId = Buffer.from(input.surgeonId, 'base64url').toString('utf-8');
+      
+      const surgeon = await prisma.surgeon.findUnique({ where: { id: decodedSurgeonId } });
+      if (!surgeon) throw new Error('Médico não encontrado');
+      
+      return prisma.extraAvailabilitySlot.create({
+        data: {
+          surgeonId: decodedSurgeonId,
+          date: new Date(input.date),
+          startTime: input.startTime,
+          endTime: input.endTime,
+          isActive: true,
+        },
+      });
+    },
+    updateExtraAvailability: async (_: unknown, { input }: { input: {
+      id: string;
+      date?: string;
+      startTime?: string;
+      endTime?: string;
+      isActive?: boolean;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') {
+        throw new Error('Acesso restrito a administradores');
+      }
+      
+      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      const existing = await prisma.extraAvailabilitySlot.findUnique({ where: { id: decodedId } });
+      if (!existing) throw new Error('Agenda extra não encontrada');
+      
+      const updateData: Record<string, unknown> = {};
+      if (input.date !== undefined) updateData.date = new Date(input.date);
+      if (input.startTime !== undefined) updateData.startTime = input.startTime;
+      if (input.endTime !== undefined) updateData.endTime = input.endTime;
+      if (input.isActive !== undefined) updateData.isActive = input.isActive;
+      
+      return prisma.extraAvailabilitySlot.update({
+        where: { id: decodedId },
+        data: updateData,
+      });
+    },
+    deleteExtraAvailability: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') {
+        throw new Error('Acesso restrito a administradores');
+      }
+      
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const existing = await prisma.extraAvailabilitySlot.findUnique({ where: { id: decodedId } });
+      if (!existing) throw new Error('Agenda extra não encontrada');
+      
+      await prisma.extraAvailabilitySlot.delete({ where: { id: decodedId } });
+      return { success: true, message: 'Agenda extra excluída com sucesso' };
+    },
+    createScheduleBlock: async (_: unknown, { input }: { input: {
+      surgeonId: string;
+      startDate: string;
+      endDate: string;
+      reason?: string;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') {
+        throw new Error('Acesso restrito a administradores');
+      }
+      
+      const decodedSurgeonId = Buffer.from(input.surgeonId, 'base64url').toString('utf-8');
+      
+      const surgeon = await prisma.surgeon.findUnique({ where: { id: decodedSurgeonId } });
+      if (!surgeon) throw new Error('Médico não encontrado');
+      
+      return prisma.scheduleBlock.create({
+        data: {
+          surgeonId: decodedSurgeonId,
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          reason: input.reason,
+        },
+      });
+    },
+    updateScheduleBlock: async (_: unknown, { input }: { input: {
+      id: string;
+      startDate?: string;
+      endDate?: string;
+      reason?: string;
+    }}, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') {
+        throw new Error('Acesso restrito a administradores');
+      }
+      
+      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      const existing = await prisma.scheduleBlock.findUnique({ where: { id: decodedId } });
+      if (!existing) throw new Error('Bloqueio não encontrado');
+      
+      const updateData: Record<string, unknown> = {};
+      if (input.startDate !== undefined) updateData.startDate = new Date(input.startDate);
+      if (input.endDate !== undefined) updateData.endDate = new Date(input.endDate);
+      if (input.reason !== undefined) updateData.reason = input.reason;
+      
+      return prisma.scheduleBlock.update({
+        where: { id: decodedId },
+        data: updateData,
+      });
+    },
+    deleteScheduleBlock: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') {
+        throw new Error('Acesso restrito a administradores');
+      }
+      
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const existing = await prisma.scheduleBlock.findUnique({ where: { id: decodedId } });
+      if (!existing) throw new Error('Bloqueio não encontrado');
+      
+      await prisma.scheduleBlock.delete({ where: { id: decodedId } });
+      return { success: true, message: 'Bloqueio excluído com sucesso' };
     },
   },
 };

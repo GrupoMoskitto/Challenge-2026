@@ -24,7 +24,8 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 - **Centralização de Leads** — Captura automática de redes sociais e canais digitais
 - **Gestão de Agendas** — Controle em tempo real da disponibilidade dos cirurgiões
 - **Automação WhatsApp** — Disparos automáticos para confirmações e lembretes (RN05)
-- **Inteligência de Dados** — Dashboards de conversão e ociosidade médica
+- **Inteligência de Dados** — Dashboards de conversão, performance e ociosidade médica
+- **Import/Export** — Importação e exportação de leads via CSV
 - **Auditoria Completa** — Rastreabilidade total de ações e alterações (RN06)
 
 ### Stack
@@ -269,6 +270,20 @@ query GetDashboardStats {
   surgeons { id name specialty }
 }
 
+# Performance Metrics
+query GetPerformanceMetrics($startDate: DateTime, $endDate: DateTime) {
+  performanceMetrics(startDate: $startDate, endDate: $endDate) {
+    avgFirstContactTime
+    avgConversionTime
+    avgSchedulingTime
+    responseRate
+    totalContacts
+    totalConversions
+    leadsByDay { date count converted }
+    conversionFunnel { status count }
+  }
+}
+
 # Leads com paginação
 query GetLeads($status: LeadStatus, $first: Int, $after: String) {
   leads(status: $status, first: $first, after: $after) {
@@ -281,6 +296,14 @@ query GetLeads($status: LeadStatus, $first: Int, $after: String) {
 # Pacientes
 query GetPatients {
   patients { id dateOfBirth medicalRecord lead { id name email phone cpf status } }
+}
+
+# Paciente com campos extendidos
+mutation CreatePatient($input: CreatePatientInput!) {
+  createPatient(input: $input) {
+    id dateOfBirth medicalRecord
+    sex weight height howMet  # Campos novos
+  }
 }
 
 # Cirurgiões
@@ -309,6 +332,8 @@ query GetAuditLogs($entityType: String, $entityId: String) {
 mutation CreateLead($input: CreateLeadInput!) { createLead(input: $input) { id name status createdAt } }
 mutation UpdateLeadStatus($input: UpdateLeadStatusInput!) { updateLeadStatus(input: $input) { id status } }
 mutation DeleteLead($id: ID!) { deleteLead(id: $id) { success message } }
+mutation ExportLeads($format: String) { exportLeads(format: $format) }
+mutation ImportLeads($csvContent: String!) { importLeads(csvContent: $csvContent) { success imported errors } }
 
 # Pacientes
 mutation CreatePatient($input: CreatePatientInput!) { createPatient(input: $input) { id dateOfBirth medicalRecord } }
