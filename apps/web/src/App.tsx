@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { apolloClient, getAuthToken, isAuthenticated } from "./lib/apollo";
+import { apolloClient } from "./lib/apollo";
 import { AuthProvider, useAuth } from "./lib/auth";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -24,30 +24,28 @@ function PageLoader() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, isChecking } = useAuth();
+  const { user, loading } = useAuth();
   
-  console.log('ProtectedRoute:', { user: !!user, loading, isChecking, userObj: user });
-  
-  // Show loading while checking authentication
-  if (loading || isChecking) {
-    console.log('Showing loading screen');
+  if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
   }
   
-  // Only redirect if we're done checking and still no user
   if (!user) {
-    console.log('No user, redirecting to login');
     return <Navigate to="/login" replace />;
   }
   
-  console.log('User exists, rendering children');
   return <>{children}</>;
 }
 
 function LoginRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
   const location = useLocation();
   
-  if (isAuthenticated()) {
+  // Don't redirect while auth is still loading
+  if (loading) return null;
+  
+  // Only redirect if React auth state confirms user is logged in
+  if (user) {
     const from = (location.state as any)?.from?.pathname || '/';
     return <Navigate to={from} replace />;
   }
