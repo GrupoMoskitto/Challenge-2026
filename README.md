@@ -171,7 +171,7 @@ erDiagram
     APPOINTMENT ||--o{ NOTIFICATION : gera
 ```
 > [!NOTE]
-> O diagrama resume a modelagem atual do [schema.prisma](packages/database/prisma/schema.prisma) e prioriza legibilidade visual.
+> O diagrama resume a modelagem atual do [`schema.prisma`](packages/database/prisma/schema.prisma) e prioriza legibilidade visual.
 
 ### Quick Start
 
