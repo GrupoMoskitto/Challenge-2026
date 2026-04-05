@@ -10,7 +10,7 @@ logger.info('System', 'CRMed Workers iniciando...');
 import express from 'express';
 import bodyParser from 'body-parser';
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.WORKERS_PORT || 3002;
 
 logger.success('System', 'WhatsApp BullMQ Worker iniciado');
 
@@ -73,9 +73,14 @@ app.post('/webhook/evolution', async (req, res) => {
         }
 
         res.status(200).send('OK');
-    } catch (error) {
-        logger.error('Webhook', 'Erro processando hook da Evolution API', error);
-        res.status(500).send('Error');
+    } catch (error: any) {
+        const status = error?.response?.status;
+        const isAuthError = status === 401 || status === 403;
+        
+        if (!isAuthError) {
+            logger.error('Webhook', 'Erro processando hook da Evolution API', error);
+        }
+        res.status(200).send('OK'); // Still respond OK to avoid retries
     }
 });
 

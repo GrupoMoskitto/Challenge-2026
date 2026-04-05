@@ -7,7 +7,8 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "outputs": []
     },
     "lint": {
       "dependsOn": ["^lint"],
