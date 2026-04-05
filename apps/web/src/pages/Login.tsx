@@ -81,11 +81,8 @@ export default function Login() {
   
   const [loginMutation, { loading }] = useMutation<LoginResponse>(LOGIN_MUTATION, {
     onCompleted: (data) => {
-      console.log('Login successful, using authLogin');
-      // Use the auth context login function
       authLogin(data.login.token, data.login.refreshToken, data.login.user);
       setAttempts(0);
-      console.log('Navigating to dashboard');
       navigate('/');
     },
     onError: (err) => {
