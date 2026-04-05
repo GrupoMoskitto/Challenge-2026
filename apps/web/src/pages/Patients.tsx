@@ -113,12 +113,12 @@ const Patients = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const { data: patientsData, loading: loadingPatients, refetch: refetchPatients } = useQuery(GET_PATIENTS, {
+  const { data: patientsData, loading: loadingPatients, error: patientsError, refetch: refetchPatients } = useQuery(GET_PATIENTS, {
     variables: { 
       first: PAGE_SIZE,
       where: {
-        ...(debouncedSearch && { search: debouncedSearch }),
-        ...(statusFilter && { status: statusFilter }),
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        ...(statusFilter && statusFilter !== "ALL" ? { status: statusFilter } : {}),
       }
     },
     fetchPolicy: 'cache-and-network',
@@ -130,6 +130,13 @@ const Patients = () => {
       }
     },
   });
+
+  // Debug error
+  useEffect(() => {
+    if (patientsError) {
+      console.error('Patients query error:', patientsError);
+    }
+  }, [patientsError]);
 
   const loadMore = async () => {
     if (!endCursor || !hasNextPage) return;
@@ -167,7 +174,16 @@ const Patients = () => {
   const [updatePostOpStatus] = useMutation(UPDATE_POST_OP_STATUS);
 
   const [editPatientDialogOpen, setEditPatientDialogOpen] = useState(false);
-  const [editPatientForm, setEditPatientForm] = useState({ dateOfBirth: "", medicalRecord: "", address: "", reason: "" });
+  const [editPatientForm, setEditPatientForm] = useState({ 
+    dateOfBirth: "", 
+    medicalRecord: "", 
+    address: "",
+    sex: "",
+    weight: "",
+    height: "",
+    howMet: "",
+    reason: "" 
+  });
 
   const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
@@ -176,7 +192,16 @@ const Patients = () => {
   const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
 
   const [createPatientDialogOpen, setCreatePatientDialogOpen] = useState(false);
-  const [createPatientForm, setCreatePatientForm] = useState({ leadId: "", dateOfBirth: "", medicalRecord: "", address: "" });
+  const [createPatientForm, setCreatePatientForm] = useState({ 
+    leadId: "", 
+    dateOfBirth: "", 
+    medicalRecord: "", 
+    address: "",
+    sex: "",
+    weight: "",
+    height: "",
+    howMet: ""
+  });
 
   const patients = patientsData?.patients?.edges?.map((e: any) => e.node) || [];
   const patient = patientData?.patient;
@@ -189,6 +214,10 @@ const Patients = () => {
       dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
       medicalRecord: patient.medicalRecord || "",
       address: patient.address || "",
+      sex: patient.sex || "",
+      weight: patient.weight?.toString() || "",
+      height: patient.height?.toString() || "",
+      howMet: patient.howMet || "",
       reason: ""
     });
     setEditPatientDialogOpen(true);
@@ -196,7 +225,21 @@ const Patients = () => {
 
   const handleUpdatePatient = async () => {
     try {
-      await updatePatient({ variables: { input: { id: patient.id, ...editPatientForm } } });
+      await updatePatient({ 
+        variables: { 
+          input: { 
+            id: patient.id, 
+            dateOfBirth: editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth).toISOString() : undefined,
+            medicalRecord: editPatientForm.medicalRecord || undefined,
+            address: editPatientForm.address || undefined,
+            sex: editPatientForm.sex || undefined,
+            weight: editPatientForm.weight ? parseFloat(editPatientForm.weight) : undefined,
+            height: editPatientForm.height ? parseFloat(editPatientForm.height) : undefined,
+            howMet: editPatientForm.howMet || undefined,
+            reason: editPatientForm.reason || undefined,
+          } 
+        } 
+      });
       toast.success("Dados atualizados com sucesso!");
       setEditPatientDialogOpen(false);
       refetchPatient();
@@ -243,12 +286,16 @@ const Patients = () => {
             dateOfBirth: new Date(createPatientForm.dateOfBirth).toISOString(),
             medicalRecord: createPatientForm.medicalRecord || undefined,
             address: createPatientForm.address || undefined,
+            sex: createPatientForm.sex || undefined,
+            weight: createPatientForm.weight ? parseFloat(createPatientForm.weight) : undefined,
+            height: createPatientForm.height ? parseFloat(createPatientForm.height) : undefined,
+            howMet: createPatientForm.howMet || undefined,
           }
         } 
       });
       toast.success("Paciente criado com sucesso!");
       setCreatePatientDialogOpen(false);
-      setCreatePatientForm({ leadId: "", dateOfBirth: "", medicalRecord: "", address: "" });
+      setCreatePatientForm({ leadId: "", dateOfBirth: "", medicalRecord: "", address: "", sex: "", weight: "", height: "", howMet: "" });
       refetchPatients();
       if (result.data?.createPatient?.id) {
         setSelectedPatientId(result.data.createPatient.id);
@@ -392,6 +439,11 @@ const Patients = () => {
                           <div className={cn("w-2 h-2 rounded-full", statusColors[p.lead?.status] || "bg-gray-400")} title={statusLabels[p.lead?.status]} />
                         </div>
                         <p className="text-xs text-muted-foreground">{p.lead?.phone}</p>
+                        {p.bmi && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            IMC: {p.bmi} • {p.weight}kg • {p.height}cm
+                          </p>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -710,6 +762,58 @@ const Patients = () => {
               <Label>Endereço</Label>
               <Input value={createPatientForm.address} onChange={e => setCreatePatientForm(f => ({...f, address: e.target.value}))} placeholder="Opcional" />
             </div>
+            <div className="space-y-2">
+              <Label>Sexo</Label>
+              <Select value={createPatientForm.sex} onValueChange={v => setCreatePatientForm(f => ({...f, sex: v}))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Masculino">Masculino</SelectItem>
+                  <SelectItem value="Feminino">Feminino</SelectItem>
+                  <SelectItem value="Outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Peso (kg)</Label>
+                <Input 
+                  type="number" 
+                  step="0.1" 
+                  value={createPatientForm.weight} 
+                  onChange={e => setCreatePatientForm(f => ({...f, weight: e.target.value}))} 
+                  placeholder="Ex: 70.5" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Altura (cm)</Label>
+                <Input 
+                  type="number" 
+                  value={createPatientForm.height} 
+                  onChange={e => setCreatePatientForm(f => ({...f, height: e.target.value}))} 
+                  placeholder="Ex: 170" 
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Como nos conheceu?</Label>
+              <Select value={createPatientForm.howMet} onValueChange={v => setCreatePatientForm(f => ({...f, howMet: v}))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Instagram">Instagram</SelectItem>
+                  <SelectItem value="Facebook">Facebook</SelectItem>
+                  <SelectItem value="Google">Google</SelectItem>
+                  <SelectItem value="TikTok">TikTok</SelectItem>
+                  <SelectItem value="Indicação">Indicação</SelectItem>
+                  <SelectItem value="Google Ads">Google Ads</SelectItem>
+                  <SelectItem value="Facebook Ads">Facebook Ads</SelectItem>
+                  <SelectItem value="Outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCreatePatientDialogOpen(false)}>Cancelar</Button>
@@ -736,6 +840,58 @@ const Patients = () => {
             <div className="space-y-2">
               <Label>Endereço</Label>
               <Input value={editPatientForm.address} onChange={e => setEditPatientForm(f => ({...f, address: e.target.value}))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Sexo</Label>
+              <Select value={editPatientForm.sex} onValueChange={v => setEditPatientForm(f => ({...f, sex: v}))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Masculino">Masculino</SelectItem>
+                  <SelectItem value="Feminino">Feminino</SelectItem>
+                  <SelectItem value="Outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Peso (kg)</Label>
+                <Input 
+                  type="number" 
+                  step="0.1" 
+                  value={editPatientForm.weight} 
+                  onChange={e => setEditPatientForm(f => ({...f, weight: e.target.value}))} 
+                  placeholder="Ex: 70.5" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Altura (cm)</Label>
+                <Input 
+                  type="number" 
+                  value={editPatientForm.height} 
+                  onChange={e => setEditPatientForm(f => ({...f, height: e.target.value}))} 
+                  placeholder="Ex: 170" 
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Como nos conheceu?</Label>
+              <Select value={editPatientForm.howMet} onValueChange={v => setEditPatientForm(f => ({...f, howMet: v}))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Instagram">Instagram</SelectItem>
+                  <SelectItem value="Facebook">Facebook</SelectItem>
+                  <SelectItem value="Google">Google</SelectItem>
+                  <SelectItem value="TikTok">TikTok</SelectItem>
+                  <SelectItem value="Indicação">Indicação</SelectItem>
+                  <SelectItem value="Google Ads">Google Ads</SelectItem>
+                  <SelectItem value="Facebook Ads">Facebook Ads</SelectItem>
+                  <SelectItem value="Outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Motivo da alteração</Label>

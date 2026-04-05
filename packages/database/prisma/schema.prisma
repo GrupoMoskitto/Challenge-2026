@@ -23,6 +23,26 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum BudgetStatus {
+  OPEN
+  IN_PROGRESS
+  CONTRACT_SIGNED
+  CLOSED
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TreatmentStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+}
+
 enum UserRole {
   ADMIN
   SURGEON
@@ -61,10 +81,16 @@ model Patient {
   leadId        String   @unique
   dateOfBirth   DateTime
   medicalRecord String?  @unique
-  address       String?  // Endereço completo
+  address       String?
+  sex           String?  // Masculino, Feminino
+  weight        Float?   // Peso em kg
+  height        Float?   // Altura em cm
+  howMet        String?  // Por onde nos conheceu
 
   lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   appointments  Appointment[]
+  budgets       Budget[]
+  complaints    Complaint[]
 
   documents     Document[]
   postOps       PostOp[]
@@ -77,16 +103,20 @@ model Patient {
 }
 
 model Surgeon {
-  id           String   @id @default(cuid())
-  name         String
-  specialty    String
-  crm          String   @unique
-  email        String   @unique
-  phone        String
-  isActive     Boolean  @default(true)
+  id                 String   @id @default(cuid())
+  name               String
+  specialty          String
+  crm                String   @unique
+  email              String   @unique
+  phone              String
+  isActive           Boolean  @default(true)
+  appointmentDuration Int     @default(30) // Tempo de cada consulta em minutos
 
-  appointments Appointment[]
-  availability AvailabilitySlot[]
+  appointments       Appointment[]
+  availability       AvailabilitySlot[]
+  extraAvailability  ExtraAvailabilitySlot[]
+  blocks             ScheduleBlock[]
+  budgets            Budget[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -109,6 +139,39 @@ model AvailabilitySlot {
 
   @@index([surgeonId])
   @@index([dayOfWeek])
+}
+
+model ExtraAvailabilitySlot {
+  id          String   @id @default(cuid())
+  surgeonId    String
+  date        DateTime // Data específica para agenda extra
+  startTime   String
+  endTime     String
+  isActive    Boolean  @default(true)
+
+  surgeon      Surgeon  @relation(fields: [surgeonId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([surgeonId])
+  @@index([date])
+}
+
+model ScheduleBlock {
+  id          String   @id @default(cuid())
+  surgeonId    String
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+
+  surgeon      Surgeon  @relation(fields: [surgeonId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([surgeonId])
+  @@index([startDate])
 }
 
 model Appointment {
@@ -315,4 +378,76 @@ model MessageTemplate {
 
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+}
+
+model Budget {
+  id            String        @id @default(cuid())
+  patientId     String
+  surgeonId     String
+  procedure     String
+  amount        Float
+  returnDeadline DateTime?
+  status        BudgetStatus  @default(OPEN)
+  notes         String?
+
+  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  surgeon       Surgeon       @relation(fields: [surgeonId], references: [id], onDelete: Cascade)
+  followUps     BudgetFollowUp[]
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([patientId])
+  @@index([surgeonId])
+  @@index([status])
+}
+
+model BudgetFollowUp {
+  id          String   @id @default(cuid())
+  budgetId    String
+  date        DateTime
+  notes       String?
+  respondedBy String?  // Quem respondeu
+
+  budget      Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([budgetId])
+}
+
+model Complaint {
+  id            String          @id @default(cuid())
+  patientId     String
+  area          String
+  description   String
+  status        ComplaintStatus @default(OPEN)
+  responseDeadline DateTime?
+  resolution    String?
+
+  patient       Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  treatments    Treatment[]
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([patientId])
+  @@index([status])
+  @@index([area])
+}
+
+model Treatment {
+  id          String   @id @default(cuid())
+  complaintId String
+  date        DateTime
+  sector      String   // Setor
+  description String   // Tratativa
+  solution    String?  // Solução
+
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([complaintId])
+  @@index([date])
 }
