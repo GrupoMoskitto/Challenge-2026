@@ -20,6 +20,26 @@ export const typeDefs = gql`
     NO_SHOW
   }
 
+  enum BudgetStatus {
+    OPEN
+    IN_PROGRESS
+    CONTRACT_SIGNED
+    CLOSED
+  }
+
+  enum ComplaintStatus {
+    OPEN
+    IN_PROGRESS
+    RESOLVED
+    CLOSED
+  }
+
+  enum TreatmentStatus {
+    PENDING
+    IN_PROGRESS
+    CLOSED
+  }
+
   enum UserRole {
     ADMIN
     SURGEON
@@ -97,6 +117,12 @@ export const typeDefs = gql`
     code: String
   }
 
+  type ImportResult {
+    success: Boolean!
+    imported: Int!
+    errors: [String!]!
+  }
+
   type DeleteResult {
     success: Boolean!
     message: String
@@ -165,6 +191,11 @@ export const typeDefs = gql`
     dateOfBirth: DateTime!
     medicalRecord: String
     address: String
+    sex: String
+    weight: Float
+    height: Float
+    bmi: Float
+    howMet: String
     name: String
     email: String
     phone: String
@@ -185,8 +216,11 @@ export const typeDefs = gql`
     email: String!
     phone: String!
     isActive: Boolean!
+    appointmentDuration: Int!
     appointments: [Appointment!]!
     availability: [AvailabilitySlot!]!
+    extraAvailability: [ExtraAvailabilitySlot!]!
+    blocks: [ScheduleBlock!]!
     createdAt: DateTime!
     updatedAt: DateTime!
   }
@@ -198,6 +232,23 @@ export const typeDefs = gql`
     startTime: String!
     endTime: String!
     isActive: Boolean!
+  }
+
+  type ExtraAvailabilitySlot {
+    id: ID!
+    surgeonId: ID!
+    date: DateTime!
+    startTime: String!
+    endTime: String!
+    isActive: Boolean!
+  }
+
+  type ScheduleBlock {
+    id: ID!
+    surgeonId: ID!
+    startDate: DateTime!
+    endDate: DateTime!
+    reason: String
   }
 
   type Appointment {
@@ -291,6 +342,110 @@ export const typeDefs = gql`
     updatedAt: DateTime!
   }
 
+  type Budget {
+    id: ID!
+    patientId: ID!
+    surgeonId: ID!
+    procedure: String!
+    amount: Float!
+    returnDeadline: DateTime
+    status: BudgetStatus!
+    notes: String
+    patient: Patient!
+    surgeon: Surgeon!
+    followUps: [BudgetFollowUp!]!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+  }
+
+  type BudgetFollowUp {
+    id: ID!
+    budgetId: ID!
+    date: DateTime!
+    notes: String
+    respondedBy: String
+    createdAt: DateTime!
+  }
+
+  type Complaint {
+    id: ID!
+    patientId: ID!
+    area: String!
+    description: String!
+    status: ComplaintStatus!
+    responseDeadline: DateTime
+    resolution: String
+    patient: Patient!
+    treatments: [Treatment!]!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+  }
+
+  type Treatment {
+    id: ID!
+    complaintId: ID!
+    date: DateTime!
+    sector: String!
+    description: String!
+    solution: String
+    createdAt: DateTime!
+  }
+
+  type DashboardStats {
+    totalLeads: Int!
+    totalPatients: Int!
+    totalAppointments: Int!
+    conversionRate: Float!
+    appointmentsByStatus: [StatusCount!]!
+    leadsBySource: [SourceCount!]!
+    leadsByStatus: [StatusCount!]!
+    surgeonConversion: [SurgeonConversion!]!
+    avgFirstContactTime: Float
+    avgConversionTime: Float
+    avgSchedulingTime: Float
+    responseRate: Float!
+  }
+
+  type PerformanceMetrics {
+    avgFirstContactTime: Float
+    avgConversionTime: Float
+    avgSchedulingTime: Float
+    responseRate: Float!
+    totalContacts: Int!
+    totalConversions: Int!
+    leadsByDay: [LeadsByDay!]!
+    conversionFunnel: [ConversionFunnelStep!]!
+  }
+
+  type LeadsByDay {
+    date: String!
+    count: Int!
+    converted: Int!
+  }
+
+  type ConversionFunnelStep {
+    status: String!
+    count: Int!
+  }
+
+  type StatusCount {
+    status: String!
+    count: Int!
+  }
+
+  type SourceCount {
+    source: String!
+    count: Int!
+  }
+
+  type SurgeonConversion {
+    surgeonId: ID!
+    surgeonName: String!
+    totalAppointments: Int!
+    totalConverted: Int!
+    conversionRate: Float!
+  }
+
   type AuthPayload {
     token: String!
     refreshToken: String!
@@ -331,6 +486,10 @@ export const typeDefs = gql`
     dateOfBirth: DateTime!
     medicalRecord: String
     address: String
+    sex: String
+    weight: Float
+    height: Float
+    howMet: String
   }
 
   input UpdatePatientInput {
@@ -338,6 +497,10 @@ export const typeDefs = gql`
     dateOfBirth: DateTime
     medicalRecord: String
     address: String
+    sex: String
+    weight: Float
+    height: Float
+    howMet: String
     reason: String
   }
 
@@ -450,6 +613,82 @@ export const typeDefs = gql`
     triggerDays: Int
   }
 
+  input CreateBudgetInput {
+    patientId: ID!
+    surgeonId: ID!
+    procedure: String!
+    amount: Float!
+    returnDeadline: DateTime
+    notes: String
+  }
+
+  input UpdateBudgetInput {
+    id: ID!
+    procedure: String
+    amount: Float
+    returnDeadline: DateTime
+    status: BudgetStatus
+    notes: String
+  }
+
+  input CreateBudgetFollowUpInput {
+    budgetId: ID!
+    date: DateTime!
+    notes: String
+    respondedBy: String
+  }
+
+  input CreateComplaintInput {
+    patientId: ID!
+    area: String!
+    description: String!
+    responseDeadline: DateTime
+  }
+
+  input UpdateComplaintInput {
+    id: ID!
+    status: ComplaintStatus
+    resolution: String
+  }
+
+  input CreateTreatmentInput {
+    complaintId: ID!
+    date: DateTime!
+    sector: String!
+    description: String!
+    solution: String
+  }
+
+  input CreateExtraAvailabilityInput {
+    surgeonId: ID!
+    date: DateTime!
+    startTime: String!
+    endTime: String!
+  }
+
+  input UpdateExtraAvailabilityInput {
+    id: ID!
+    date: DateTime
+    startTime: String
+    endTime: String
+    isActive: Boolean
+  }
+
+  input CreateScheduleBlockInput {
+    surgeonId: ID!
+    startDate: DateTime!
+    endDate: DateTime!
+    reason: String
+  }
+
+  input UpdateScheduleBlockInput {
+    id: ID!
+    startDate: DateTime
+    endDate: DateTime
+    reason: String
+    isActive: Boolean
+  }
+
   type Mutation {
     # Auth
     login(input: LoginInput!): AuthPayload!
@@ -460,6 +699,8 @@ export const typeDefs = gql`
     updateLead(input: UpdateLeadInput!): Lead!
     updateLeadStatus(input: UpdateLeadStatusInput!): Lead!
     deleteLead(id: ID!): DeleteResult!
+    exportLeads(format: String): String!
+    importLeads(csvContent: String!): ImportResult!
 
     # Patients
     createPatient(input: CreatePatientInput!): Patient!
@@ -497,6 +738,44 @@ export const typeDefs = gql`
     createMessageTemplate(input: CreateMessageTemplateInput!): MessageTemplate!
     updateMessageTemplate(input: UpdateMessageTemplateInput!): MessageTemplate!
     deleteMessageTemplate(id: ID!): DeleteResult!
+
+    # Budgets
+    createBudget(input: CreateBudgetInput!): Budget!
+    updateBudget(input: UpdateBudgetInput!): Budget!
+    deleteBudget(id: ID!): DeleteResult!
+    createBudgetFollowUp(input: CreateBudgetFollowUpInput!): BudgetFollowUp!
+
+    # Complaints (SAC)
+    createComplaint(input: CreateComplaintInput!): Complaint!
+    updateComplaint(input: UpdateComplaintInput!): Complaint!
+    deleteComplaint(id: ID!): DeleteResult!
+    createTreatment(input: CreateTreatmentInput!): Treatment!
+
+    # Extra Availability & Schedule Blocks
+    createExtraAvailability(input: CreateExtraAvailabilityInput!): ExtraAvailabilitySlot!
+    updateExtraAvailability(input: UpdateExtraAvailabilityInput!): ExtraAvailabilitySlot!
+    deleteExtraAvailability(id: ID!): DeleteResult!
+    createScheduleBlock(input: CreateScheduleBlockInput!): ScheduleBlock!
+    updateScheduleBlock(input: UpdateScheduleBlockInput!): ScheduleBlock!
+    deleteScheduleBlock(id: ID!): DeleteResult!
+  }
+
+  type UserConnection {
+    edges: [UserEdge!]!
+    pageInfo: PageInfo!
+    totalCount: Int!
+  }
+
+  type UserEdge {
+    node: User!
+    cursor: String!
+  }
+
+  type PageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
+    startCursor: String
+    endCursor: String
   }
 
   type Query {
@@ -524,7 +803,7 @@ export const typeDefs = gql`
     availableSurgeons(date: DateTime!): [Surgeon!]!
 
     # Users
-    users: [User!]!
+    users(first: Int, after: String): UserConnection!
     user(id: ID!): User
 
     # Audit Logs
@@ -543,6 +822,20 @@ export const typeDefs = gql`
     # Message Templates
     messageTemplates: [MessageTemplate!]!
     messageTemplate(id: ID!): MessageTemplate
+
+    # Budgets
+    budgets(status: BudgetStatus, surgeonId: ID): [Budget!]!
+    budget(id: ID!): Budget
+    budgetsByPatient(patientId: ID!): [Budget!]!
+
+    # Complaints (SAC)
+    complaints(status: ComplaintStatus, area: String): [Complaint!]!
+    complaint(id: ID!): Complaint
+    complaintsByPatient(patientId: ID!): [Complaint!]!
+
+    # Dashboard
+    dashboardStats(startDate: DateTime, endDate: DateTime): DashboardStats!
+    performanceMetrics(startDate: DateTime, endDate: DateTime): PerformanceMetrics!
 
     # Integration Status
     evolutionApiInstances: [EvolutionApiInstance!]!

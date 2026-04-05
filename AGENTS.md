@@ -79,8 +79,25 @@ infra/            → Docker, Evolution API
 
 - Auth check first: `if (!context.user) throw new Error('Usuário não autenticado')`
 - Role check: `if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores')`
-- Use cursor-based pagination with `PageInfo { hasNextPage, hasPreviousPage, startCursor, endCursor }`
+- Use cursor-based pagination with `Connection` types (e.g., `UserConnection`, `LeadConnection`)
 - Always create `AuditLog` on status changes (RN06)
+
+### GraphQL Pagination
+
+When adding new queries that return lists, always use Connection pattern:
+```graphql
+type UserConnection {
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+type UserEdge {
+  node: User!
+  cursor: String!
+}
+```
+
+Frontend must map: `data?.users?.edges?.map((e) => e.node)`
 
 ---
 
@@ -88,8 +105,9 @@ infra/            → Docker, Evolution API
 
 ```bash
 # Development
-pnpm dev                              # All apps
+pnpm dev                              # All apps (ports: 3000 web, 3001 API, 3002 workers)
 pnpm --filter @crmed/api dev          # API only
+pnpm --filter @crmed/web dev          # Web only
 
 # Build & Lint
 pnpm build                            # Build all
@@ -107,6 +125,33 @@ pnpm --filter @crmed/api test -- --grep="test name"
 pnpm --filter @crmed/database db:setup   # generate + migrate + seed
 pnpm --filter @crmed/database db:generate
 ```
+
+---
+
+## Common Issues
+
+### Rate Limiting
+- Login has rate limiting (5 attempts per 15 min per IP)
+- If you get 429 errors, restart the API: `fuser -k 3001/tcp && pnpm --filter @crmed/api dev &`
+- Rate limit is in-memory only — server restart clears it
+
+### Dashboard Loops
+- Always use `useMemo` for `new Date()` to prevent infinite re-renders:
+  ```typescript
+  const today = useMemo(() => new Date(), []);
+  ```
+- Use `cache-first` fetchPolicy for stable queries like `performanceMetrics`
+
+### CSV Export
+- Backend returns base64-encoded data URL: `data:text/csv;base64,...`
+- Frontend must decode: 
+  ```typescript
+  const base64Data = csvContent.split(',')[1];
+  const binaryString = atob(base64Data);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+  const csvText = new TextDecoder('utf-8').decode(bytes);
+  ```
 
 ---
 
