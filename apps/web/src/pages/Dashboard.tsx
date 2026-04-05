@@ -114,7 +114,6 @@ const exportToCSV = (data: any[], filename: string) => {
 };
 
 const Dashboard = () => {
-  console.log('Dashboard component rendering');
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [themeColors, setThemeColors] = useState(getThemeColors);
   const [originColors, setOriginColors] = useState(getOriginColors);

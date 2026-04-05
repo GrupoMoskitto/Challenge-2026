@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, Filter, Download, Upload } from "lucide-react";
+import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, Filter, Download, Upload, Loader2 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_LEADS, UPDATE_LEAD_STATUS, CREATE_LEAD, UPDATE_LEAD, DELETE_LEAD, GET_LEAD_CONTACTS, EXPORT_LEADS, IMPORT_LEADS } from "@/lib/queries";
 import { validateCPF, validatePhone, validateEmail, sanitizeInput } from "@/lib/validation";
@@ -524,7 +524,9 @@ const Leads = () => {
     }
   };
 
-  if (loading) {
+  const isInitialLoad = loading && !data;
+
+  if (isInitialLoad) {
     return (
       <AppLayout title="Gestão de Leads">
         <div className="flex items-center gap-3 mb-6">
@@ -1002,8 +1004,8 @@ const Leads = () => {
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleUpdateLead} disabled={updating}>
-                {updating ? 'Salvando...' : 'Salvar Alterações'}
+              <Button onClick={handleUpdateLead} disabled={updating} className="min-w-[160px]">
+                {updating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : 'Salvar Alterações'}
               </Button>
             </div>
             

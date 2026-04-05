@@ -25,6 +25,7 @@ import {
   Filter,
   History,
   XCircle,
+  Loader2,
 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { 
@@ -102,9 +103,6 @@ const Patients = () => {
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
-  const [endCursor, setEndCursor] = useState<string | null>(null);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -113,7 +111,7 @@ const Patients = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const { data: patientsData, loading: loadingPatients, error: patientsError, refetch: refetchPatients } = useQuery(GET_PATIENTS, {
+  const { data: patientsData, previousData: prevPatientsData, loading: loadingPatients, error: patientsError, refetch: refetchPatients } = useQuery(GET_PATIENTS, {
     variables: { 
       first: PAGE_SIZE,
       where: {
@@ -122,14 +120,18 @@ const Patients = () => {
       }
     },
     fetchPolicy: 'cache-and-network',
-    onCompleted: (data) => {
-      if (data?.patients) {
-        setEndCursor(data.patients.pageInfo.endCursor);
-        setHasNextPage(data.patients.pageInfo.hasNextPage);
-        setTotalCount(data.patients.totalCount);
-      }
-    },
   });
+
+  // Use previous data while loading new search results to prevent flickering
+  const effectivePatientsData = patientsData || prevPatientsData;
+
+  // Derive pagination from data instead of separate state (avoids stale values)
+  const totalCount = effectivePatientsData?.patients?.totalCount ?? 0;
+  const hasNextPage = effectivePatientsData?.patients?.pageInfo?.hasNextPage ?? false;
+  const endCursor = effectivePatientsData?.patients?.pageInfo?.endCursor ?? null;
+
+  // Detect if this is a re-fetch (not initial load) — used for subtle loading indicator
+  const isSearching = loadingPatients && !!effectivePatientsData;
 
   // Debug error
   useEffect(() => {
@@ -140,7 +142,7 @@ const Patients = () => {
 
   const loadMore = async () => {
     if (!endCursor || !hasNextPage) return;
-    const { data } = await refetchPatients({
+    await refetchPatients({
       first: PAGE_SIZE,
       after: endCursor,
       where: {
@@ -148,22 +150,20 @@ const Patients = () => {
         ...(statusFilter && { status: statusFilter }),
       }
     });
-    if (data?.patients) {
-      setEndCursor(data.patients.pageInfo.endCursor);
-      setHasNextPage(data.patients.pageInfo.hasNextPage);
-      setTotalCount(data.patients.totalCount);
-    }
   };
 
-  const { data: patientData, loading: loadingPatient, refetch: refetchPatient } = useQuery(GET_PATIENT, {
+  const { data: patientData, previousData: prevPatientData, loading: loadingPatient, refetch: refetchPatient } = useQuery(GET_PATIENT, {
     variables: { id: selectedPatientId },
     skip: !selectedPatientId,
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-and-network',
   });
+
+  // Keep previous patient visible while loading new one
+  const effectivePatientData = patientData || prevPatientData;
 
   const { data: leadsData } = useQuery(GET_LEADS, {
     variables: { status: 'CONVERTED' },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-first',
   });
 
   const [updatePatient, { loading: updatingPatient }] = useMutation(UPDATE_PATIENT);
@@ -203,8 +203,8 @@ const Patients = () => {
     howMet: ""
   });
 
-  const patients = patientsData?.patients?.edges?.map((e: any) => e.node) || [];
-  const patient = patientData?.patient;
+  const patients = effectivePatientsData?.patients?.edges?.map((e: any) => e.node) || [];
+  const patient = effectivePatientData?.patient;
   const convertedLeads = leadsData?.leads?.edges?.map((e: any) => e.node) || [];
   const availableLeadsForConversion = convertedLeads.filter((lead: any) => !lead.patient);
 
@@ -307,12 +307,10 @@ const Patients = () => {
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
-    setEndCursor(null);
   }, []);
 
   const handleStatusFilterChange = useCallback((value: string) => {
     setStatusFilter(value === "ALL" ? "" : value);
-    setEndCursor(null);
   }, []);
 
   const contactIcon = (type: string) => {
@@ -341,7 +339,9 @@ const Patients = () => {
     }
   };
 
-  if (loadingPatients) {
+  const isInitialLoad = loadingPatients && !patientsData;
+
+  if (isInitialLoad) {
     return (
       <AppLayout title="Pacientes">
         <div className="flex gap-6">
@@ -372,8 +372,11 @@ const Patients = () => {
                 placeholder="Buscar paciente..."
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-9"
+                className="pl-9 pr-9"
               />
+              {isSearching && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+              )}
             </div>
             <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)}>
               <Filter className="h-4 w-4" />
@@ -411,19 +414,19 @@ const Patients = () => {
             <span>{totalCount} pacientes</span>
           </div>
 
-          <div className="space-y-2">
-            {loadingPatients && patients.length === 0 ? (
-              [...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
-            ) : patients.length === 0 ? (
+          <div className={cn("space-y-2 transition-opacity duration-200", isSearching && "opacity-60")}>
+            {patients.length === 0 && !loadingPatients ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 Nenhum paciente encontrado
               </p>
+            ) : patients.length === 0 && loadingPatients ? (
+              [...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
             ) : (
               patients.map((p: any) => (
                 <Card
                   key={p.id}
                   className={cn(
-                    "cursor-pointer hover:shadow-md transition-shadow",
+                    "cursor-pointer hover:shadow-md transition-all duration-200",
                     selectedPatientId === p.id && "border-primary"
                   )}
                   onClick={() => setSelectedPatientId(p.id)}
@@ -470,7 +473,7 @@ const Patients = () => {
                 <p className="text-muted-foreground">Selecione um paciente para ver os detalhes</p>
               </CardContent>
             </Card>
-          ) : loadingPatient ? (
+          ) : loadingPatient && !effectivePatientData?.patient ? (
             <Card>
               <CardContent className="p-6 space-y-4">
                 <Skeleton className="h-20 w-full" />
@@ -478,7 +481,7 @@ const Patients = () => {
               </CardContent>
             </Card>
           ) : patient ? (
-            <>
+            <div className={cn("space-y-4 transition-opacity duration-200", loadingPatient && "opacity-60")}>
               {/* Patient Info Card */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -714,7 +717,7 @@ const Patients = () => {
                   )}
                 </TabsContent>
               </Tabs>
-            </>
+            </div>
           ) : (
             <Card>
               <CardContent className="flex items-center justify-center h-64">
@@ -817,7 +820,7 @@ const Patients = () => {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCreatePatientDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreatePatient} disabled={creatingPatient}>{creatingPatient ? "Criando..." : "Criar Paciente"}</Button>
+            <Button onClick={handleCreatePatient} disabled={creatingPatient} className="min-w-[140px]">{creatingPatient ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Criando...</> : "Criar Paciente"}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -900,7 +903,7 @@ const Patients = () => {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditPatientDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleUpdatePatient} disabled={updatingPatient}>{updatingPatient ? "Salvando..." : "Salvar"}</Button>
+            <Button onClick={handleUpdatePatient} disabled={updatingPatient} className="min-w-[120px]">{updatingPatient ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar"}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -935,7 +938,7 @@ const Patients = () => {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setNewDocDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateDocument} disabled={creatingDoc}>{creatingDoc ? "Adicionando..." : "Adicionar Documento"}</Button>
+            <Button onClick={handleCreateDocument} disabled={creatingDoc} className="min-w-[180px]">{creatingDoc ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adicionando...</> : "Adicionar Documento"}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -968,7 +971,7 @@ const Patients = () => {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setNewPostOpDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreatePostOp} disabled={creatingPostOp}>{creatingPostOp ? "Agendando..." : "Agendar Retorno"}</Button>
+            <Button onClick={handleCreatePostOp} disabled={creatingPostOp} className="min-w-[160px]">{creatingPostOp ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Agendando...</> : "Agendar Retorno"}</Button>
           </div>
         </DialogContent>
       </Dialog>

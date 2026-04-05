@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('auth_token');
   
-  const { data, loading, refetch } = useQuery<{ me: User }>(GET_ME, {
+  const { data, loading, error, refetch } = useQuery<{ me: User }>(GET_ME, {
     skip: !hasToken,
     fetchPolicy: 'network-only',
   });
@@ -66,6 +66,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [data]);
 
+  // Clean up stale auth when GetMe fails (e.g. after server restart with old tokens)
+  useEffect(() => {
+    if (error && hasToken) {
+      const isAuthError = error.graphQLErrors?.some(
+        (e) => e.extensions?.code === 'UNAUTHENTICATED' || e.message.includes('não autenticado')
+      ) || error.networkError;
+      if (isAuthError) {
+        setUser(null);
+        localStorage.removeItem('user');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('refresh_token');
+      }
+    }
+  }, [error, hasToken]);
+
   // Clear user if no token
   useEffect(() => {
     if (!hasToken) {
@@ -79,8 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('refresh_token', refreshToken);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
-    // Force refetch to validate token
-    refetch();
   };
 
   const logout = () => {
