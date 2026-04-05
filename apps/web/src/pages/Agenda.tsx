@@ -17,6 +17,7 @@ import { useQuery, useMutation } from "@apollo/client";
 import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_LEADS, GET_PATIENTS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
 import { validatePhone, sanitizeInput } from "@/lib/validation";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { format, addDays, subDays, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -74,21 +75,21 @@ const Agenda = () => {
 
   const { data: appointmentsData, loading: loadingAppointments, refetch: refetchAppointments } = useQuery(GET_APPOINTMENTS_BY_DATE, {
     variables: { date: currentDate },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-and-network',
   });
 
   const { data: surgeonsData, loading: loadingSurgeons } = useQuery(GET_SURGEONS, {
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-first',
   });
 
   const { data: leadsData, loading: loadingLeads } = useQuery(GET_LEADS, {
-    variables: { first: 100 }, // Get up to 100 leads
-    fetchPolicy: 'network-only',
+    variables: { first: 100 },
+    fetchPolicy: 'cache-first',
   });
 
   const { data: patientsData } = useQuery(GET_PATIENTS, {
     variables: { first: 100 },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-first',
   });
 
   const [createAppointment] = useMutation(CREATE_APPOINTMENT);
@@ -143,25 +144,25 @@ const Agenda = () => {
 
   const handleSaveAppointment = async () => {
     if (!selectedSlot) {
-      alert('Selecione um horário');
+      toast.error('Selecione um horário');
       return;
     }
 
     // Validar cirurgião
     if (!selectedSlot.doctorId) {
-      alert('Selecione o cirurgião');
+      toast.error('Selecione o cirurgião');
       return;
     }
 
     // Validar data
     if (!selectedSlot.date) {
-      alert('Selecione a data');
+      toast.error('Selecione a data');
       return;
     }
 
     // Validar horário
     if (!selectedSlot.time) {
-      alert('Selecione o horário');
+      toast.error('Selecione o horário');
       return;
     }
 
@@ -169,7 +170,7 @@ const Agenda = () => {
     const timeParts = selectedSlot.time.split(':');
     const minute = parseInt(timeParts[1], 10);
     if (minute % 5 !== 0) {
-      alert('Minutos devem ser múltiplos de 5 (00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)');
+      toast.error('Minutos devem ser múltiplos de 5 (00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)');
       return;
     }
 
@@ -179,17 +180,17 @@ const Agenda = () => {
     const sanitizedNotes = sanitizeInput(newAppointment.notes);
 
     if (!sanitizedName || sanitizedName.length < 2) {
-      alert('Nome do paciente é obrigatório');
+      toast.error('Nome do paciente é obrigatório');
       return;
     }
 
     if (sanitizedPhone && !validatePhone(sanitizedPhone)) {
-      alert('Telefone inválido');
+      toast.error('Telefone inválido');
       return;
     }
 
     if (!sanitizedProcedure) {
-      alert('Procedimento é obrigatório');
+      toast.error('Procedimento é obrigatório');
       return;
     }
 
@@ -208,7 +209,7 @@ const Agenda = () => {
         });
       } else {
         if (!selectedPatientId) {
-          alert('Selecione um paciente');
+          toast.error('Selecione um paciente');
           return;
         }
         await createAppointment({
@@ -230,7 +231,7 @@ const Agenda = () => {
       setSelectedPatientId(null);
     } catch (error) {
       console.error('Error saving appointment:', error);
-      alert('Erro ao salvar agendamento.');
+      toast.error('Erro ao salvar agendamento.');
     }
   };
 
@@ -245,7 +246,7 @@ const Agenda = () => {
     }
 
     if (deleteConfirmText.toLowerCase() !== 'deletar') {
-      alert('Digite "deletar" para confirmar a exclusão');
+      toast.error('Digite "deletar" para confirmar a exclusão');
       return;
     }
     
@@ -262,7 +263,7 @@ const Agenda = () => {
       setDeleteConfirmText("");
     } catch (error: any) {
       const errorMsg = error?.message || 'Erro ao excluir agendamento.';
-      alert(`Erro: ${errorMsg}`);
+      toast.error(`Erro: ${errorMsg}`);
     }
   };
 
@@ -271,7 +272,9 @@ const Agenda = () => {
     setDeleteConfirmText("");
   };
 
-  if (loadingSurgeons || loadingAppointments || loadingLeads) {
+  const isInitialLoad = (loadingSurgeons || loadingAppointments || loadingLeads) && !appointmentsData && !surgeonsData;
+
+  if (isInitialLoad) {
     return (
       <AppLayout title="Agenda Médica">
         <div className="flex items-center justify-between mb-6">

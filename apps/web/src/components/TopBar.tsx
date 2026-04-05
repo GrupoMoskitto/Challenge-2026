@@ -65,7 +65,7 @@ export function TopBar({ title }: TopBarProps) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const { data: appointmentsData } = useQuery(GET_NOTIFICATIONS, {
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-and-network',
   });
 
   const appointments = appointmentsData?.appointments || [];
@@ -109,7 +109,7 @@ export function TopBar({ title }: TopBarProps) {
     }
   `, {
     skip: debouncedSearch.length < 2,
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-and-network',
     variables: { search: debouncedSearch },
   });
 
@@ -170,7 +170,7 @@ export function TopBar({ title }: TopBarProps) {
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
             onFocus={() => debouncedSearch.length >= 2 && setShowSearchResults(true)}
-            onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
+            onBlur={() => setTimeout(() => setShowSearchResults(false), 300)}
             className="pl-9 pr-8 w-72 h-9 bg-background"
           />
           {searchQuery && (
@@ -196,6 +196,7 @@ export function TopBar({ title }: TopBarProps) {
                         <div
                           key={lead.id}
                           className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => handleResultClick('lead', lead.id)}
                         >
                           <div className="text-sm font-medium">{lead.name}</div>
@@ -211,6 +212,7 @@ export function TopBar({ title }: TopBarProps) {
                         <div
                           key={patient.id}
                           className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => handleResultClick('patient', patient.id)}
                         >
                           <div className="text-sm font-medium">{patient.lead?.name}</div>
