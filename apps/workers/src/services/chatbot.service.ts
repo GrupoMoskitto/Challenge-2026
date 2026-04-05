@@ -118,9 +118,18 @@ export const ChatbotService = {
                     break;
             }
 
-        } catch (error) {
-            logger.error('Chatbot', `Erro processando mensagem de ${pushName}`, error);
-            await WhatsAppService.sendMessage(instanceName, remoteJid, `Ocorreu um erro interno. Por favor, tente novamente mais tarde.`);
+        } catch (error: any) {
+            const status = error?.response?.status;
+            const isAuthError = status === 401 || status === 403;
+            
+            if (!isAuthError) {
+                logger.error('Chatbot', `Erro processando mensagem de ${pushName}`, error);
+                try {
+                    await WhatsAppService.sendMessage(instanceName, remoteJid, `Ocorreu um erro interno. Por favor, tente novamente mais tarde.`);
+                } catch {
+                    // Silently fail if can't send error message
+                }
+            }
         }
     },
 
