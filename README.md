@@ -382,7 +382,7 @@ Se `pnpm infra:dev` está rodando, a Evolution API já está ativa na porta `808
 
 **Via Manager UI (recomendado):**
 1. Acesse `http://localhost:8080/manager`
-2. Login com API Key: `***REMOVED***`
+2. Login com API Key: `crmed_evolution_api_token_123`
 3. Crie ou selecione a instância `crmed-whatsapp`
 4. Clique em **"Get QR Code"** e escaneie com o WhatsApp
 
@@ -391,13 +391,13 @@ Se `pnpm infra:dev` está rodando, a Evolution API já está ativa na porta `808
 ```bash
 # Criar instância
 curl -X POST http://localhost:8080/instance/create \
-  -H "apikey: ***REMOVED***" \
+  -H "apikey: crmed_evolution_api_token_123" \
   -H "Content-Type: application/json" \
   -d '{"instanceName":"crmed-whatsapp","qrcode":true,"integration":"WHATSAPP-BAILEYS"}'
 
 # Verificar conexão
 curl http://localhost:8080/instance/connectionState/crmed-whatsapp \
-  -H "apikey: ***REMOVED***"
+  -H "apikey: crmed_evolution_api_token_123"
 ```
 
 </details>
