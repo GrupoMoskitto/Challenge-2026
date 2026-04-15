@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useQuery, useMutation } from "@apollo/client";
@@ -110,8 +112,27 @@ function highlightVariables(content: string) {
 }
 
 const Settings = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+
+  const availableTabs = ["profile", ...(isAdmin ? ["integrations", "users", "templates"] : [])];
+  const defaultTab = isAdmin ? "profile" : "profile";
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || defaultTab);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && availableTabs.includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("tab", value);
+    setSearchParams(newParams, { replace: true });
+  };
 
   // Template state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -411,7 +432,7 @@ const Settings = () => {
 
   return (
     <AppLayout title="Configurações">
-      <Tabs defaultValue="profile" className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="w-full mb-6">
           <TabsTrigger value="profile" className="flex-1">
             <User className="h-4 w-4 mr-2" />
@@ -437,15 +458,22 @@ const Settings = () => {
           )}
         </TabsList>
 
-        {/* Profile Tab */}
-        <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle>Informações do Perfil</CardTitle>
-              <CardDescription>
-                Gerencie suas informações pessoais e preferências
-              </CardDescription>
-            </CardHeader>
+        <AnimatePresence mode="wait">
+          {activeTab === "profile" && (
+            <motion.div
+              key="profile"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Informações do Perfil</CardTitle>
+                  <CardDescription>
+                    Gerencie suas informações pessoais e preferências
+                  </CardDescription>
+                </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
                 <div className="h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center">
@@ -485,20 +513,26 @@ const Settings = () => {
                 </Button>
               </div>
             </CardContent>
-          </Card>
-        </TabsContent>
+              </Card>
+            </motion.div>
+          )}
 
-        {/* Integrations Tab - Only for admins */}
-        {isAdmin && (
-        <TabsContent value="integrations">
-          <Card>
-            <CardHeader>
-              <CardTitle>Integrações</CardTitle>
-              <CardDescription>
-                Gerencie as conexões ativas com a Evolution API
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          {isAdmin && activeTab === "integrations" && (
+            <motion.div
+              key="integrations"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Integrações</CardTitle>
+                  <CardDescription>
+                    Gerencie as conexões ativas com a Evolution API
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
               {evoLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-20 w-full" />
@@ -533,26 +567,31 @@ const Settings = () => {
                 ))
               )}
             </CardContent>
-          </Card>
-        </TabsContent>
-        )}
+</Card>
+            </motion.div>
+          )}
 
-        {/* Users Tab - Only for admins */}
-        {isAdmin && (
-        <TabsContent value="users">
-          <Card>
-            <CardHeader>
-              <CardTitle>Gerenciamento de Usuários</CardTitle>
-              <CardDescription>
-                Adicione e gerencie usuários do sistema
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <p className="text-sm text-muted-foreground">
-                    Gerencie os usuários que têm acesso ao sistema
-                  </p>
+          {isAdmin && activeTab === "users" && (
+            <motion.div
+              key="users"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Gerenciamento de Usuários</CardTitle>
+                  <CardDescription>
+                    Adicione e gerencie usuários do sistema
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-muted-foreground">
+                        Gerencie os usuários que têm acesso ao sistema
+                      </p>
                   <Button onClick={() => setCreateUserDialogOpen(true)}>Novo Usuário</Button>
                 </div>
                 <div className="border rounded-lg">
@@ -600,29 +639,34 @@ const Settings = () => {
                 </div>
               </div>
             </CardContent>
-          </Card>
-        </TabsContent>
-        )}
+              </Card>
+            </motion.div>
+          )}
 
-        {/* Templates Tab - Only for admins */}
-        {isAdmin && (
-        <TabsContent value="templates">
-          <Card>
-            <CardHeader>
-              <CardTitle>Templates de Mensagens</CardTitle>
-              <CardDescription>
-                Gerencie os modelos de mensagens automatizadas para envio aos pacientes
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <p className="text-sm text-muted-foreground">
-                    {templates.length} template{templates.length !== 1 ? "s" : ""} configurado{templates.length !== 1 ? "s" : ""}
-                  </p>
-                  <Button onClick={() => { setNewTemplate(initialTemplateForm); setFormErrors({}); setCreateDialogOpen(true); }}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Novo Template
+          {isAdmin && activeTab === "templates" && (
+            <motion.div
+              key="templates"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Templates de Mensagens</CardTitle>
+                  <CardDescription>
+                    Gerencie os modelos de mensagens automatizadas para envio aos pacientes
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-muted-foreground">
+                        {templates.length} template{templates.length !== 1 ? "s" : ""} configurado{templates.length !== 1 ? "s" : ""}
+                      </p>
+                      <Button onClick={() => { setNewTemplate(initialTemplateForm); setFormErrors({}); setCreateDialogOpen(true); }}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Novo Template
                   </Button>
                 </div>
 
@@ -718,9 +762,10 @@ const Settings = () => {
                 )}
               </div>
             </CardContent>
-          </Card>
-        </TabsContent>
-        )}
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Tabs>
 
       {/* Create Template Dialog */}

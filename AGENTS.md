@@ -101,6 +101,31 @@ Frontend must map: `data?.users?.edges?.map((e) => e.node)`
 
 ---
 
+## Frontend Patterns
+
+### Tab Navigation
+- Use `useSearchParams` for tab state: `searchParams.get("tab")`
+- Preserve tab state in URL for deep linking (e.g., `?tab=contacts`)
+- Use `framer-motion` with `<AnimatePresence mode="wait">` for smooth transitions:
+  ```tsx
+  <AnimatePresence mode="wait">
+    {activeTab === "tabname" && (
+      <motion.div
+        key="tabname"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.2 }}
+      >
+        {/* Tab content */}
+      </motion.div>
+    )}
+  </AnimatePresence>
+  ```
+- Use skeleton patterns from `@/components/ui/skeleton`: `CardSkeleton`, `ListSkeleton`, `CardListSkeleton`, `FormSkeleton`
+
+---
+
 ## Commands
 
 ```bash
@@ -131,9 +156,10 @@ pnpm --filter @crmed/database db:generate
 ## Common Issues
 
 ### Rate Limiting
-- Login has rate limiting (5 attempts per 15 min per IP)
-- If you get 429 errors, restart the API: `fuser -k 3001/tcp && pnpm --filter @crmed/api dev &`
-- Rate limit is in-memory only — server restart clears it
+- Login: 5 attempts per 15 min per IP
+- GraphQL API: 200 requests per 15 min per IP (`express-rate-limit` in apps/api/src/index.ts)
+- If you get 429 errors, restart the API to clear limits: `fuser -k 3001/tcp && pnpm --filter @crmed/api dev &`
+- Rate limits are in-memory only — server restart clears them
 
 ### Dashboard Loops
 - Always use `useMemo` for `new Date()` to prevent infinite re-renders:
