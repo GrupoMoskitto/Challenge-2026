@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AnimatePresence, motion } from "framer-motion";
 import { format } from "date-fns";
 import { MessageSquare, PhoneCall, History } from "lucide-react";
 
@@ -92,7 +93,7 @@ const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Fa
 const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Outro'];
 
 const Leads = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
@@ -107,6 +108,21 @@ const Leads = () => {
   const [filterProcedures, setFilterProcedures] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [draggedLead, setDraggedLead] = useState<{ id: string; status: string } | null>(null);
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "details");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && ["details", "timeline"].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("tab", value);
+    setSearchParams(newParams, { replace: true });
+  };
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const canDeleteLeads = user?.role === 'ADMIN' || user?.role === 'SALES';
@@ -882,7 +898,7 @@ const Leads = () => {
             </DialogHeader>
           </div>
           
-          <Tabs defaultValue="details" className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <div className="px-6 border-b">
               <TabsList className="w-full justify-start h-auto p-0 bg-transparent gap-6">
                 <TabsTrigger 
@@ -902,7 +918,16 @@ const Leads = () => {
               </TabsList>
             </div>
             
-            <TabsContent value="details" className="p-6 m-0 space-y-4">
+            <AnimatePresence mode="wait">
+              {activeTab === "details" && (
+                <motion.div
+                  key="details"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="p-6 m-0 space-y-4"
+                >
             <div className="grid gap-2">
               <Label htmlFor="edit-name">Nome *</Label>
               <Input
@@ -1008,14 +1033,24 @@ const Leads = () => {
                 {updating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : 'Salvar Alterações'}
               </Button>
             </div>
-            
-            </TabsContent>
+              </motion.div>
+              )}
 
-            <TabsContent value="timeline" className="p-0 m-0">
-              <div className="h-[400px] overflow-y-auto p-6 bg-muted/10">
-                <LeadTimeline leadId={editingLead?.id} />
-              </div>
-            </TabsContent>
+              {activeTab === "timeline" && (
+                <motion.div
+                  key="timeline"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="p-0 m-0"
+                >
+                  <div className="h-[400px] overflow-y-auto p-6 bg-muted/10">
+                    <LeadTimeline leadId={editingLead?.id} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </Tabs>
         </DialogContent>
       </Dialog>

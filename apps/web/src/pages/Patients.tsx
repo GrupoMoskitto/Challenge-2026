@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Search,
   Phone,
@@ -97,12 +98,28 @@ const auditActionLabels: Record<string, string> = {
 const PAGE_SIZE = 20;
 
 const Patients = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "contacts");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && ["contacts", "documents", "postop", "history"].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("tab", value);
+    setSearchParams(newParams, { replace: true });
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -480,6 +497,40 @@ const Patients = () => {
                 <Skeleton className="h-40 w-full" />
               </CardContent>
             </Card>
+          ) : loadingPatient && effectivePatientData?.patient ? (
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="p-6 space-y-3">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Skeleton className="h-14 w-14 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-6 w-32" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Tabs value={activeTab} className="w-full">
+                <TabsList className="w-full">
+                  <TabsTrigger value="contacts" className="flex-1">Contatos</TabsTrigger>
+                  <TabsTrigger value="documents" className="flex-1">Documentos</TabsTrigger>
+                  <TabsTrigger value="postop" className="flex-1">Pós-Operatório</TabsTrigger>
+                  <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
+                </TabsList>
+                <div className="mt-4">
+                  {activeTab === "contacts" && <CardListSkeleton count={3} />}
+                  {activeTab === "documents" && <CardListSkeleton count={2} />}
+                  {activeTab === "postop" && <CardListSkeleton count={2} />}
+                  {activeTab === "history" && <CardListSkeleton count={3} />}
+                </div>
+              </Tabs>
+            </div>
           ) : patient ? (
             <div className={cn("space-y-4 transition-opacity duration-200", loadingPatient && "opacity-60")}>
               {/* Patient Info Card */}
@@ -529,7 +580,7 @@ const Patients = () => {
               </Card>
 
               {/* Tabs */}
-              <Tabs defaultValue="contacts" className="w-full">
+              <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <TabsList className="w-full">
                   <TabsTrigger value="contacts" className="flex-1">Contatos</TabsTrigger>
                   <TabsTrigger value="documents" className="flex-1">Documentos</TabsTrigger>
@@ -537,51 +588,69 @@ const Patients = () => {
                   <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="contacts" className="space-y-2 mt-4">
-                  {patient.lead?.contacts?.length === 0 && (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum contato registrado
-                      </CardContent>
-                    </Card>
+                <AnimatePresence mode="wait">
+                  {activeTab === "contacts" && (
+                    <motion.div
+                      key="contacts"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-2 mt-4"
+                    >
+                      {patient.lead?.contacts?.length === 0 && (
+                        <Card>
+                          <CardContent className="py-8 text-center text-muted-foreground">
+                            Nenhum contato registrado
+                          </CardContent>
+                        </Card>
+                      )}
+                      {patient.lead?.contacts?.map((contact: any) => (
+                        <Card key={contact.id}>
+                          <CardContent className="p-3 flex items-start gap-3">
+                            {contactIcon(contact.type)}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium">
+                                  {contact.direction === 'INBOUND' ? 'Recebido' : 'Enviado'}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(contact.date), 'dd/MM/yyyy HH:mm')}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground">{contact.message}</p>
+                            </div>
+                            {statusIcon(contact.status)}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </motion.div>
                   )}
-                  {patient.lead?.contacts?.map((contact: any) => (
-                    <Card key={contact.id}>
-                      <CardContent className="p-3 flex items-start gap-3">
-                        {contactIcon(contact.type)}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium">
-                              {contact.direction === 'INBOUND' ? 'Recebido' : 'Enviado'}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(contact.date), 'dd/MM/yyyy HH:mm')}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{contact.message}</p>
-                        </div>
-                        {statusIcon(contact.status)}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </TabsContent>
 
-                <TabsContent value="documents" className="space-y-4 mt-4">
-                  <div className="flex justify-end">
-                    <Button size="sm" onClick={() => setNewDocDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Novo Documento
-                    </Button>
-                  </div>
-                  {patient.documents?.length === 0 && (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum documento registrado
-                      </CardContent>
-                    </Card>
-                  )}
-                  {patient.documents?.map((doc: any) => (
-                    <Card key={doc.id}>
+                  {activeTab === "documents" && (
+                    <motion.div
+                      key="documents"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-4 mt-4"
+                    >
+                      <div className="flex justify-end">
+                        <Button size="sm" onClick={() => setNewDocDialogOpen(true)}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Novo Documento
+                        </Button>
+                      </div>
+                      {patient.documents?.length === 0 && (
+                        <Card>
+                          <CardContent className="py-8 text-center text-muted-foreground">
+                            Nenhum documento registrado
+                          </CardContent>
+                        </Card>
+                      )}
+                      {patient.documents?.map((doc: any) => (
+                        <Card key={doc.id}>
                       <CardContent className="p-3 flex items-center gap-3">
                         <FileText className="h-5 w-5 text-muted-foreground" />
                         <div className="flex-1">
@@ -623,16 +692,25 @@ const Patients = () => {
                       </CardContent>
                     </Card>
                   ))}
-                </TabsContent>
+                    </motion.div>
+                  )}
 
-                <TabsContent value="postop" className="space-y-4 mt-4">
-                  <div className="flex justify-end">
-                    <Button size="sm" onClick={() => setNewPostOpDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Agendar Retorno
-                    </Button>
-                  </div>
-                  {patient.postOps?.length === 0 && (
+                  {activeTab === "postop" && (
+                    <motion.div
+                      key="postop"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-4 mt-4"
+                    >
+                      <div className="flex justify-end">
+                          <Button size="sm" onClick={() => setNewPostOpDialogOpen(true)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Agendar Retorno
+                          </Button>
+                        </div>
+                        {patient.postOps?.length === 0 && (
                     <Card>
                       <CardContent className="py-8 text-center text-muted-foreground">
                         Nenhum retorno agendado
@@ -668,54 +746,65 @@ const Patients = () => {
                       </CardContent>
                     </Card>
                   ))}
-                </TabsContent>
-
-                <TabsContent value="history" className="space-y-2 mt-4">
-                  {patient.auditLogs?.length === 0 ? (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum registro de auditoria
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    patient.auditLogs?.map((log: any) => (
-                      <Card key={log.id}>
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-3">
-                            <div className={cn(
-                              "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                              log.action === 'CREATED' ? "bg-green-500/20" : "bg-blue-500/20"
-                            )}>
-                              {log.action === 'CREATED' ? (
-                                <Plus className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <History className="h-4 w-4 text-blue-500" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-sm font-medium">
-                                  {auditActionLabels[log.action] || log.action}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm')}
-                                </span>
-                              </div>
-                              {log.reason && (
-                                <p className="text-xs text-muted-foreground mb-1">{log.reason}</p>
-                              )}
-                              {log.newValue && (
-                                <p className="text-xs bg-muted p-2 rounded font-mono truncate">
-                                  {log.newValue.length > 100 ? log.newValue.substring(0, 100) + '...' : log.newValue}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
+                    </motion.div>
                   )}
-                </TabsContent>
+
+                  {activeTab === "history" && (
+                    <motion.div
+                      key="history"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-2 mt-4"
+                    >
+                      {patient.auditLogs?.length === 0 ? (
+                        <Card>
+                          <CardContent className="py-8 text-center text-muted-foreground">
+                            Nenhum registro de auditoria
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        patient.auditLogs?.map((log: any) => (
+                          <Card key={log.id}>
+                            <CardContent className="p-3">
+                              <div className="flex items-start gap-3">
+                                <div className={cn(
+                                  "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                                  log.action === 'CREATED' ? "bg-green-500/20" : "bg-blue-500/20"
+                                )}>
+                                  {log.action === 'CREATED' ? (
+                                    <Plus className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <History className="h-4 w-4 text-blue-500" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-sm font-medium">
+                                      {auditActionLabels[log.action] || log.action}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm')}
+                                    </span>
+                                  </div>
+                                  {log.reason && (
+                                    <p className="text-xs text-muted-foreground mb-1">{log.reason}</p>
+                                  )}
+                                  {log.newValue && (
+                                    <p className="text-xs bg-muted p-2 rounded font-mono truncate">
+                                      {log.newValue.length > 100 ? log.newValue.substring(0, 100) + '...' : log.newValue}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </Tabs>
             </div>
           ) : (
