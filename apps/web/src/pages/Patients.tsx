@@ -253,7 +253,7 @@ const Patients = () => {
         async () => {
           await refetchPatient();
         },
-        "Atualizar"
+        "Desfazer"
       );
       setEditPatientDialogOpen(false);
     } catch (e: any) {
