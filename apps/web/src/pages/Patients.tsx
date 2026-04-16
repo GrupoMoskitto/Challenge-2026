@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { showUndoableToast } from "@/hooks/useUndoableToast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -247,6 +248,13 @@ const Patients = () => {
         } 
       });
       toast.success("Dados atualizados com sucesso!");
+      showUndoableToast(
+        "Dados atualizados!",
+        async () => {
+          await refetchPatient();
+        },
+        "Atualizar"
+      );
       setEditPatientDialogOpen(false);
       refetchPatient();
     } catch (e: any) {
@@ -862,6 +870,8 @@ const Patients = () => {
                 <Input 
                   type="number" 
                   step="0.1" 
+                  min="1"
+                  max="300"
                   value={createPatientForm.weight} 
                   onChange={e => setCreatePatientForm(f => ({...f, weight: e.target.value}))} 
                   placeholder="Ex: 70.5" 
@@ -871,6 +881,8 @@ const Patients = () => {
                 <Label>Altura (cm)</Label>
                 <Input 
                   type="number" 
+                  min="50"
+                  max="250"
                   value={createPatientForm.height} 
                   onChange={e => setCreatePatientForm(f => ({...f, height: e.target.value}))} 
                   placeholder="Ex: 170" 
@@ -957,6 +969,8 @@ const Patients = () => {
                 <Input 
                   type="number" 
                   step="0.1" 
+                  min="1"
+                  max="300"
                   value={editPatientForm.weight} 
                   onChange={e => setEditPatientForm(f => ({...f, weight: e.target.value}))} 
                   placeholder="Ex: 70.5" 
@@ -966,6 +980,8 @@ const Patients = () => {
                 <Label>Altura (cm)</Label>
                 <Input 
                   type="number" 
+                  min="50"
+                  max="250"
                   value={editPatientForm.height} 
                   onChange={e => setEditPatientForm(f => ({...f, height: e.target.value}))} 
                   placeholder="Ex: 170" 
