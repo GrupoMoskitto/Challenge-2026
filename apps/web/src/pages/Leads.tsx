@@ -389,7 +389,7 @@ const Leads = () => {
       showUndoableToast(
         "Lead atualizado com sucesso!",
         async () => { await refetch(); },
-        "Atualizar"
+        "Desfazer"
       );
       setEditDialogOpen(false);
       setEditingLead(null);
