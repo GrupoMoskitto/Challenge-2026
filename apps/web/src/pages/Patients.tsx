@@ -908,6 +908,7 @@ const Patients = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar Paciente</DialogTitle>
+            <DialogDescription>Atualize os dados do paciente.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">

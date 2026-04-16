@@ -1533,7 +1533,15 @@ export const resolvers = {
     updatePatient: async (_: unknown, { input }: { input: { id: string; dateOfBirth?: string; medicalRecord?: string; address?: string; sex?: string; weight?: number; height?: number; howMet?: string; reason?: string } }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       
-      const decodedId = Buffer.from(input.id, 'base64url').toString('utf-8');
+      let decodedId = input.id;
+      try {
+        const decoded = Buffer.from(input.id, 'base64url').toString('utf-8');
+        if (decoded && decoded.match(/^[a-zA-Z0-9_-]+$/)) {
+          decodedId = decoded;
+        }
+      } catch {
+        decodedId = input.id;
+      }
       
       const current = await prisma.patient.findUnique({ where: { id: decodedId } });
       if (!current) throw new Error('Paciente não encontrado');
