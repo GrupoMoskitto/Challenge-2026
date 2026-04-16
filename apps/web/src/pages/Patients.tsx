@@ -214,13 +214,15 @@ const Patients = () => {
 
   const openEditPatient = () => {
     if (!patient) return;
+    const weight = patient.weight !== null && patient.weight !== undefined ? String(patient.weight) : "";
+    const height = patient.height !== null && patient.height !== undefined ? String(patient.height) : "";
     setEditPatientForm({
       dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
       medicalRecord: patient.medicalRecord || "",
       address: patient.address || "",
       sex: patient.sex || "",
-      weight: patient.weight?.toString() || "",
-      height: patient.height?.toString() || "",
+      weight: weight,
+      height: height,
       howMet: patient.howMet || "",
       reason: "",
     });
