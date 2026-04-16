@@ -256,7 +256,6 @@ const Patients = () => {
         "Atualizar"
       );
       setEditPatientDialogOpen(false);
-      refetchPatient();
     } catch (e: any) {
       toast.error(e.message || "Erro ao atualizar");
     }
