@@ -1,4 +1,4 @@
-import { PrismaClient, LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel } from '@prisma/client';
+import { PrismaClient, LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel, NotificationType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -288,8 +288,8 @@ async function main() {
             },
             {
               date: randomDate(new Date('2026-04-01'), new Date('2026-05-31')),
-              type: PostOpType.PHONE_CALL,
-              description: 'Ligação de acompanhamento',
+              type: PostOpType.REPAIR,
+              description: 'Retorno reparo',
               status: Math.random() > 0.6 ? PostOpStatus.COMPLETED : PostOpStatus.SCHEDULED,
             },
           ],
@@ -371,10 +371,7 @@ async function main() {
       await prisma.notification.create({
         data: {
           appointmentId: appointment.id,
-          type: 'APPOINTMENT_REMINDER',
-          status: 'PENDING',
-          scheduledFor: new Date(appointment.scheduledAt.getTime() - 24 * 60 * 60 * 1000),
-          message: `Lembrete: Consulta de ${procedures[0]} agendada para amanhã`,
+          type: NotificationType.REMINDER_1_DAY,
         },
       });
     }
