@@ -1043,11 +1043,10 @@ const Leads = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.2 }}
-                  className="p-0 m-0"
+                  className="p-6 m-0 overflow-y-auto"
+                  style={{ maxHeight: 'calc(100vh - 320px)', minHeight: '300px' }}
                 >
-                  <div className="h-[400px] overflow-y-auto p-6 bg-muted/10">
-                    <LeadTimeline leadId={editingLead?.id} />
-                  </div>
+                  <LeadTimeline leadId={editingLead?.id} />
                 </motion.div>
               )}
             </AnimatePresence>

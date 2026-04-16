@@ -491,6 +491,19 @@ export const resolvers = {
         orderBy: { date: 'asc' },
       });
     },
+    notifications: async (_: unknown, { status, first }: { status?: string; first?: number }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
+      const whereClause: any = {};
+      if (status) whereClause.status = status;
+      
+      return prisma.notification.findMany({
+        where: whereClause,
+        take: first || 20,
+        include: { appointment: { include: { patient: { include: { lead: true } }, surgeon: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+    },
     messageTemplates: async (_: unknown, __: unknown, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       return prisma.messageTemplate.findMany({
@@ -1462,6 +1475,40 @@ export const resolvers = {
         data: { isActive: newStatus },
       });
     },
+    updateUser: async (_: unknown, { id, input }: { id: string; input: { role?: string; isActive?: boolean } }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const user = await prisma.user.findUnique({ where: { id: decodedId } });
+      if (!user) throw new Error('Usuário não encontrado');
+      
+      // Prevent self-demotion
+      if (decodedId === context.user.userId && input.role && input.role !== 'ADMIN') {
+        throw new Error('Não é possível remover seu próprio cargo de administrador');
+      }
+      
+      const updateData: { role: string; isActive: boolean } = { role: user.role, isActive: user.isActive };
+      if (input.role) updateData.role = input.role;
+      if (input.isActive !== undefined) updateData.isActive = input.isActive;
+      
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'User',
+          entityId: decodedId,
+          action: 'UPDATED',
+          oldValue: { role: user.role, isActive: user.isActive },
+          newValue: { role: updateData.role, isActive: updateData.isActive },
+          reason: 'Atualização de usuário pelo admin',
+          userId: context.user.userId,
+        },
+      });
+      
+      return prisma.user.update({
+        where: { id: decodedId },
+        data: { role: updateData.role as UserRole, isActive: updateData.isActive },
+      });
+    },
     updateProfile: async (_: unknown, { input }: { input: { name?: string; password?: string } }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       
@@ -1594,6 +1641,18 @@ export const resolvers = {
       return prisma.postOp.update({
         where: { id: decodedId },
         data: { status: status as PostOpStatus },
+      });
+    },
+    markNotificationAsRead: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
+      const notification = await prisma.notification.findUnique({ where: { id: decodedId } });
+      if (!notification) throw new Error('Notificação não encontrada');
+      
+      return prisma.notification.update({
+        where: { id: decodedId },
+        data: { status: 'SENT' as any },
       });
     },
     createContact: async (_: unknown, { input }: { input: {

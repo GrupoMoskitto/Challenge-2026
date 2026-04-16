@@ -524,7 +524,7 @@ const Agenda = () => {
                   <SelectContent>
                     {patients?.map((patient: any) => (
                       <SelectItem key={patient.id} value={patient.id}>
-                        {patient.lead?.name || patient.name || 'Paciente'} ({patient.lead?.phone || patient.phone || 'sem telefone'})
+                        {patient.lead?.name || patient.name || 'Paciente'} - {patient.lead?.phone || patient.phone || 'sem telefone'}
                       </SelectItem>
                     ))}
                   </SelectContent>

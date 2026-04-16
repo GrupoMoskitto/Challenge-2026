@@ -1,5 +1,7 @@
 import { gql } from '@apollo/client';
 
+export type { User } from '@crmed/types';
+
 export const GET_PERFORMANCE_METRICS = gql`
   query GetPerformanceMetrics($startDate: DateTime, $endDate: DateTime) {
     performanceMetrics(startDate: $startDate, endDate: $endDate) {
@@ -505,6 +507,18 @@ export const TOGGLE_USER_STATUS = gql`
   }
 `;
 
+export const UPDATE_USER = gql`
+  mutation UpdateUser($id: ID!, $input: UpdateUserInput!) {
+    updateUser(id: $id, input: $input) {
+      id
+      name
+      email
+      role
+      isActive
+    }
+  }
+`;
+
 export const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
     updateProfile(input: $input) {
@@ -594,5 +608,48 @@ export const UPDATE_POST_OP_STATUS = gql`
 export const TEST_MESSAGE_TEMPLATE = gql`
   mutation TestMessageTemplate($templateId: ID!, $instanceName: String!) {
     testMessageTemplate(templateId: $templateId, instanceName: $instanceName)
+  }
+`;
+
+export const GET_NOTIFICATIONS = gql`
+  query GetNotifications($status: NotificationStatus, $first: Int) {
+    notifications(status: $status, first: $first) {
+      id
+      type
+      status
+      message
+      scheduledFor
+      createdAt
+      appointment {
+        id
+        procedure
+        scheduledAt
+        patient {
+          id
+          lead {
+            name
+            phone
+          }
+        }
+        surgeon {
+          name
+        }
+      }
+    }
+  }
+`;
+
+export const GET_UNREAD_NOTIFICATIONS_COUNT = gql`
+  query GetUnreadNotificationsCount {
+    unreadNotificationsCount
+  }
+`;
+
+export const MARK_NOTIFICATION_AS_READ = gql`
+  mutation MarkNotificationAsRead($id: ID!) {
+    markNotificationAsRead(id: $id) {
+      id
+      status
+    }
   }
 `;

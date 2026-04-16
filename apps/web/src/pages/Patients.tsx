@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
 import { AnimatePresence, motion } from "framer-motion";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Search,
   Phone,
@@ -235,7 +241,7 @@ const Patients = () => {
       weight: patient.weight?.toString() || "",
       height: patient.height?.toString() || "",
       howMet: patient.howMet || "",
-      reason: ""
+      reason: "",
     });
     setEditPatientDialogOpen(true);
   };
@@ -923,7 +929,22 @@ const Patients = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Data de Nascimento</Label>
-              <Input type="date" value={editPatientForm.dateOfBirth} onChange={e => setEditPatientForm(f => ({...f, dateOfBirth: e.target.value}))} />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth).toLocaleDateString('pt-BR') : "Selecione a data"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth) : undefined}
+                    onSelect={(date) => setEditPatientForm(f => ({...f, dateOfBirth: date?.toISOString().split('T')[0] || ""}))}
+                    className="rounded-md"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label>Prontuário</Label>

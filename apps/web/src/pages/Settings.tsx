@@ -24,6 +24,7 @@ import {
   GET_TEST_PHONE_LAST_DIGITS,
   CREATE_USER,
   TOGGLE_USER_STATUS,
+  UPDATE_USER,
   UPDATE_PROFILE,
 } from "@/lib/queries";
 import {
@@ -152,6 +153,11 @@ const Settings = () => {
 
   // User management state
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
+  const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
+  const [confirmDeactivateOpen, setConfirmDeactivateOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null);
+  const [editUserRole, setEditUserRole] = useState<string>("RECEPTION");
+  const [deactivatingUserId, setDeactivatingUserId] = useState<string | null>(null);
   const [newUserForm, setNewUserForm] = useState({ name: "", email: "", role: "RECEPTION", password: "" });
   const [profileForm, setProfileForm] = useState({ name: user?.name || "", password: "" });
 
@@ -182,6 +188,7 @@ const Settings = () => {
   
   const [createUser, { loading: creatingUser }] = useMutation(CREATE_USER);
   const [toggleUserStatus] = useMutation(TOGGLE_USER_STATUS);
+  const [updateUser, { loading: updatingUser }] = useMutation(UPDATE_USER as any);
   const [updateProfile, { loading: updatingProfile }] = useMutation(UPDATE_PROFILE);
 
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
@@ -230,6 +237,20 @@ const Settings = () => {
       refetchUsers();
     } catch (err: any) {
       toast.error(err.message || "Erro ao alterar status do usuário");
+    }
+  };
+
+  const handleUpdateUserRole = async () => {
+    if (!editingUser) return;
+    try {
+      await updateUser({
+        variables: { id: editingUser.id, input: { role: editUserRole } }
+      });
+      toast.success("Permissões atualizadas com sucesso!");
+      setEditUserDialogOpen(false);
+      refetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao atualizar usuário");
     }
   };
 
@@ -595,11 +616,12 @@ const Settings = () => {
                   <Button onClick={() => setCreateUserDialogOpen(true)}>Novo Usuário</Button>
                 </div>
                 <div className="border rounded-lg">
-                  <div className="grid grid-cols-4 gap-4 p-4 border-b bg-muted/30 font-medium text-sm">
+                  <div className="grid grid-cols-5 gap-4 p-4 border-b bg-muted/30 font-medium text-sm">
                     <div>Nome</div>
                     <div>E-mail</div>
                     <div>Cargo</div>
                     <div>Status</div>
+                    <div>Ações</div>
                   </div>
                   {usersLoading ? (
                     <div className="p-4 flex flex-col gap-3">
@@ -609,7 +631,7 @@ const Settings = () => {
                     </div>
                   ) : (
                     systemUsers.map((u: any) => (
-                      <div key={u.id} className="grid grid-cols-4 gap-4 p-4 border-b items-center last:border-b-0">
+                      <div key={u.id} className="grid grid-cols-5 gap-4 p-4 border-b items-center last:border-b-0">
                         <div className="font-medium truncate pr-2">{u.name}</div>
                         <div className="text-sm text-muted-foreground truncate pr-2">{u.email}</div>
                         <div>
@@ -621,12 +643,23 @@ const Settings = () => {
                           <Badge variant={u.isActive ? 'secondary' : 'destructive'}>
                             {u.isActive ? 'Ativo' : 'Inativo'}
                           </Badge>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => { setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role }); setEditUserRole(u.role); setEditUserDialogOpen(true); }}
+                            className="h-8 w-8 p-0"
+                            title="Editar"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           {user?.id !== u.id && (
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              onClick={() => handleToggleUserStatus(u.id, u.isActive)}
-                              className="px-2"
+                              onClick={() => { if (u.isActive) { setDeactivatingUserId(u.id); setConfirmDeactivateOpen(true); } else { handleToggleUserStatus(u.id, u.isActive); }}}
+                              className="h-8 w-8 p-0"
                               title={u.isActive ? "Desativar" : "Ativar"}
                             >
                               {u.isActive ? <X className="h-4 w-4 text-red-500" /> : <Check className="h-4 w-4 text-green-500" />}
@@ -900,6 +933,65 @@ const Settings = () => {
             <Button variant="outline" onClick={() => setCreateUserDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleCreateUser} disabled={creatingUser}>
               {creatingUser ? "Criando..." : "Criar Usuário"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>
+              Altere as permissões do colaborador
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input value={editingUser?.name || ""} disabled />
+            </div>
+            <div className="space-y-2">
+              <Label>E-mail</Label>
+              <Input value={editingUser?.email || ""} disabled />
+            </div>
+            <div className="space-y-2">
+              <Label>Cargo</Label>
+              <Select value={editUserRole} onValueChange={val => setEditUserRole(val)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(roleLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditUserDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleUpdateUserRole} disabled={updatingUser}>
+              {updatingUser ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Deactivate User Dialog */}
+      <Dialog open={confirmDeactivateOpen} onOpenChange={setConfirmDeactivateOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Confirmar Desativação</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja desativar este usuário? Ele perderá acesso ao sistema imediatamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setConfirmDeactivateOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => { if (deactivatingUserId) { handleToggleUserStatus(deactivatingUserId, true); setDeactivatingUserId(null); } setConfirmDeactivateOpen(false); }}>
+              Confirmar Desativação
             </Button>
           </div>
         </DialogContent>

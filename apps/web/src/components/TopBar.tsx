@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, Settings, ChevronDown, Check, X } from "lucide-react";
+import { Search, Bell, User, LogOut, Settings, ChevronDown, Check, X, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
 import { removeAuthToken } from "@/lib/apollo";
-import { useQuery, gql } from "@apollo/client";
+import { useQuery, useMutation, gql } from "@apollo/client";
+import { GET_UNREAD_NOTIFICATIONS_COUNT } from "@/lib/queries";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -31,44 +32,46 @@ const roleLabels: Record<string, string> = {
   SALES: "Vendas",
 };
 
-interface Notification {
+interface AppNotification {
   id: string;
-  title: string;
+  type: string;
+  status: string;
   message: string;
-  time: string;
-  read: boolean;
-  type: 'appointment' | 'lead' | 'reminder';
+  scheduledFor: string;
+  createdAt: string;
 }
 
-const GET_NOTIFICATIONS = gql`
-  query GetNotifications {
+const NOTIFICATIONS_QUERY = gql`
+  query GetNotificationsTopBar {
     appointments(status: SCHEDULED) {
       id
       procedure
       scheduledAt
       patient {
+        id
+        lead {
+          name
+        }
+      }
+      surgeon {
         name
       }
     }
+    unreadNotificationsCount
   }
 `;
 
 export function TopBar({ title }: TopBarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<Notification[]>([
-    { id: '1', title: 'Nova consulta agendada', message: 'Ana Beatriz agendou para amanhã às 08:00', time: '5 minutos', read: false, type: 'appointment' },
-    { id: '2', title: 'Lead convertido', message: 'Juliana Ferreira assinou contrato', time: '1 hora', read: false, type: 'lead' },
-    { id: '3', title: 'Lembrete de consulta', message: '3 consultas para amanhã', time: '2 horas', read: false, type: 'reminder' },
-  ]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const { data: appointmentsData } = useQuery(GET_NOTIFICATIONS, {
+  const { data: notifData, refetch: refetchNotifs } = useQuery(NOTIFICATIONS_QUERY, {
     fetchPolicy: 'cache-and-network',
   });
 
-  const appointments = appointmentsData?.appointments || [];
+  const unreadCount = notifData?.unreadNotificationsCount || 0;
+  const appointments = notifData?.appointments || [];
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -135,16 +138,6 @@ export function TopBar({ title }: TopBarProps) {
     } else {
       navigate(`/patients?search=${encodeURIComponent(searchQuery)}`);
     }
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   const handleLogout = () => {
@@ -240,62 +233,36 @@ export function TopBar({ title }: TopBarProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel className="flex justify-between items-center">
-              <span>Notificações</span>
-              {unreadCount > 0 && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 text-xs text-muted-foreground hover:text-primary"
-                  onClick={markAllAsRead}
-                >
-                  <Check className="h-3 w-3 mr-1" />
-                  Marcar todas como lidas
-                </Button>
-              )}
+            <DropdownMenuLabel>
+              <span>Próximas Consultas</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             
-            {notifications.length === 0 ? (
+            {appointments.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground text-sm">
-                Nenhuma notificação
+                Nenhuma consulta agendada
               </div>
             ) : (
               <ScrollArea className="h-[300px]">
-                {notifications.map((notification) => (
-                  <DropdownMenuItem 
-                    key={notification.id} 
-                    className="flex flex-col items-start gap-1 py-3 cursor-pointer"
-                    onClick={() => markAsRead(notification.id)}
-                  >
-                    <div className="flex items-center gap-2 w-full">
-                      <span className={`font-medium ${!notification.read ? 'text-primary' : ''}`}>
-                        {notification.title}
-                      </span>
-                      {!notification.read && (
-                        <div className="h-2 w-2 rounded-full bg-primary ml-auto" />
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground">{notification.message}</span>
-                    <span className="text-xs text-muted-foreground">{notification.time}</span>
-                  </DropdownMenuItem>
-                ))}
-                
-                {/* Próximas consultas do banco */}
                 {appointments.length > 0 && (
                   <>
-                    <DropdownMenuSeparator />
                     <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                      Próximas Consultas
+                      <Calendar className="h-3 w-3 inline mr-1" />
+                      Consultas Agendadas
                     </div>
-                    {appointments.slice(0, 3).map((apt: any) => (
+                    {appointments.slice(0, 5).map((apt: any) => (
                       <DropdownMenuItem 
                         key={apt.id}
-                        className="flex flex-col items-start gap-1 py-3"
+                        className="flex flex-col items-start gap-1 py-3 cursor-pointer"
                       >
-                        <span className="font-medium">{apt.patient?.name}</span>
+                        <div className="flex items-center gap-2 w-full">
+                          <span className="font-medium">{apt.patient?.lead?.name || 'Paciente'}</span>
+                          <span className="text-xs text-primary">
+                            {format(new Date(apt.scheduledAt), "dd/MM 'às' HH:mm")}
+                          </span>
+                        </div>
                         <span className="text-xs text-muted-foreground">
-                          {apt.procedure} - {format(new Date(apt.scheduledAt), "dd/MM 'às' HH:mm")}
+                          {apt.procedure} - Dr. {apt.surgeon?.name}
                         </span>
                       </DropdownMenuItem>
                     ))}
