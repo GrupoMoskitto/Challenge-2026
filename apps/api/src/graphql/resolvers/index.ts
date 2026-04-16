@@ -1650,18 +1650,6 @@ export const resolvers = {
         data: { status: status as PostOpStatus },
       });
     },
-    markNotificationAsRead: async (_: unknown, { id }: { id: string }, context: Context) => {
-      if (!context.user) throw new Error('Usuário não autenticado');
-      
-      const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
-      const notification = await prisma.notification.findUnique({ where: { id: decodedId } });
-      if (!notification) throw new Error('Notificação não encontrada');
-      
-      return prisma.notification.update({
-        where: { id: decodedId },
-        data: { status: 'SENT' as any },
-      });
-    },
     createContact: async (_: unknown, { input }: { input: {
       leadId: string;
       date: string;
