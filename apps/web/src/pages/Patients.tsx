@@ -439,7 +439,7 @@ const Patients = () => {
                 <Card
                   key={p.id}
                   className={cn(
-                    "cursor-pointer hover:shadow-md transition-all duration-200",
+                    "cursor-pointer hover:shadow-md transition-all duration-300",
                     selectedPatientId === p.id && "border-primary"
                   )}
                   onClick={() => setSelectedPatientId(p.id)}
@@ -591,7 +591,7 @@ const Patients = () => {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
+                      transition={{ duration: 0.3 }}
                       className="space-y-2 mt-4"
                     >
                       {patient.lead?.contacts?.length === 0 && (
@@ -629,7 +629,7 @@ const Patients = () => {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
+                      transition={{ duration: 0.3 }}
                       className="space-y-4 mt-4"
                     >
                       <div className="flex justify-end">
@@ -697,7 +697,7 @@ const Patients = () => {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
+                      transition={{ duration: 0.3 }}
                       className="space-y-4 mt-4"
                     >
                       <div className="flex justify-end">
@@ -751,7 +751,7 @@ const Patients = () => {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
+                      transition={{ duration: 0.3 }}
                       className="space-y-2 mt-4"
                     >
                       {patient.auditLogs?.length === 0 ? (

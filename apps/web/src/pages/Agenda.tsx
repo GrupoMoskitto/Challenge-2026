@@ -374,7 +374,7 @@ const Agenda = () => {
                     <div
                       key={time}
                       className={cn(
-                        "h-20 border rounded-lg p-3 transition-colors duration-200 border-l-4",
+                        "h-20 border rounded-lg p-3 transition-colors duration-300 border-l-4",
                         appointment 
                           ? "bg-primary/5 hover:bg-primary/10 border-primary cursor-pointer shadow-sm" 
                           : "bg-muted/10 hover:bg-muted/30 cursor-pointer border-dashed border-border border-l-border"
