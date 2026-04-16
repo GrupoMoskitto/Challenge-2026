@@ -468,6 +468,11 @@ export const typeDefs = gql`
     password: String
   }
 
+  input UpdateUserInput {
+    role: UserRole
+    isActive: Boolean
+  }
+
   input CreateLeadInput {
     name: String!
     email: String!
@@ -719,6 +724,7 @@ export const typeDefs = gql`
     createUser(input: CreateUserInput!): User!
     deleteUser(id: ID!): DeleteResult!
     toggleUserStatus(id: ID!): User!
+    updateUser(id: ID!, input: UpdateUserInput!): User!
     updateProfile(input: UpdateProfileInput!): User!
 
     # Contacts
@@ -731,6 +737,8 @@ export const typeDefs = gql`
     # PostOps
     createPostOp(input: CreatePostOpInput!): PostOp!
     updatePostOpStatus(id: ID!, status: PostOpStatus!): PostOp!
+
+    # Notifications
     
     testMessageTemplate(templateId: ID!, instanceName: String!): Boolean!
 
@@ -818,6 +826,9 @@ export const typeDefs = gql`
     # PostOps
     postOpsByPatient(patientId: ID!): [PostOp!]!
     upcomingPostOps(days: Int): [PostOp!]!
+
+    # Notifications
+    notifications(status: NotificationStatus, first: Int): [Notification!]!
 
     # Message Templates
     messageTemplates: [MessageTemplate!]!

@@ -236,6 +236,9 @@ async function main() {
   const patientLeads = convertedLeads.slice(0, 15);
   
   const patients = [];
+  const sexValues = ['Masculino', 'Feminino'];
+  const howMetValues = ['Instagram', 'Facebook', 'Google', 'TikTok', 'Indicação', 'Google Ads', 'Facebook Ads'];
+
   for (const lead of patientLeads) {
     const patient = await prisma.patient.create({
       data: {
@@ -243,6 +246,10 @@ async function main() {
         dateOfBirth: randomDate(new Date('1970-01-01'), new Date('2005-12-31')),
         medicalRecord: `PR-2026-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`,
         address: `Rua ${randomElement(['das Flores', 'das Acácias', 'do Sol', 'da Lua', 'das Estrelas'])}, ${Math.floor(Math.random() * 500) + 1} - ${randomElement(['Pituba', 'Barra', 'Rio Vermelho', 'Pelourinho', 'Brotas'])}, Salvador/BA`,
+        sex: randomElement(sexValues),
+        weight: Math.round((Math.random() * 50 + 50) * 10) / 10,
+        height: Math.floor(Math.random() * 30 + 155),
+        howMet: randomElement(howMetValues),
         documents: {
           create: [
             {
@@ -263,6 +270,12 @@ async function main() {
               date: randomDate(new Date('2026-01-01'), new Date('2026-03-01')),
               status: Math.random() > 0.5 ? DocumentStatus.UPLOADED : DocumentStatus.PENDING,
             },
+            {
+              name: 'Laudo Médico',
+              type: DocumentType.EXAM,
+              date: randomDate(new Date('2026-01-15'), new Date('2026-02-15')),
+              status: Math.random() > 0.3 ? DocumentStatus.UPLOADED : DocumentStatus.PENDING,
+            },
           ],
         },
         postOps: {
@@ -272,6 +285,12 @@ async function main() {
               type: PostOpType.RETURN,
               description: randomElement(['Retorno 7 dias', 'Retorno 15 dias', 'Retorno 30 dias']),
               status: PostOpStatus.SCHEDULED,
+            },
+            {
+              date: randomDate(new Date('2026-04-01'), new Date('2026-05-31')),
+              type: PostOpType.PHONE_CALL,
+              description: 'Ligação de acompanhamento',
+              status: Math.random() > 0.6 ? PostOpStatus.COMPLETED : PostOpStatus.SCHEDULED,
             },
           ],
         },
@@ -317,6 +336,48 @@ async function main() {
       },
     });
     appointments.push(appointment);
+
+    // Create audit log for patient creation
+    await prisma.auditLog.create({
+      data: {
+        entityType: 'Patient',
+        entityId: patient.id,
+        action: 'CREATED',
+        newValue: { createdAt: new Date() },
+        reason: 'Seed - Created patient from converted lead',
+        userId: users[0].id,
+        patientId: patient.id,
+      },
+    });
+
+    // Create audit log for appointment
+    if (Math.random() > 0.5) {
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Appointment',
+          entityId: appointment.id,
+          action: 'CREATED',
+          newValue: { procedure: appointment.procedure, scheduledAt: appointment.scheduledAt },
+          reason: 'Seed - Created appointment',
+          userId: users[0].id,
+          appointmentId: appointment.id,
+          patientId: patient.id,
+        },
+      });
+    }
+
+    // Create notification for appointment
+    if (Math.random() > 0.4) {
+      await prisma.notification.create({
+        data: {
+          appointmentId: appointment.id,
+          type: 'APPOINTMENT_REMINDER',
+          status: 'PENDING',
+          scheduledFor: new Date(appointment.scheduledAt.getTime() - 24 * 60 * 60 * 1000),
+          message: `Lembrete: Consulta de ${procedures[0]} agendada para amanhã`,
+        },
+      });
+    }
   }
   console.log(`✅ Created ${appointments.length} appointments`);
 
