@@ -504,6 +504,13 @@ export const resolvers = {
         orderBy: { createdAt: 'desc' },
       });
     },
+    unreadNotificationsCount: async (_: unknown, __: unknown, context: Context) => {
+      if (!context.user) return 0;
+      
+      return prisma.notification.count({
+        where: { status: 'PENDING' },
+      });
+    },
     messageTemplates: async (_: unknown, __: unknown, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       return prisma.messageTemplate.findMany({
