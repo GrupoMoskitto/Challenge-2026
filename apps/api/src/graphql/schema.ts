@@ -829,6 +829,7 @@ export const typeDefs = gql`
 
     # Notifications
     notifications(status: NotificationStatus, first: Int): [Notification!]!
+    unreadNotificationsCount: Int!
 
     # Message Templates
     messageTemplates: [MessageTemplate!]!
