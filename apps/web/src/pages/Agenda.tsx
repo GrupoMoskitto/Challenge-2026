@@ -18,6 +18,7 @@ import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_LEADS, GET_PATIENTS, CREATE
 import { validatePhone, sanitizeInput } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { showUndoableToast } from "@/hooks/useUndoableToast";
 import { format, addDays, subDays, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -224,7 +225,11 @@ const Agenda = () => {
           },
         });
       }
-      refetchAppointments();
+      showUndoableToast(
+        "Agendamento salvo!",
+        async () => { await refetchAppointments(); },
+        "Desfazer"
+      );
       setSheetOpen(false);
       setEditingAppointmentId(null);
       setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '' });
@@ -255,7 +260,11 @@ const Agenda = () => {
         variables: { input: { id: appointmentToDelete, confirmed: true } },
       });
       
-      refetchAppointments();
+      showUndoableToast(
+        "Agendamento excluído!",
+        async () => { await refetchAppointments(); },
+        "Desfazer"
+      );
       setSheetOpen(false);
       setEditingAppointmentId(null);
       setDeleteDialogOpen(false);
