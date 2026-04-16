@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Phone, MessageCircle, Mail, FileText, Check, X, Clock, User, Pencil, Plus, ChevronLeft, ChevronRight, Filter, History, XCircle, Loader2 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { 
   GET_PATIENTS, 
