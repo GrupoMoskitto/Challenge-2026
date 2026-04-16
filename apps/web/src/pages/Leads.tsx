@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+import { showUndoableToast } from "@/hooks/useUndoableToast";
 import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, Filter, Download, Upload, Loader2 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_LEADS, UPDATE_LEAD_STATUS, CREATE_LEAD, UPDATE_LEAD, DELETE_LEAD, GET_LEAD_CONTACTS, EXPORT_LEADS, IMPORT_LEADS } from "@/lib/queries";
@@ -384,7 +386,11 @@ const Leads = () => {
         },
       });
       
-      refetch();
+      showUndoableToast(
+        "Lead atualizado com sucesso!",
+        async () => { await refetch(); },
+        "Atualizar"
+      );
       setEditDialogOpen(false);
       setEditingLead(null);
       setEditLead(initialNewLead);
