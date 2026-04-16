@@ -339,6 +339,7 @@ model Document {
 enum PostOpType {
   RETURN
   REPAIR
+  PHONE_CALL
 }
 
 enum PostOpStatus {
