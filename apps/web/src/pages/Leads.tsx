@@ -783,7 +783,7 @@ const Leads = () => {
           <div
             key={status}
             className={cn(
-              "flex flex-col rounded-lg transition-all duration-200",
+              "flex flex-col rounded-lg transition-all duration-300",
               dragOverColumn === status ? "ring-2 ring-primary ring-opacity-50 bg-primary/5" : ""
             )}
             onDragOver={(e) => handleDragOver(e, status)}
@@ -807,7 +807,7 @@ const Leads = () => {
                 <Card
                   key={lead.id}
                   className={cn(
-                    "p-3 cursor-move transition-all duration-200 border-l-4 bg-card",
+                    "p-3 cursor-move transition-all duration-300 border-l-4 bg-card",
                     draggedLead?.id === lead.id ? "opacity-50 scale-95" : "hover:shadow-md hover:-translate-y-0.5",
                     status === 'NEW' && "border-l-slate-500",
                     status === 'CONTACTED' && "border-l-blue-500",
@@ -931,7 +931,7 @@ const Leads = () => {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.3 }}
                   className="p-6 m-0 space-y-4"
                 >
             <div className="grid gap-2">
@@ -1048,7 +1048,7 @@ const Leads = () => {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.3 }}
                   className="p-6 m-0 overflow-y-auto"
                   style={{ maxHeight: 'calc(100vh - 320px)', minHeight: '300px' }}
                 >
