@@ -12,6 +12,7 @@ import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { showUndoableToast } from "@/hooks/useUndoableToast";
 import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_MESSAGE_TEMPLATES,
@@ -205,7 +206,11 @@ const Settings = () => {
           }
         }
       });
-      toast.success("Perfil atualizado! Por favor, faça login novamente se trocou a senha.");
+      showUndoableToast(
+        "Perfil atualizado!",
+        async () => { /* re-fetch not needed for profile */ },
+        "Desfazer"
+      );
       setProfileForm({ ...profileForm, password: "" });
     } catch (err: any) {
       toast.error(err.message || "Erro ao atualizar perfil");
@@ -221,7 +226,11 @@ const Settings = () => {
       await createUser({
         variables: { input: newUserForm }
       });
-      toast.success("Usuário criado com sucesso!");
+      showUndoableToast(
+        "Usuário criado!",
+        async () => { await refetchUsers(); },
+        "Desfazer"
+      );
       setCreateUserDialogOpen(false);
       setNewUserForm({ name: "", email: "", role: "RECEPTION", password: "" });
       refetchUsers();
@@ -233,8 +242,11 @@ const Settings = () => {
   const handleToggleUserStatus = async (id: string, currentStatus: boolean) => {
     try {
       await toggleUserStatus({ variables: { id } });
-      toast.success(`Usuário ${currentStatus ? 'desativado' : 'ativado'} com sucesso!`);
-      refetchUsers();
+      showUndoableToast(
+        `Usuário ${currentStatus ? 'desativado' : 'ativado'}!`,
+        async () => { await refetchUsers(); },
+        "Desfazer"
+      );
     } catch (err: any) {
       toast.error(err.message || "Erro ao alterar status do usuário");
     }
