@@ -14,26 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Search,
-  Phone,
-  MessageCircle,
-  Mail,
-  FileText,
-  Check,
-  X,
-  Clock,
-  Calendar,
-  User,
-  Pencil,
-  Plus,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  History,
-  XCircle,
-  Loader2,
-} from "lucide-react";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { 
   GET_PATIENTS, 
@@ -726,7 +707,7 @@ const Patients = () => {
                   {patient.postOps?.map((postOp: any) => (
                     <Card key={postOp.id}>
                       <CardContent className="p-3 flex items-center gap-3">
-                        <Calendar className="h-5 w-5 text-muted-foreground" />
+                        <CalendarIcon className="h-5 w-5 text-muted-foreground" />
                         <div className="flex-1">
                           <p className="text-sm font-medium">{postOp.description}</p>
                           <p className="text-xs text-muted-foreground">
@@ -932,7 +913,7 @@ const Patients = () => {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <Calendar className="mr-2 h-4 w-4" />
+                    <CalendarIcon className="mr-2 h-4 w-4" />
                     {editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth).toLocaleDateString('pt-BR') : "Selecione a data"}
                   </Button>
                 </PopoverTrigger>
