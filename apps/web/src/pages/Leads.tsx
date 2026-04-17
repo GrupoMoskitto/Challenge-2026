@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { showUndoableToast } from "@/hooks/useUndoableToast";
-import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, Filter, Download, Upload, Loader2 } from "lucide-react";
+import { Search, MessageCircle, Plus, MoreVertical, Pencil, Trash2, Phone, Mail, Filter, Download, Upload, Loader2, UserCheck, CalendarCheck, Info } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_LEADS, UPDATE_LEAD_STATUS, CREATE_LEAD, UPDATE_LEAD, DELETE_LEAD, GET_LEAD_CONTACTS, EXPORT_LEADS, IMPORT_LEADS } from "@/lib/queries";
 import { validateCPF, validatePhone, validateEmail, sanitizeInput } from "@/lib/validation";
@@ -30,9 +30,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AnimatePresence, motion } from "framer-motion";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format } from "date-fns";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { MessageSquare, PhoneCall, History } from "lucide-react";
 
 const statusColumns = [
@@ -67,6 +71,8 @@ interface Lead {
   notes: string;
   status: string;
   createdAt: string;
+  patient?: { id: string };
+  appointments?: { id: string }[];
 }
 
 interface NewLeadForm {
@@ -108,8 +114,12 @@ const Leads = () => {
     return () => clearTimeout(timer);
   }, [search]);
   const [filterProcedures, setFilterProcedures] = useState<string[]>([]);
+  const [filterWhatsapp, setFilterWhatsapp] = useState(false);
+  const [filterIsPatient, setFilterIsPatient] = useState(false);
+  const [filterHasAppointment, setFilterHasAppointment] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [draggedLead, setDraggedLead] = useState<{ id: string; status: string } | null>(null);
+  const [lastMovedLeadId, setLastMovedLeadId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "details");
 
   useEffect(() => {
@@ -140,12 +150,13 @@ const Leads = () => {
   const [newLead, setNewLead] = useState<NewLeadForm>(initialNewLead);
   const [editLead, setEditLead] = useState<NewLeadForm>(initialNewLead);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [previousLeadState, setPreviousLeadState] = useState<NewLeadForm | null>(null);
   const [importExportLoading, setImportExportLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, loading, refetch } = useQuery(GET_LEADS, {
     variables: { first: 100, search: debouncedSearch || undefined },
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   const [updateStatus] = useMutation(UPDATE_LEAD_STATUS, {
@@ -172,7 +183,8 @@ const Leads = () => {
 
   const allLeads: Lead[] = data?.leads?.edges?.map((e: any) => e.node) || [];
 
-  const hasActiveFilters = filterOrigins.length > 0 || filterProcedures.length > 0 || search;
+  const boolFilterCount = [filterWhatsapp, filterIsPatient, filterHasAppointment].filter(Boolean).length;
+  const hasActiveFilters = filterOrigins.length > 0 || filterProcedures.length > 0 || search || boolFilterCount > 0;
 
   const filteredLeads = allLeads.filter(
     (lead) =>
@@ -181,7 +193,10 @@ const Leads = () => {
         lead.cpf.includes(search) ||
         lead.phone.includes(search)) &&
       (filterOrigins.length === 0 || filterOrigins.includes(lead.origin || "")) &&
-      (filterProcedures.length === 0 || filterProcedures.includes(lead.procedure || ""))
+      (filterProcedures.length === 0 || filterProcedures.includes(lead.procedure || "")) &&
+      (!filterWhatsapp || lead.whatsappActive) &&
+      (!filterIsPatient || !!lead.patient) &&
+      (!filterHasAppointment || (lead.appointments && lead.appointments.length > 0))
   );
 
   const toggleOrigin = (origin: string) => {
@@ -200,6 +215,9 @@ const Leads = () => {
     setSearch("");
     setFilterOrigins([]);
     setFilterProcedures([]);
+    setFilterWhatsapp(false);
+    setFilterIsPatient(false);
+    setFilterHasAppointment(false);
   };
 
   const handleDragStart = (lead: Lead, e: React.DragEvent) => {
@@ -251,6 +269,18 @@ const Leads = () => {
           },
         },
       });
+      toast.success(`Lead movido para ${statusLabels[status]}`);
+      const movedId = draggedLead.id;
+      // Start pulse immediately and scroll simultaneously
+      setLastMovedLeadId(movedId);
+      setTimeout(() => {
+        const el = document.getElementById(`lead-card-${movedId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+      // Stop pulse after 3s
+      setTimeout(() => {
+        setLastMovedLeadId(null);
+      }, 3000);
     } catch (error: any) {
       console.error('Error updating lead status:', error);
       if (error.networkError) {
@@ -333,7 +363,7 @@ const Leads = () => {
   const handleEditClick = (lead: Lead) => {
     clearDragState();
     setEditingLead(lead);
-    setEditLead({
+    const formState = {
       name: lead.name,
       email: lead.email,
       phone: lead.phone,
@@ -342,7 +372,9 @@ const Leads = () => {
       procedure: lead.procedure || '',
       whatsappActive: lead.whatsappActive,
       notes: lead.notes,
-    });
+    };
+    setEditLead(formState);
+    setPreviousLeadState(formState);
     setEditDialogOpen(true);
   };
 
@@ -388,12 +420,33 @@ const Leads = () => {
       
       showUndoableToast(
         "Lead atualizado com sucesso!",
-        async () => { await refetch(); },
+        async () => {
+          if (previousLeadState) {
+            await updateLead({
+              variables: {
+                input: {
+                  id: editingLead.id,
+                  name: sanitizeInput(previousLeadState.name),
+                  email: sanitizeInput(previousLeadState.email),
+                  phone: sanitizeInput(previousLeadState.phone),
+                  cpf: sanitizeInput(previousLeadState.cpf),
+                  source: previousLeadState.origin,
+                  origin: previousLeadState.origin,
+                  procedure: previousLeadState.procedure || undefined,
+                  whatsappActive: previousLeadState.whatsappActive,
+                  notes: sanitizeInput(previousLeadState.notes),
+                },
+              },
+            });
+            await refetch();
+          }
+        },
         "Desfazer"
       );
       setEditDialogOpen(false);
       setEditingLead(null);
       setEditLead(initialNewLead);
+      setPreviousLeadState(null);
       setFormErrors({});
     } catch (error: any) {
       console.error('Error updating lead:', error);
@@ -457,6 +510,7 @@ const Leads = () => {
       }
 
       await refetch();
+      toast.success("Lead excluído com sucesso!");
       setDeleteDialogOpen(false);
       setDeletingLeadId(null);
       setDeleteConfirmText("");
@@ -585,9 +639,9 @@ const Leads = () => {
         
         <DropdownMenu open={showFilters} onOpenChange={setShowFilters}>
           <DropdownMenuTrigger asChild>
-            <Button variant={hasActiveFilters ? "default" : "outline"} className={hasActiveFilters ? "bg-blue-600 hover:bg-blue-700" : ""}>
+            <Button variant={hasActiveFilters ? "default" : "outline"} className={hasActiveFilters ? "bg-blue-600 hover:bg-blue-700" : ""} >
               <Filter className="h-4 w-4 mr-2" />
-              Filtros {hasActiveFilters && `( ${filterOrigins.length + filterProcedures.length} )`}
+              Filtros {hasActiveFilters && `( ${filterOrigins.length + filterProcedures.length + boolFilterCount} )`}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72">
@@ -624,6 +678,38 @@ const Leads = () => {
                   ))}
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-medium">Status do Lead</Label>
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    variant={filterWhatsapp ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs h-7 gap-1"
+                    onClick={() => setFilterWhatsapp(v => !v)}
+                  >
+                    <MessageCircle className="h-3 w-3 text-green-500" />
+                    WhatsApp Ativo
+                  </Button>
+                  <Button
+                    variant={filterIsPatient ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs h-7 gap-1"
+                    onClick={() => setFilterIsPatient(v => !v)}
+                  >
+                    <UserCheck className="h-3 w-3 text-primary" />
+                    Já é Paciente
+                  </Button>
+                  <Button
+                    variant={filterHasAppointment ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs h-7 gap-1"
+                    onClick={() => setFilterHasAppointment(v => !v)}
+                  >
+                    <CalendarCheck className="h-3 w-3 text-blue-500" />
+                    Possui Agendamento
+                  </Button>
+                </div>
+              </div>
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full">
                   Limpar filtros
@@ -651,13 +737,39 @@ const Leads = () => {
           {importExportLoading ? 'Exportando...' : 'Exportar'}
         </Button>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="ml-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Lead
-            </Button>
-          </DialogTrigger>
+        <div className="ml-auto flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground" title="Legenda dos ícones">
+                <Info className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 p-3 space-y-3">
+              <h4 className="font-semibold text-sm">Legenda dos Ícones</h4>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <MessageCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-muted-foreground">WhatsApp Ativo</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <UserCheck className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">Já é Paciente</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CalendarCheck className="h-4 w-4 text-blue-500" />
+                  <span className="text-muted-foreground">Possui Agendamento</span>
+                </div>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Lead
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Novo Lead</DialogTitle>
@@ -774,7 +886,8 @@ const Leads = () => {
               </div>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {/* Kanban Board */}
@@ -806,9 +919,11 @@ const Leads = () => {
               {getLeadsByStatus(status).map((lead) => (
                 <Card
                   key={lead.id}
+                  id={`lead-card-${lead.id}`}
+                  style={lastMovedLeadId === lead.id ? { animationDuration: '3s' } : undefined}
                   className={cn(
-                    "p-3 cursor-move transition-all duration-300 border-l-4 bg-card",
-                    draggedLead?.id === lead.id ? "opacity-50 scale-95" : "hover:shadow-md hover:-translate-y-0.5",
+                    "p-3 cursor-move transition-all border-l-4",
+                    draggedLead?.id === lead.id ? "opacity-50 scale-95 bg-card" : lastMovedLeadId === lead.id ? "bg-primary/20 ring-2 ring-primary animate-pulse shadow-lg duration-300" : "bg-card hover:shadow-md hover:-translate-y-0.5 duration-300",
                     status === 'NEW' && "border-l-slate-500",
                     status === 'CONTACTED' && "border-l-blue-500",
                     status === 'QUALIFIED' && "border-l-yellow-500",
@@ -874,12 +989,22 @@ const Leads = () => {
                       <Mail className="h-3 w-3" />
                       <span className="truncate">{lead.email}</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mt-2">
                       {lead.whatsappActive && (
-                        <MessageCircle className="h-4 w-4 text-green-500" />
+                        <MessageCircle className="h-4 w-4 text-green-500 shrink-0" title="WhatsApp Ativo" />
+                      )}
+                      {lead.patient && (
+                        <UserCheck className="h-4 w-4 text-primary shrink-0" title="Já é Paciente" />
+                      )}
+                      {lead.appointments && lead.appointments.length > 0 && (
+                        <CalendarCheck className="h-4 w-4 text-blue-500 shrink-0" title="Possui Agendamento" />
                       )}
                       {lead.procedure && (
-                        <Badge variant="outline" className="text-xs bg-background">
+                        <Badge 
+                          variant="outline" 
+                          className="text-[10px] bg-background ml-auto max-w-[140px] truncate whitespace-nowrap"
+                          title={lead.procedure}
+                        >
                           {lead.procedure}
                         </Badge>
                       )}
@@ -894,7 +1019,7 @@ const Leads = () => {
 
       {/* Edit Lead Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] gap-0 p-0">
+        <DialogContent className="sm:max-w-[600px] gap-0 p-0 h-[85vh] max-h-[700px] flex flex-col">
           <div className="p-6 pb-2">
             <DialogHeader>
               <DialogTitle>Detalhes do Lead</DialogTitle>
@@ -904,8 +1029,8 @@ const Leads = () => {
             </DialogHeader>
           </div>
           
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <div className="px-6 border-b">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full flex-1 flex flex-col overflow-hidden">
+            <div className="px-6 border-b shrink-0">
               <TabsList className="w-full justify-start h-auto p-0 bg-transparent gap-6">
                 <TabsTrigger 
                   value="details" 
@@ -924,17 +1049,9 @@ const Leads = () => {
               </TabsList>
             </div>
             
-            <AnimatePresence mode="wait">
-              {activeTab === "details" && (
-                <motion.div
-                  key="details"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.3 }}
-                  className="p-6 m-0 space-y-4"
-                >
-            <div className="grid gap-2">
+            <TabsContent value="details" className="mt-0 m-0 p-6 overflow-y-auto transition-all duration-200 flex-1">
+              <div className="space-y-4">
+            <div className="grid gap-4">
               <Label htmlFor="edit-name">Nome *</Label>
               <Input
                 id="edit-name"
@@ -1039,23 +1156,12 @@ const Leads = () => {
                 {updating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : 'Salvar Alterações'}
               </Button>
             </div>
-              </motion.div>
-              )}
+              </div>
+            </TabsContent>
 
-              {activeTab === "timeline" && (
-                <motion.div
-                  key="timeline"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.3 }}
-                  className="p-6 m-0 overflow-y-auto"
-                  style={{ maxHeight: 'calc(100vh - 320px)', minHeight: '300px' }}
-                >
-                  <LeadTimeline leadId={editingLead?.id} />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <TabsContent value="timeline" className="mt-0 m-0 p-6 overflow-y-auto flex-1">
+              <LeadTimeline leadId={editingLead?.id} />
+            </TabsContent>
           </Tabs>
         </DialogContent>
       </Dialog>
@@ -1124,7 +1230,7 @@ function LeadTimeline({ leadId }: { leadId?: string }) {
 
   if (contacts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center space-y-3 mt-10">
+      <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
         <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
           <History className="h-6 w-6 text-muted-foreground" />
         </div>
