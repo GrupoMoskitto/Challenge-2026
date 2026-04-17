@@ -5,9 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
-import { AnimatePresence, motion } from "framer-motion";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -160,7 +159,7 @@ const Patients = () => {
   const { data: patientData, previousData: prevPatientData, loading: loadingPatient, refetch: refetchPatient } = useQuery(GET_PATIENT, {
     variables: { id: selectedPatientId },
     skip: !selectedPatientId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   // Keep previous patient visible while loading new one
@@ -189,6 +188,7 @@ const Patients = () => {
     howMet: "",
     reason: "" 
   });
+  const [previousPatientState, setPreviousPatientState] = useState<any>(null);
 
   const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
@@ -231,7 +231,33 @@ const Patients = () => {
   };
 
   const handleUpdatePatient = async () => {
+    if (editPatientForm.weight) {
+      const w = parseFloat(editPatientForm.weight.replace(',', '.'));
+      if (isNaN(w) || w <= 0 || w > 400) {
+        toast.error("Por favor, insira um peso válido e realista (até 400kg).");
+        return;
+      }
+    }
+    if (editPatientForm.height) {
+      const h = parseFloat(editPatientForm.height.replace(',', '.'));
+      if (isNaN(h) || h <= 0 || h > 300) {
+        toast.error("Por favor, insira uma altura válida e realista (em cm, até 300cm).");
+        return;
+      }
+    }
+
     try {
+      // Save previous state for undo
+      setPreviousPatientState({
+        dateOfBirth: patient.dateOfBirth,
+        medicalRecord: patient.medicalRecord,
+        address: patient.address,
+        sex: patient.sex,
+        weight: patient.weight,
+        height: patient.height,
+        howMet: patient.howMet,
+      });
+      
       await updatePatient({ 
         variables: { 
           input: { 
@@ -251,11 +277,29 @@ const Patients = () => {
       showUndoableToast(
         "Dados atualizados!",
         async () => {
-          await refetchPatient();
+          if (previousPatientState) {
+            await updatePatient({
+              variables: {
+                input: {
+                  id: patient.id,
+                  dateOfBirth: previousPatientState.dateOfBirth,
+                  medicalRecord: previousPatientState.medicalRecord || undefined,
+                  address: previousPatientState.address || undefined,
+                  sex: previousPatientState.sex || undefined,
+                  weight: previousPatientState.weight || undefined,
+                  height: previousPatientState.height || undefined,
+                  howMet: previousPatientState.howMet || undefined,
+                  reason: 'Undo: Reversão de alteração',
+                }
+              }
+            });
+            await refetchPatient();
+          }
         },
         "Desfazer"
       );
       setEditPatientDialogOpen(false);
+      await refetchPatient();
     } catch (e: any) {
       toast.error(e.message || "Erro ao atualizar");
     }
@@ -571,6 +615,22 @@ const Patients = () => {
                       <span className="text-muted-foreground">Endereço</span>
                       <p>{patient.address || '-'}</p>
                     </div>
+                    <div>
+                      <span className="text-muted-foreground">Sexo</span>
+                      <p>{patient.sex || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Peso (kg)</span>
+                      <p>{patient.weight || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Altura (cm)</span>
+                      <p>{patient.height || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Como nos conheceu</span>
+                      <p>{patient.howMet || '-'}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -584,69 +644,51 @@ const Patients = () => {
                   <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
                 </TabsList>
 
-                <AnimatePresence mode="wait">
-                  {activeTab === "contacts" && (
-                    <motion.div
-                      key="contacts"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.3 }}
-                      className="space-y-2 mt-4"
-                    >
-                      {patient.lead?.contacts?.length === 0 && (
-                        <Card>
-                          <CardContent className="py-8 text-center text-muted-foreground">
-                            Nenhum contato registrado
-                          </CardContent>
-                        </Card>
-                      )}
-                      {patient.lead?.contacts?.map((contact: any) => (
-                        <Card key={contact.id}>
-                          <CardContent className="p-3 flex items-start gap-3">
-                            {contactIcon(contact.type)}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-sm font-medium">
-                                  {contact.direction === 'INBOUND' ? 'Recebido' : 'Enviado'}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {format(new Date(contact.date), 'dd/MM/yyyy HH:mm')}
-                                </span>
-                              </div>
-                              <p className="text-sm text-muted-foreground">{contact.message}</p>
-                            </div>
-                            {statusIcon(contact.status)}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </motion.div>
+                <TabsContent value="contacts" className="mt-4 space-y-2">
+                  {patient.lead?.contacts?.length === 0 && (
+                    <Card>
+                      <CardContent className="py-8 text-center text-muted-foreground">
+                        Nenhum contato registrado
+                      </CardContent>
+                    </Card>
                   )}
+                  {patient.lead?.contacts?.map((contact: any) => (
+                    <Card key={contact.id}>
+                      <CardContent className="p-3 flex items-start gap-3">
+                        {contactIcon(contact.type)}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium">
+                              {contact.direction === 'INBOUND' ? 'Recebido' : 'Enviado'}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(contact.date), 'dd/MM/yyyy HH:mm')}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{contact.message}</p>
+                        </div>
+                        {statusIcon(contact.status)}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </TabsContent>
 
-                  {activeTab === "documents" && (
-                    <motion.div
-                      key="documents"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.3 }}
-                      className="space-y-4 mt-4"
-                    >
-                      <div className="flex justify-end">
-                        <Button size="sm" onClick={() => setNewDocDialogOpen(true)}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Novo Documento
-                        </Button>
-                      </div>
-                      {patient.documents?.length === 0 && (
-                        <Card>
-                          <CardContent className="py-8 text-center text-muted-foreground">
-                            Nenhum documento registrado
-                          </CardContent>
-                        </Card>
-                      )}
-                      {patient.documents?.map((doc: any) => (
-                        <Card key={doc.id}>
+                <TabsContent value="documents" className="mt-4 space-y-4">
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => setNewDocDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Documento
+                    </Button>
+                  </div>
+                  {patient.documents?.length === 0 && (
+                    <Card>
+                      <CardContent className="py-8 text-center text-muted-foreground">
+                        Nenhum documento registrado
+                      </CardContent>
+                    </Card>
+                  )}
+                  {patient.documents?.map((doc: any) => (
+                    <Card key={doc.id}>
                       <CardContent className="p-3 flex items-center gap-3">
                         <FileText className="h-5 w-5 text-muted-foreground" />
                         <div className="flex-1">
@@ -688,25 +730,16 @@ const Patients = () => {
                       </CardContent>
                     </Card>
                   ))}
-                    </motion.div>
-                  )}
+                </TabsContent>
 
-                  {activeTab === "postop" && (
-                    <motion.div
-                      key="postop"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.3 }}
-                      className="space-y-4 mt-4"
-                    >
-                      <div className="flex justify-end">
-                          <Button size="sm" onClick={() => setNewPostOpDialogOpen(true)}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Agendar Retorno
-                          </Button>
-                        </div>
-                        {patient.postOps?.length === 0 && (
+                <TabsContent value="postop" className="mt-4 space-y-4">
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => setNewPostOpDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Agendar Retorno
+                    </Button>
+                  </div>
+                  {patient.postOps?.length === 0 && (
                     <Card>
                       <CardContent className="py-8 text-center text-muted-foreground">
                         Nenhum retorno agendado
@@ -742,65 +775,54 @@ const Patients = () => {
                       </CardContent>
                     </Card>
                   ))}
-                    </motion.div>
-                  )}
+                </TabsContent>
 
-                  {activeTab === "history" && (
-                    <motion.div
-                      key="history"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.3 }}
-                      className="space-y-2 mt-4"
-                    >
-                      {patient.auditLogs?.length === 0 ? (
-                        <Card>
-                          <CardContent className="py-8 text-center text-muted-foreground">
-                            Nenhum registro de auditoria
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        patient.auditLogs?.map((log: any) => (
-                          <Card key={log.id}>
-                            <CardContent className="p-3">
-                              <div className="flex items-start gap-3">
-                                <div className={cn(
-                                  "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                                  log.action === 'CREATED' ? "bg-green-500/20" : "bg-blue-500/20"
-                                )}>
-                                  {log.action === 'CREATED' ? (
-                                    <Plus className="h-4 w-4 text-green-500" />
-                                  ) : (
-                                    <History className="h-4 w-4 text-blue-500" />
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm font-medium">
-                                      {auditActionLabels[log.action] || log.action}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm')}
-                                    </span>
-                                  </div>
-                                  {log.reason && (
-                                    <p className="text-xs text-muted-foreground mb-1">{log.reason}</p>
-                                  )}
-                                  {log.newValue && (
-                                    <p className="text-xs bg-muted p-2 rounded font-mono truncate">
-                                      {log.newValue.length > 100 ? log.newValue.substring(0, 100) + '...' : log.newValue}
-                                    </p>
-                                  )}
-                                </div>
+                <TabsContent value="history" className="mt-4 space-y-2">
+                  {patient.auditLogs?.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-8 text-center text-muted-foreground">
+                        Nenhum registro de auditoria
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    patient.auditLogs?.map((log: any) => (
+                      <Card key={log.id}>
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-3">
+                            <div className={cn(
+                              "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                              log.action === 'CREATED' ? "bg-green-500/20" : "bg-blue-500/20"
+                            )}>
+                              {log.action === 'CREATED' ? (
+                                <Plus className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <History className="h-4 w-4 text-blue-500" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium">
+                                  {auditActionLabels[log.action] || log.action}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm')}
+                                </span>
                               </div>
-                            </CardContent>
-                          </Card>
-                        ))
-                      )}
-                    </motion.div>
+                              {log.reason && (
+                                <p className="text-xs text-muted-foreground mb-1">{log.reason}</p>
+                              )}
+                              {log.newValue && (
+                                <p className="text-xs bg-muted p-2 rounded font-mono truncate">
+                                  {log.newValue.length > 100 ? log.newValue.substring(0, 100) + '...' : log.newValue}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
                   )}
-                </AnimatePresence>
+                </TabsContent>
               </Tabs>
             </div>
           ) : (
@@ -840,7 +862,24 @@ const Patients = () => {
             </div>
             <div className="space-y-2">
               <Label>Data de Nascimento *</Label>
-              <Input type="date" value={createPatientForm.dateOfBirth} onChange={e => setCreatePatientForm(f => ({...f, dateOfBirth: e.target.value}))} />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {createPatientForm.dateOfBirth ? format(new Date(createPatientForm.dateOfBirth + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : "Selecione a data"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 rounded-md border" align="start">
+                  <Calendar
+                    mode="single"
+                    locale={ptBR}
+                    selected={createPatientForm.dateOfBirth ? new Date(createPatientForm.dateOfBirth + 'T12:00:00') : undefined}
+                    onSelect={(date) => setCreatePatientForm(f => ({...f, dateOfBirth: date ? format(date, 'yyyy-MM-dd') : ""}))}
+                    className="rounded-md"
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label>Prontuário</Label>
@@ -916,7 +955,7 @@ const Patients = () => {
 
       {/* Edit Patient Dialog */}
       <Dialog open={editPatientDialogOpen} onOpenChange={setEditPatientDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar Paciente</DialogTitle>
             <DialogDescription>Atualize os dados do paciente.</DialogDescription>
@@ -928,15 +967,17 @@ const Patients = () => {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth).toLocaleDateString('pt-BR') : "Selecione a data"}
+                    {editPatientForm.dateOfBirth ? format(new Date(editPatientForm.dateOfBirth + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : "Selecione a data"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 rounded-md border" align="start">
                   <Calendar
                     mode="single"
-                    selected={editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth) : undefined}
-                    onSelect={(date) => setEditPatientForm(f => ({...f, dateOfBirth: date?.toISOString().split('T')[0] || ""}))}
+                    locale={ptBR}
+                    selected={editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth + 'T12:00:00') : undefined}
+                    onSelect={(date) => setEditPatientForm(f => ({...f, dateOfBirth: date ? format(date, 'yyyy-MM-dd') : ""}))}
                     className="rounded-md"
+                    initialFocus
                   />
                 </PopoverContent>
               </Popover>

@@ -106,23 +106,19 @@ Frontend must map: `data?.users?.edges?.map((e) => e.node)`
 ### Tab Navigation
 - Use `useSearchParams` for tab state: `searchParams.get("tab")`
 - Preserve tab state in URL for deep linking (e.g., `?tab=contacts`)
-- Use `framer-motion` with `<AnimatePresence mode="wait">` for smooth transitions:
+- **Prefer Radix UI TabsContent** over AnimatePresence for tabs to avoid flicker/unmount issues:
   ```tsx
-  <AnimatePresence mode="wait">
-    {activeTab === "tabname" && (
-      <motion.div
-        key="tabname"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.2 }}
-      >
-        {/* Tab content */}
-      </motion.div>
-    )}
-  </AnimatePresence>
+  <Tabs value={activeTab} onValueChange={handleTabChange}>
+    <TabsList>...</TabsList>
+    <TabsContent value="details">...</TabsContent>
+    <TabsContent value="other">...</TabsContent>
+  </Tabs>
   ```
+- Add CSS transitions to `TabsContent` component for smooth animations (already in `@/components/ui/tabs.tsx`)
+- TabsContent includes `transition-all duration-200 ease-in-out` for smooth tab switching
+- Always import TabsContent: `import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"`
 - Use skeleton patterns from `@/components/ui/skeleton`: `CardSkeleton`, `ListSkeleton`, `CardListSkeleton`, `FormSkeleton`
+- Use `cache-first` fetchPolicy for instant data display without loading screens
 
 ---
 
@@ -168,6 +164,28 @@ pnpm --filter @crmed/database db:generate
   ```
 - Use `cache-first` fetchPolicy for stable queries like `performanceMetrics`
 
+### Dialog/Modal Patterns
+- Always add className to DialogContent: `className="sm:max-w-lg"`
+- Missing className causes modal to open invisible/gray
+
+### Undo/Feedback Patterns
+- Use `showUndoableToast` from `@/hooks/useUndoableToast` for actionable feedback:
+  ```typescript
+  // Save previous state before mutation
+  const previousState = { ...patient };
+  
+  // On undo, revert to previous state via mutation
+  showUndoableToast(
+    "Dados atualizados!",
+    async () => {
+      await updatePatient({
+        variables: { input: { id: patient.id, ...previousState } }
+      });
+    },
+    "Desfazer"
+  );
+  ```
+
 ### CSV Export
 - Backend returns base64-encoded data URL: `data:text/csv;base64,...`
 - Frontend must decode: 
@@ -178,6 +196,14 @@ pnpm --filter @crmed/database db:generate
   for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
   const csvText = new TextDecoder('utf-8').decode(bytes);
   ```
+
+### UI Component Imports
+- Always import all needed components from Radix/shadcn:
+  ```typescript
+  import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+  import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+  ```
+- Missing imports cause `ReferenceError` at runtime
 
 ---
 
