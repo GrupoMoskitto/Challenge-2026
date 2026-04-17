@@ -197,12 +197,54 @@ async function main() {
   console.log('✅ Created availability slots');
 
   // Lead data
-  const firstNames = ['Ana', 'Bruno', 'Carla', 'Daniel', 'Eduarda', 'Fernando', 'Gabriela', 'Henrique', 'Isabela', 'João', 'Karina', 'Leonardo', 'Marcos', 'Natalia', 'Octavio', 'Patricia', 'Ricardo', 'Sofia', 'Thiago', 'Ursula', 'Vinicius', 'William', 'Xavier', 'Yasmin', 'Zilda'];
-  const lastNames = ['Silva', 'Santos', 'Oliveira', 'Souza', 'Lima', 'Costa', 'Almeida', 'Nascimento', 'Mendes', 'Ferreira', 'Rodrigues', 'Carvalho', 'Araujo', 'Monteiro', 'Barbosa'];
-  const origins = ['Instagram', 'TikTok', 'Site', 'Indicação', 'Facebook'];
+  const firstNames = [
+    'Ana', 'Bruno', 'Carla', 'Daniel', 'Eduarda', 'Fernando', 'Gabriela', 'Henrique',
+    'Isabela', 'João', 'Karina', 'Leonardo', 'Marcos', 'Natalia', 'Octavio', 'Patricia',
+    'Ricardo', 'Sofia', 'Thiago', 'Ursula', 'Vinicius', 'William', 'Yasmin', 'Zilda',
+    'Amanda', 'Carlos', 'Debora', 'Eduardo', 'Fernanda', 'Gustavo', 'Helena', 'Igor',
+    'Juliana', 'Kaue', 'Larissa', 'Marcelo', 'Nadia', 'Otavio', 'Paula', 'Rafael',
+    'Sabrina', 'Tiago', 'Vanessa', 'Wagner', 'Xuxa', 'Yago', 'Zara', 'Adriana', 'Bernardo'
+  ];
+  const lastNames = [
+    'Silva', 'Santos', 'Oliveira', 'Souza', 'Lima', 'Costa', 'Almeida', 'Nascimento',
+    'Mendes', 'Ferreira', 'Rodrigues', 'Carvalho', 'Araujo', 'Monteiro', 'Barbosa',
+    'Pereira', 'Gomes', 'Martins', 'Rocha', 'Vieira', 'Dias', 'Nunes', 'Moreira',
+    'Cardoso', 'Teixeira'
+  ];
+  const origins = ['Instagram', 'TikTok', 'Site', 'Indicação', 'Facebook', 'Google Ads', 'Facebook Ads'];
   const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Mamoplastia + Abdominoplastia', 'Rinoplastia + Otoplastia', 'Próteses'];
-  const statuses = [LeadStatus.NEW, LeadStatus.NEW, LeadStatus.NEW, LeadStatus.CONTACTED, LeadStatus.CONTACTED, LeadStatus.QUALIFIED, LeadStatus.CONVERTED, LeadStatus.LOST];
-  const notes = ['', '', '', 'Interessado(a) no procedimento há anos', 'Já fez avaliação em outra clínica', 'Indicação de amigo(a)', 'Quer agendar para o próximo mês', ' Orçamento solicitado', 'Ligação não atendida', 'Número incorreto'];
+  const statuses = [
+    LeadStatus.NEW, LeadStatus.NEW, LeadStatus.NEW, LeadStatus.NEW,
+    LeadStatus.CONTACTED, LeadStatus.CONTACTED, LeadStatus.CONTACTED,
+    LeadStatus.QUALIFIED, LeadStatus.QUALIFIED,
+    LeadStatus.CONVERTED,
+    LeadStatus.LOST
+  ];
+  const notes = [
+    '',
+    '',
+    'Interessado(a) no procedimento há mais de 2 anos, esperando o momento certo',
+    'Já fez avaliação em outra clínica mas não ficou satisfeito com o atendimento',
+    'Indicação da amiga Fernanda que já é nossa paciente',
+    'Quer agendar para o próximo mês, aguardando confirmação do marido',
+    'Orçamento solicitado por WhatsApp, aguardando retorno',
+    'Ligação não atendida, tentei 3 vezes',
+    'Paciente ansiosa, precisa de acolhimento na abordagem',
+    'Veio do interior, quer fazer tudo em uma única viagem se possível',
+    'Funcionaria pública, só pode nos finais de semana ou à noite',
+    'Já tem fotos de referência do resultado desejado',
+    'Perguntou sobre financiamento, encaminhar para financeiro',
+    'Histórico de alérgia a anestésico local, verificar com cirurgião',
+    'Muito comunicativa, atendeu bem no WhatsApp',
+  ];
+  const streets = [
+    'Rua das Flores', 'Rua das Acácias', 'Av. Tancredo Neves', 'Rua da Paz',
+    'Rua Pernambuco', 'Av. Paralela', 'Rua Chile', 'Rua da Bahia',
+    'Av. Antônio Carlos Magalhães', 'Rua Professor Aristíes Novis'
+  ];
+  const neighborhoods = ['Pituba', 'Barra', 'Rio Vermelho', 'Pelourinho', 'Brotas', 'Itaigara', 'Caminho das Árvores', 'Ondina', 'Graaça', 'Imbuí'];
+  const cities = ['Salvador/BA', 'Salvador/BA', 'Salvador/BA', 'Feira de Santana/BA', 'Lauro de Freitas/BA', 'Camaçari/BA', 'Vitória da Conquista/BA'];
+  const phonePrefixes = ['(71)', '(73)', '(74)', '(75)', '(77)'];
 
   // Create 60 leads
   const leads = [];
@@ -215,16 +257,16 @@ async function main() {
       data: {
         name: `${firstName} ${lastName}`,
         email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i}@email.com`,
-        phone: `(71) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`,
+        phone: `${randomElement(phonePrefixes)} 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`,
         cpf: generateValidCPF(),
         source: randomElement(origins),
         origin: randomElement(origins),
         procedure: randomElement(procedures),
         preferredDoctor: randomElement(surgeons).id,
-        whatsappActive: Math.random() > 0.3,
+        whatsappActive: Math.random() > 0.35,
         status: status,
         notes: randomElement(notes),
-        createdAt: randomDate(new Date('2026-01-01'), new Date()),
+        createdAt: randomDate(new Date('2025-10-01'), new Date()),
       },
     });
     leads.push(lead);
@@ -245,7 +287,7 @@ async function main() {
         leadId: lead.id,
         dateOfBirth: randomDate(new Date('1970-01-01'), new Date('2005-12-31')),
         medicalRecord: `PR-2026-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`,
-        address: `Rua ${randomElement(['das Flores', 'das Acácias', 'do Sol', 'da Lua', 'das Estrelas'])}, ${Math.floor(Math.random() * 500) + 1} - ${randomElement(['Pituba', 'Barra', 'Rio Vermelho', 'Pelourinho', 'Brotas'])}, Salvador/BA`,
+        address: `${randomElement(streets)}, ${Math.floor(Math.random() * 800) + 1} - ${randomElement(neighborhoods)}, ${randomElement(cities)}`,
         sex: randomElement(sexValues),
         weight: Math.round((Math.random() * 50 + 50) * 10) / 10,
         height: Math.floor(Math.random() * 30 + 155),

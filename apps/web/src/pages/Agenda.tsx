@@ -63,6 +63,7 @@ const Agenda = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [previousAppointmentState, setPreviousAppointmentState] = useState<any>(null);
   const [newAppointment, setNewAppointment] = useState({
     patientName: '',
     patientPhone: '',
@@ -129,16 +130,24 @@ const Agenda = () => {
     if (apt) {
       setEditingAppointmentId(apt.id);
       setSelectedPatientId(apt.patient?.id || null); // Use patient ID, not lead ID
-      setNewAppointment({
+      const apptState = {
         patientName: apt.patient?.lead?.name || apt.patient?.name || '',
         patientPhone: apt.patient?.lead?.phone || apt.patient?.phone || '',
         procedure: apt.procedure || '',
         notes: apt.notes || '',
+      };
+      setNewAppointment(apptState);
+      setPreviousAppointmentState({
+        ...apptState,
+        patientId: apt.patient?.id,
+        surgeonId: apt.surgeon?.id,
+        scheduledAt: apt.scheduledAt,
       });
     } else {
       setEditingAppointmentId(null);
       setSelectedPatientId(null);
       setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '' });
+      setPreviousAppointmentState(null);
     }
     setSheetOpen(true);
   };
@@ -227,13 +236,30 @@ const Agenda = () => {
       }
       showUndoableToast(
         "Agendamento salvo!",
-        async () => { await refetchAppointments(); },
+        async () => {
+          if (previousAppointmentState && editingAppointmentId) {
+            await updateAppointment({
+              variables: {
+                input: {
+                  id: editingAppointmentId,
+                  patientId: previousAppointmentState.patientId,
+                  surgeonId: previousAppointmentState.surgeonId,
+                  procedure: previousAppointmentState.procedure,
+                  scheduledAt: previousAppointmentState.scheduledAt,
+                  notes: previousAppointmentState.notes,
+                },
+              },
+            });
+            await refetchAppointments();
+          }
+        },
         "Desfazer"
       );
       setSheetOpen(false);
       setEditingAppointmentId(null);
       setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '' });
       setSelectedPatientId(null);
+      setPreviousAppointmentState(null);
     } catch (error) {
       console.error('Error saving appointment:', error);
       toast.error('Erro ao salvar agendamento.');
@@ -259,12 +285,9 @@ const Agenda = () => {
       await deleteAppointment({
         variables: { input: { id: appointmentToDelete, confirmed: true } },
       });
+      await refetchAppointments();
+      toast.success("Agendamento excluído!");
       
-      showUndoableToast(
-        "Agendamento excluído!",
-        async () => { await refetchAppointments(); },
-        "Desfazer"
-      );
       setSheetOpen(false);
       setEditingAppointmentId(null);
       setDeleteDialogOpen(false);
@@ -370,6 +393,11 @@ const Agenda = () => {
               <div className="space-y-2">
                 {timeSlots.map((time) => {
                   const appointment = getAppointment(surgeon.id, time);
+                  if (loadingAppointments && !appointment) {
+                    return (
+                      <div key={time} className="h-20 border rounded-lg border-dashed border-border animate-pulse bg-muted/20" />
+                    );
+                  }
                   return (
                     <div
                       key={time}
