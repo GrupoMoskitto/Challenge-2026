@@ -1827,7 +1827,7 @@ export const resolvers = {
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
+        const errData = await response.json().catch(() => ({})) as any;
         throw new Error(errData.message || 'Erro ao criar instância na Evolution API');
       }
 
@@ -1852,7 +1852,7 @@ export const resolvers = {
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
+        const errData = await response.json().catch(() => ({})) as any;
         throw new Error(errData.message || 'Erro ao excluir instância na Evolution API');
       }
 
@@ -1871,7 +1871,7 @@ export const resolvers = {
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
+        const errData = await response.json().catch(() => ({})) as any;
         throw new Error(errData.message || 'Erro ao conectar instância na Evolution API');
       }
 
