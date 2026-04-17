@@ -59,6 +59,7 @@ export const typeDefs = gql`
     PENDING
     SENT
     FAILED
+    READ
   }
 
   enum ContactType {
@@ -458,6 +459,12 @@ export const typeDefs = gql`
     state: String
   }
 
+  type EvolutionConnectionPayload {
+    qrCode: String
+    pairingCode: String
+    connected: Boolean!
+  }
+
   type RefreshPayload {
     token: String!
     refreshToken: String!
@@ -739,6 +746,13 @@ export const typeDefs = gql`
     updatePostOpStatus(id: ID!, status: PostOpStatus!): PostOp!
 
     # Notifications
+    markNotificationAsRead(id: ID!): Notification!
+    markAllNotificationsAsRead: Boolean!
+    
+    # Evolution API
+    createEvolutionInstance(instanceName: String!): EvolutionApiInstance!
+    deleteEvolutionInstance(instanceName: String!): Boolean!
+    connectEvolutionInstance(instanceName: String!): EvolutionConnectionPayload!
     
     testMessageTemplate(templateId: ID!, instanceName: String!): Boolean!
 
