@@ -5,11 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
-import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { showUndoableToast } from "@/hooks/useUndoableToast";
@@ -27,11 +26,15 @@ import {
   TOGGLE_USER_STATUS,
   UPDATE_USER,
   UPDATE_PROFILE,
+  CREATE_EVOLUTION_INSTANCE,
+  DELETE_EVOLUTION_INSTANCE,
+  CONNECT_EVOLUTION_INSTANCE,
 } from "@/lib/queries";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -159,10 +162,18 @@ const Settings = () => {
   const [editingUser, setEditingUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null);
   const [editUserRole, setEditUserRole] = useState<string>("RECEPTION");
   const [deactivatingUserId, setDeactivatingUserId] = useState<string | null>(null);
+  const [deactivateConfirmText, setDeactivateConfirmText] = useState("");
   const [newUserForm, setNewUserForm] = useState({ name: "", email: "", role: "RECEPTION", password: "" });
   const [profileForm, setProfileForm] = useState({ name: user?.name || "", password: "" });
 
   const [selectedInstance, setSelectedInstance] = useState<string>("");
+
+  // Evolution API management state
+  const [createInstanceDialogOpen, setCreateInstanceDialogOpen] = useState(false);
+  const [newInstanceName, setNewInstanceName] = useState("");
+  const [qrCodeData, setQrCodeData] = useState<{ qrCode: string | null; pairingCode: string | null; instanceName: string } | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   // GraphQL
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
@@ -192,6 +203,14 @@ const Settings = () => {
   const [updateUser, { loading: updatingUser }] = useMutation(UPDATE_USER as any);
   const [updateProfile, { loading: updatingProfile }] = useMutation(UPDATE_PROFILE);
 
+  const [createEvolutionInstance, { loading: creatingEvoInstance }] = useMutation(CREATE_EVOLUTION_INSTANCE, {
+    refetchQueries: [{ query: GET_EVOLUTION_API_INSTANCES }],
+  });
+  const [deleteEvolutionInstance, { loading: deletingEvoInstance }] = useMutation(DELETE_EVOLUTION_INSTANCE, {
+    refetchQueries: [{ query: GET_EVOLUTION_API_INSTANCES }],
+  });
+  const [connectEvolutionInstance] = useMutation(CONNECT_EVOLUTION_INSTANCE);
+
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
   const systemUsers = usersData?.users?.edges?.map((e: any) => e.node) || [];
   const evolutionInstances: any[] = evoData?.evolutionApiInstances || [];
@@ -206,11 +225,7 @@ const Settings = () => {
           }
         }
       });
-      showUndoableToast(
-        "Perfil atualizado!",
-        async () => { /* re-fetch not needed for profile */ },
-        "Desfazer"
-      );
+      toast.success("Perfil atualizado!");
       setProfileForm({ ...profileForm, password: "" });
     } catch (err: any) {
       toast.error(err.message || "Erro ao atualizar perfil");
@@ -226,11 +241,7 @@ const Settings = () => {
       await createUser({
         variables: { input: newUserForm }
       });
-      showUndoableToast(
-        "Usuário criado!",
-        async () => { await refetchUsers(); },
-        "Desfazer"
-      );
+      toast.success("Usuário criado!");
       setCreateUserDialogOpen(false);
       setNewUserForm({ name: "", email: "", role: "RECEPTION", password: "" });
       refetchUsers();
@@ -242,11 +253,7 @@ const Settings = () => {
   const handleToggleUserStatus = async (id: string, currentStatus: boolean) => {
     try {
       await toggleUserStatus({ variables: { id } });
-      showUndoableToast(
-        `Usuário ${currentStatus ? 'desativado' : 'ativado'}!`,
-        async () => { await refetchUsers(); },
-        "Desfazer"
-      );
+      toast.success(`Usuário ${currentStatus ? 'desativado' : 'ativado'}!`);
     } catch (err: any) {
       toast.error(err.message || "Erro ao alterar status do usuário");
     }
@@ -379,8 +386,59 @@ const Settings = () => {
     }
   };
 
+  const handleCreateEvoInstance = async () => {
+    if (!newInstanceName.trim()) {
+      toast.error("Informe um nome para a instância");
+      return;
+    }
+    try {
+      await createEvolutionInstance({
+        variables: { instanceName: newInstanceName.trim() }
+      });
+      toast.success("Instância criada com sucesso!");
+      setCreateInstanceDialogOpen(false);
+      setNewInstanceName("");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao criar instância");
+    }
+  };
+
+  const handleDeleteEvoInstance = async (instanceName: string) => {
+    if (!confirm(`Tem certeza que deseja excluir a instância "${instanceName}"?`)) return;
+    try {
+      await deleteEvolutionInstance({
+        variables: { instanceName }
+      });
+      toast.success("Instância excluída com sucesso!");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao excluir instância");
+    }
+  };
+
+  const handleConnectEvoInstance = async (instanceName: string) => {
+    setQrLoading(true);
+    try {
+      const { data } = await connectEvolutionInstance({
+        variables: { instanceName }
+      });
+      if (data?.connectEvolutionInstance) {
+        setQrCodeData({
+          qrCode: data.connectEvolutionInstance.qrCode,
+          pairingCode: data.connectEvolutionInstance.pairingCode,
+          instanceName
+        });
+        setQrModalOpen(true);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao conectar instância");
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+
   const renderTemplateForm = (form: TemplateForm, setForm: (f: TemplateForm) => void) => (
-    <div className="grid gap-4 py-4">
+    <div className="space-y-4 py-4">
       <div className="grid gap-2">
         <Label htmlFor="template-name">Nome do Template *</Label>
         <Input
@@ -392,38 +450,22 @@ const Settings = () => {
         {formErrors.name && <p className="text-xs text-red-500">{formErrors.name}</p>}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="grid gap-2">
-          <Label>Canal *</Label>
-          <Select
-            value={form.channel}
-            onValueChange={(value) => setForm({ ...form, channel: value })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-              <SelectItem value="SMS">SMS</SelectItem>
-              <SelectItem value="EMAIL">E-mail</SelectItem>
-            </SelectContent>
-          </Select>
-          {formErrors.channel && <p className="text-xs text-red-500">{formErrors.channel}</p>}
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor="template-trigger">Dias de Disparo</Label>
-          <Input
-            id="template-trigger"
-            type="number"
-            value={form.triggerDays}
-            onChange={(e) => setForm({ ...form, triggerDays: parseInt(e.target.value) || 0 })}
-            min={-1}
-          />
-          <p className="text-xs text-muted-foreground">
-            {getTriggerLabel(form.triggerDays)}
-          </p>
-        </div>
+      <div className="grid gap-2">
+        <Label>Canal *</Label>
+        <Select
+          value={form.channel}
+          onValueChange={(value) => setForm({ ...form, channel: value })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+            <SelectItem value="SMS">SMS</SelectItem>
+            <SelectItem value="EMAIL">E-mail</SelectItem>
+          </SelectContent>
+        </Select>
+        {formErrors.channel && <p className="text-xs text-red-500">{formErrors.channel}</p>}
       </div>
 
       <div className="grid gap-2">
@@ -443,6 +485,20 @@ const Settings = () => {
           <code className="bg-muted px-1 rounded">{"{medico}"}</code>{" "}
           <code className="bg-muted px-1 rounded">{"{data}"}</code>{" "}
           <code className="bg-muted px-1 rounded">{"{hora}"}</code>
+        </p>
+      </div>
+
+      <div className="grid gap-2 mt-4 pt-4 border-t">
+        <Label htmlFor="template-trigger">Dias de Disparo</Label>
+        <Input
+          id="template-trigger"
+          type="number"
+          value={form.triggerDays}
+          onChange={(e) => setForm({ ...form, triggerDays: parseInt(e.target.value) || 0 })}
+          min={-1}
+        />
+        <p className="text-xs text-muted-foreground">
+          {getTriggerLabel(form.triggerDays)}
         </p>
       </div>
 
@@ -491,127 +547,136 @@ const Settings = () => {
           )}
         </TabsList>
 
-        <AnimatePresence mode="wait">
-          {activeTab === "profile" && (
-            <motion.div
-              key="profile"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-            >
+          <TabsContent value="profile">
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações do Perfil</CardTitle>
+                <CardDescription>
+                  Gerencie suas informações pessoais e preferências
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center gap-6">
+                  <div className="h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center">
+                    <User className="h-10 w-10 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">{user?.name}</h3>
+                    <p className="text-muted-foreground">{user?.email}</p>
+                    <Badge variant="outline" className="mt-2">
+                      {user ? roleLabels[user.role] || user.role : 'Carregando...'}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nome Completo</Label>
+                    <Input id="name" value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-mail</Label>
+                    <Input id="email" type="email" defaultValue={user?.email} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Cargo</Label>
+                    <Input id="role" value={user ? roleLabels[user.role] || user.role : ''} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Nova Senha</Label>
+                    <Input id="password" type="password" placeholder="Mínimo 6 caracteres (Opcional)" value={profileForm.password} onChange={e => setProfileForm(p => ({ ...p, password: e.target.value }))} />
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleUpdateProfile} disabled={updatingProfile || (profileForm.name === user?.name && !profileForm.password)} className="min-w-[160px]">
+                    {updatingProfile ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar Alterações"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="integrations">
               <Card>
-                <CardHeader>
-                  <CardTitle>Informações do Perfil</CardTitle>
-                  <CardDescription>
-                    Gerencie suas informações pessoais e preferências
-                  </CardDescription>
-                </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-6">
-                <div className="h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center">
-                  <User className="h-10 w-10 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold">{user?.name}</h3>
-                  <p className="text-muted-foreground">{user?.email}</p>
-                  <Badge variant="outline" className="mt-2">
-                    {user ? roleLabels[user.role] || user.role : 'Carregando...'}
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome Completo</Label>
-                  <Input id="name" value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <Input id="email" type="email" defaultValue={user?.email} disabled />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Cargo</Label>
-                  <Input id="role" value={user ? roleLabels[user.role] || user.role : ''} disabled />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Nova Senha</Label>
-                  <Input id="password" type="password" placeholder="Mínimo 6 caracteres (Opcional)" value={profileForm.password} onChange={e => setProfileForm(p => ({ ...p, password: e.target.value }))} />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={handleUpdateProfile} disabled={updatingProfile || (profileForm.name === user?.name && !profileForm.password)} className="min-w-[160px]">
-                  {updatingProfile ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar Alterações"}
-                </Button>
-              </div>
-            </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          {isAdmin && activeTab === "integrations" && (
-            <motion.div
-              key="integrations"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card>
-                <CardHeader>
-                  <CardTitle>Integrações</CardTitle>
-                  <CardDescription>
-                    Gerencie as conexões ativas com a Evolution API
-                  </CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <div>
+                    <CardTitle>Integrações</CardTitle>
+                    <CardDescription>
+                      Gerencie as conexões ativas com a Evolution API
+                    </CardDescription>
+                  </div>
+                  <Button onClick={() => setCreateInstanceDialogOpen(true)} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nova Instância
+                  </Button>
                 </CardHeader>
                 <CardContent className="space-y-4">
-              {evoLoading ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-20 w-full" />
-                  <Skeleton className="h-20 w-full" />
-                </div>
-              ) : evolutionInstances.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground border rounded-lg border-dashed">
-                  Nenhuma instância encontrada na Evolution API.
-                </div>
-              ) : (
-                evolutionInstances.map((inst: any) => (
-                  <div key={inst.instanceName} className="border rounded-lg p-6 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${inst.connected ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
-                        <PhoneIcon className={`h-6 w-6 ${inst.connected ? 'text-green-500' : 'text-destructive'}`} />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-base">Instância: {inst.instanceName}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Status: <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs">{inst.state}</span>
-                        </p>
-                      </div>
+                  {evoLoading ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-20 w-full" />
+                      <Skeleton className="h-20 w-full" />
                     </div>
-                    <div>
-                      {inst.connected ? (
-                        <Badge className="bg-green-500">Conectado</Badge>
-                      ) : (
-                        <Badge variant="destructive">Desconectado</Badge>
-                      )}
+                  ) : evolutionInstances.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground border rounded-lg border-dashed">
+                      <Plug className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                      <p>Nenhuma instância encontrada na Evolution API.</p>
+                      <Button variant="link" onClick={() => setCreateInstanceDialogOpen(true)}>
+                        Criar primeira instância
+                      </Button>
                     </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-</Card>
-            </motion.div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {evolutionInstances.map((inst: any) => (
+                        <div key={inst.instanceName} className="border rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4 bg-card hover:bg-accent/5 transition-colors">
+                          <div className="flex items-center gap-4 w-full md:w-auto">
+                            <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${inst.connected ? 'bg-green-500/10' : 'bg-amber-500/10'}`}>
+                              <MessageSquare className={`h-5 w-5 ${inst.connected ? 'text-green-500' : 'text-amber-500'}`} />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-semibold text-sm truncate">{inst.instanceName}</h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`h-2 w-2 rounded-full ${inst.connected ? 'bg-green-500' : 'bg-amber-500'}`} />
+                                <span className="text-xs text-muted-foreground capitalize">{inst.state || 'Status desconhecido'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                            {!inst.connected && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleConnectEvoInstance(inst.instanceName)}
+                                disabled={qrLoading}
+                                className="h-8"
+                              >
+                                {qrLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plug className="h-3 w-3 mr-1" />}
+                                Conectar
+                              </Button>
+                            )}
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleDeleteEvoInstance(inst.instanceName)}
+                              className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              Excluir
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
           )}
 
-          {isAdmin && activeTab === "users" && (
-            <motion.div
-              key="users"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-            >
+          {isAdmin && (
+            <TabsContent value="users">
               <Card>
                 <CardHeader>
                   <CardTitle>Gerenciamento de Usuários</CardTitle>
@@ -625,77 +690,71 @@ const Settings = () => {
                       <p className="text-sm text-muted-foreground">
                         Gerencie os usuários que têm acesso ao sistema
                       </p>
-                  <Button onClick={() => setCreateUserDialogOpen(true)}>Novo Usuário</Button>
-                </div>
-                <div className="border rounded-lg">
-                  <div className="grid grid-cols-5 gap-4 p-4 border-b bg-muted/30 font-medium text-sm">
-                    <div>Nome</div>
-                    <div>E-mail</div>
-                    <div>Cargo</div>
-                    <div>Status</div>
-                    <div>Ações</div>
-                  </div>
-                  {usersLoading ? (
-                    <div className="p-4 flex flex-col gap-3">
-                      <Skeleton className="h-6 w-full" />
-                      <Skeleton className="h-6 w-full" />
-                      <Skeleton className="h-6 w-full" />
+                      <Button onClick={() => setCreateUserDialogOpen(true)}>Novo Usuário</Button>
                     </div>
-                  ) : (
-                    systemUsers.map((u: any) => (
-                      <div key={u.id} className="grid grid-cols-5 gap-4 p-4 border-b items-center last:border-b-0">
-                        <div className="font-medium truncate pr-2">{u.name}</div>
-                        <div className="text-sm text-muted-foreground truncate pr-2">{u.email}</div>
-                        <div>
-                          <Badge variant={u.role === 'ADMIN' ? 'default' : 'outline'}>
-                            {roleLabels[u.role] || u.role}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={u.isActive ? 'secondary' : 'destructive'}>
-                            {u.isActive ? 'Ativo' : 'Inativo'}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => { setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role }); setEditUserRole(u.role); setEditUserDialogOpen(true); }}
-                            className="h-8 w-8 p-0"
-                            title="Editar"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {user?.id !== u.id && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => { if (u.isActive) { setDeactivatingUserId(u.id); setConfirmDeactivateOpen(true); } else { handleToggleUserStatus(u.id, u.isActive); }}}
-                              className="h-8 w-8 p-0"
-                              title={u.isActive ? "Desativar" : "Ativar"}
-                            >
-                              {u.isActive ? <X className="h-4 w-4 text-red-500" /> : <Check className="h-4 w-4 text-green-500" />}
-                            </Button>
-                          )}
-                        </div>
+                    <div className="border rounded-lg">
+                      <div className="grid grid-cols-5 gap-4 p-4 border-b bg-muted/30 font-medium text-sm">
+                        <div>Nome</div>
+                        <div>E-mail</div>
+                        <div>Cargo</div>
+                        <div>Status</div>
+                        <div>Ações</div>
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </CardContent>
+                      {usersLoading ? (
+                        <div className="p-4 flex flex-col gap-3">
+                          <Skeleton className="h-6 w-full" />
+                          <Skeleton className="h-6 w-full" />
+                          <Skeleton className="h-6 w-full" />
+                        </div>
+                      ) : (
+                        systemUsers.map((u: any) => (
+                          <div key={u.id} className="grid grid-cols-5 gap-4 p-4 border-b items-center last:border-b-0">
+                            <div className="font-medium truncate pr-2">{u.name}</div>
+                            <div className="text-sm text-muted-foreground truncate pr-2">{u.email}</div>
+                            <div>
+                              <Badge variant={u.role === 'ADMIN' ? 'default' : 'outline'}>
+                                {roleLabels[u.role] || u.role}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={u.isActive ? 'secondary' : 'destructive'}>
+                                {u.isActive ? 'Ativo' : 'Inativo'}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => { setEditingUser({ id: u.id, name: u.name, email: u.email, role: u.role }); setEditUserRole(u.role); setEditUserDialogOpen(true); }}
+                                className="h-8 w-8 p-0"
+                                title="Editar"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              {user?.id !== u.id && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => { if (u.isActive) { setDeactivatingUserId(u.id); setDeactivateConfirmText(""); setConfirmDeactivateOpen(true); } else { handleToggleUserStatus(u.id, u.isActive); }}}
+                                  className="h-8 w-8 p-0"
+                                  title={u.isActive ? "Desativar" : "Ativar"}
+                                >
+                                  {u.isActive ? <X className="h-4 w-4 text-red-500" /> : <Check className="h-4 w-4 text-green-500" />}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
               </Card>
-            </motion.div>
+            </TabsContent>
           )}
 
-          {isAdmin && activeTab === "templates" && (
-            <motion.div
-              key="templates"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-            >
+          {isAdmin && (
+            <TabsContent value="templates">
               <Card>
                 <CardHeader>
                   <CardTitle>Templates de Mensagens</CardTitle>
@@ -712,106 +771,105 @@ const Settings = () => {
                       <Button onClick={() => { setNewTemplate(initialTemplateForm); setFormErrors({}); setCreateDialogOpen(true); }}>
                         <Plus className="h-4 w-4 mr-2" />
                         Novo Template
-                  </Button>
-                </div>
+                      </Button>
+                    </div>
 
-                {templatesLoading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start">
-                          <div className="space-y-2 flex-1">
-                            <Skeleton className="h-5 w-48" />
-                            <Skeleton className="h-4 w-full" />
-                            <div className="flex gap-2">
-                              <Skeleton className="h-5 w-20" />
-                              <Skeleton className="h-5 w-24" />
+                    {templatesLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className="border rounded-lg p-4">
+                            <div className="flex justify-between items-start">
+                              <div className="space-y-2 flex-1">
+                                <Skeleton className="h-5 w-48" />
+                                <Skeleton className="h-4 w-full" />
+                                <div className="flex gap-2">
+                                  <Skeleton className="h-5 w-20" />
+                                  <Skeleton className="h-5 w-24" />
+                                </div>
+                              </div>
+                              <Skeleton className="h-8 w-8" />
                             </div>
                           </div>
-                          <Skeleton className="h-8 w-8" />
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ) : templates.length === 0 ? (
-                  <div className="border rounded-lg p-8 text-center">
-                    <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                    <p className="text-muted-foreground">Nenhum template cadastrado</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Crie seu primeiro template para automatizar o envio de mensagens
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {templates.map((template) => (
-                      <div
-                        key={template.id}
-                        className="border rounded-lg p-4 hover:bg-muted/30 transition-colors group"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-semibold text-sm">{template.name}</h4>
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${channelColors[template.channel] || ""}`}
-                              >
-                                {channelLabels[template.channel] || template.channel}
-                              </Badge>
-                              <Badge variant="secondary" className="text-xs">
-                                {getTriggerLabel(template.triggerDays)}
-                              </Badge>
+                    ) : templates.length === 0 ? (
+                      <div className="border rounded-lg p-8 text-center">
+                        <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                        <p className="text-muted-foreground">Nenhum template cadastrado</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Crie seu primeiro template para automatizar o envio de mensagens
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {templates.map((template) => (
+                          <div
+                            key={template.id}
+                            className="border rounded-lg p-4 hover:bg-muted/30 transition-colors group"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h4 className="font-semibold text-sm">{template.name}</h4>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${channelColors[template.channel] || ""}`}
+                                  >
+                                    {channelLabels[template.channel] || template.channel}
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {getTriggerLabel(template.triggerDays)}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                                  {highlightVariables(template.content)}
+                                </p>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handlePreview(template)} className="cursor-pointer">
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    Visualizar
+                                  </DropdownMenuItem>
+                                  {user?.role === 'ADMIN' && (
+                                    <DropdownMenuItem onClick={() => handleTestClick(template)} className="cursor-pointer">
+                                      <Plug className="h-4 w-4 mr-2" />
+                                      Teste de Disparo
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem onClick={() => handleEditClick(template)} className="cursor-pointer">
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteClick(template.id)}
+                                    className="text-destructive cursor-pointer"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
-                            <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                              {highlightVariables(template.content)}
-                            </p>
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handlePreview(template)} className="cursor-pointer">
-                                <Eye className="h-4 w-4 mr-2" />
-                                Visualizar
-                              </DropdownMenuItem>
-                              {user?.role === 'ADMIN' && (
-                                <DropdownMenuItem onClick={() => handleTestClick(template)} className="cursor-pointer">
-                                  <Plug className="h-4 w-4 mr-2" />
-                                  Teste de Disparo
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem onClick={() => handleEditClick(template)} className="cursor-pointer">
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteClick(template.id)}
-                                className="text-destructive cursor-pointer"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            </CardContent>
+                </CardContent>
               </Card>
-            </motion.div>
+            </TabsContent>
           )}
-        </AnimatePresence>
-      </Tabs>
+        </Tabs>
 
       {/* Create Template Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -981,6 +1039,14 @@ const Settings = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="bg-muted/50 p-3 rounded-md text-sm text-muted-foreground mt-2">
+              <p className="font-semibold mb-1">Permissões do Cargo:</p>
+              {editUserRole === 'ADMIN' && <p>Acesso total ao sistema, relatórios, configurações e gestão de usuários.</p>}
+              {editUserRole === 'SURGEON' && <p>Visualiza sua própria agenda, pacientes e configurações básicas.</p>}
+              {editUserRole === 'CALL_CENTER' && <p>Gestão de leads, conversas, agendamentos e cadastros iniciais.</p>}
+              {editUserRole === 'RECEPTION' && <p>Gestão de agenda, confirmação de presença e fluxo da clínica.</p>}
+              {editUserRole === 'SALES' && <p>Foco em conversão, orçamentos e relatórios de vendas.</p>}
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditUserDialogOpen(false)}>Cancelar</Button>
@@ -1000,12 +1066,89 @@ const Settings = () => {
               Tem certeza que deseja desativar este usuário? Ele perderá acesso ao sistema imediatamente.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setConfirmDeactivateOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={() => { if (deactivatingUserId) { handleToggleUserStatus(deactivatingUserId, true); setDeactivatingUserId(null); } setConfirmDeactivateOpen(false); }}>
-              Confirmar Desativação
-            </Button>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Para confirmar, digite <strong>desativar</strong> abaixo:</Label>
+              <Input 
+                value={deactivateConfirmText} 
+                onChange={(e) => setDeactivateConfirmText(e.target.value)}
+                placeholder="desativar"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmDeactivateOpen(false)}>Cancelar</Button>
+            <Button 
+                variant="destructive" 
+                disabled={deactivateConfirmText !== 'desativar'}
+                onClick={() => { if (deactivatingUserId) { handleToggleUserStatus(deactivatingUserId, true); setDeactivatingUserId(null); } setConfirmDeactivateOpen(false); }}>
+                Confirmar Desativação
+              </Button>
+            </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Evolution API - Create Instance Dialog */}
+      <Dialog open={createInstanceDialogOpen} onOpenChange={setCreateInstanceDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Nova Instância Evolution</DialogTitle>
+            <DialogDescription>
+              Crie uma nova instância para conectar um número de WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="instance-name">Nome da Instância</Label>
+              <Input 
+                id="instance-name"
+                value={newInstanceName} 
+                onChange={(e) => setNewInstanceName(e.target.value)}
+                placeholder="Ex: recepcao_principal"
+              />
+              <p className="text-[10px] text-muted-foreground">Use apenas letras, números e underscores.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateInstanceDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateEvoInstance} disabled={creatingEvoInstance || !newInstanceName.trim()}>
+              {creatingEvoInstance ? "Criando..." : "Criar Instância"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Evolution API - QR Code Dialog */}
+      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Conectar WhatsApp</DialogTitle>
+            <DialogDescription>
+              Abra o WhatsApp no seu celular e escaneie o código abaixo para conectar a instância <strong>{qrCodeData?.instanceName}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-6">
+            {qrCodeData?.qrCode ? (
+              <div className="bg-white p-4 rounded-lg shadow-sm border">
+                <img src={qrCodeData.qrCode} alt="WhatsApp QR Code" className="w-64 h-64" />
+              </div>
+            ) : (
+              <div className="text-center p-8 text-muted-foreground">
+                <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4" />
+                <p>Gerando código QR...</p>
+              </div>
+            )}
+            
+            {qrCodeData?.pairingCode && (
+              <div className="mt-6 w-full p-3 bg-muted rounded-md text-center">
+                <p className="text-xs text-muted-foreground mb-1">Ou use o código de pareamento:</p>
+                <code className="text-lg font-bold tracking-widest">{qrCodeData.pairingCode}</code>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button className="w-full" onClick={() => setQrModalOpen(false)}>Concluído</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
