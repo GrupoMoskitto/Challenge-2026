@@ -74,6 +74,13 @@ export const GET_LEADS = gql`
           status
           createdAt
           updatedAt
+          patient {
+            id
+          }
+          appointments {
+            id
+            scheduledAt
+          }
         }
         cursor
       }
@@ -535,6 +542,18 @@ export const UPDATE_PATIENT = gql`
       dateOfBirth
       medicalRecord
       address
+      sex
+      weight
+      height
+      bmi
+      howMet
+      lead {
+        id
+        name
+        email
+        phone
+        cpf
+      }
     }
   }
 `;
@@ -650,6 +669,38 @@ export const MARK_NOTIFICATION_AS_READ = gql`
     markNotificationAsRead(id: $id) {
       id
       status
+    }
+  }
+`;
+
+export const MARK_ALL_NOTIFICATIONS_READ = gql`
+  mutation MarkAllNotificationsAsRead {
+    markAllNotificationsAsRead
+  }
+`;
+
+export const CREATE_EVOLUTION_INSTANCE = gql`
+  mutation CreateEvolutionInstance($instanceName: String!) {
+    createEvolutionInstance(instanceName: $instanceName) {
+      instanceName
+      connected
+      state
+    }
+  }
+`;
+
+export const DELETE_EVOLUTION_INSTANCE = gql`
+  mutation DeleteEvolutionInstance($instanceName: String!) {
+    deleteEvolutionInstance(instanceName: $instanceName)
+  }
+`;
+
+export const CONNECT_EVOLUTION_INSTANCE = gql`
+  mutation ConnectEvolutionInstance($instanceName: String!) {
+    connectEvolutionInstance(instanceName: $instanceName) {
+      qrCode
+      pairingCode
+      connected
     }
   }
 `;

@@ -62,6 +62,22 @@ export const resolvers = {
       });
       return contacts.length > 0 ? contacts : [];
     },
+    patient: async (parent: { id: string }) => {
+      return prisma.patient.findUnique({
+        where: { leadId: parent.id },
+      });
+    },
+    appointments: async (parent: { id: string }) => {
+      const patient = await prisma.patient.findUnique({
+        where: { leadId: parent.id },
+      });
+      if (!patient) return [];
+      
+      return prisma.appointment.findMany({
+        where: { patientId: patient.id },
+        orderBy: { scheduledAt: 'desc' },
+      });
+    },
   },
   Appointment: {
     patient: async (parent: { patientId: string }) => {
@@ -1771,6 +1787,100 @@ export const resolvers = {
 
       await prisma.messageTemplate.delete({ where: { id } });
       return { success: true, message: 'Template excluído com sucesso' };
+    },
+    markNotificationAsRead: async (_: unknown, { id }: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      const decodedId = Buffer.from(id, 'base64url').toString('utf-8').replace(/^[^:]+:/, '') || id;
+      return prisma.notification.update({
+        where: { id: decodedId.length < 30 ? id : decodedId },
+        data: { status: 'READ' },
+        include: { appointment: { include: { patient: { include: { lead: true } }, surgeon: true } } },
+      });
+    },
+    markAllNotificationsAsRead: async (_: unknown, __: unknown, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      await prisma.notification.updateMany({
+        where: { status: { in: ['PENDING', 'SENT'] } },
+        data: { status: 'READ' },
+      });
+      return true;
+    },
+    createEvolutionInstance: async (_: unknown, { instanceName }: { instanceName: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+
+      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
+      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
+
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: EVOLUTION_API_KEY,
+        },
+        body: JSON.stringify({
+          instanceName,
+          token: instanceName,
+          qrcode: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Erro ao criar instância na Evolution API');
+      }
+
+      const data = await response.json() as any;
+      return {
+        instanceName: data.instance?.instanceName || instanceName,
+        connected: false,
+        state: 'disconnected',
+      };
+    },
+    deleteEvolutionInstance: async (_: unknown, { instanceName }: { instanceName: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+
+      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
+      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
+
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/delete/${instanceName}`, {
+        method: 'DELETE',
+        headers: { apikey: EVOLUTION_API_KEY },
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Erro ao excluir instância na Evolution API');
+      }
+
+      return true;
+    },
+    connectEvolutionInstance: async (_: unknown, { instanceName }: { instanceName: string }, context: Context) => {
+      if (!context.user) throw new Error('Usuário não autenticado');
+      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+
+      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
+      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
+
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
+        headers: { apikey: EVOLUTION_API_KEY },
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Erro ao conectar instância na Evolution API');
+      }
+
+      const data = await response.json() as any;
+      return {
+        qrCode: data.base64 || data.code || null,
+        pairingCode: data.pairingCode || null,
+        connected: data.instance?.state === 'open' || data.state === 'open',
+      };
     },
     testMessageTemplate: async (_: unknown, { templateId, instanceName }: { templateId: string; instanceName: string }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');

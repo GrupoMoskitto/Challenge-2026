@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, Settings, ChevronDown, Check, X, Calendar } from "lucide-react";
+import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { removeAuthToken } from "@/lib/apollo";
 import { useQuery, useMutation, gql } from "@apollo/client";
-import { GET_UNREAD_NOTIFICATIONS_COUNT } from "@/lib/queries";
+import { MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_READ } from "@/lib/queries";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -32,29 +32,33 @@ const roleLabels: Record<string, string> = {
   SALES: "Vendas",
 };
 
-interface AppNotification {
-  id: string;
-  type: string;
-  status: string;
-  message: string;
-  scheduledFor: string;
-  createdAt: string;
-}
+const notificationTypeLabels: Record<string, string> = {
+  CONFIRMATION: "Confirmação de consulta",
+  REMINDER_2_DAYS: "Lembrete — 2 dias",
+  REMINDER_1_DAY: "Lembrete — 1 dia",
+  LAST_ATTEMPT: "Última tentativa de contato",
+};
 
 const NOTIFICATIONS_QUERY = gql`
   query GetNotificationsTopBar {
-    appointments(status: SCHEDULED) {
+    notifications(first: 30) {
       id
-      procedure
-      scheduledAt
-      patient {
+      type
+      status
+      createdAt
+      appointment {
         id
-        lead {
+        procedure
+        scheduledAt
+        patient {
+          id
+          lead {
+            name
+          }
+        }
+        surgeon {
           name
         }
-      }
-      surgeon {
-        name
       }
     }
     unreadNotificationsCount
@@ -64,14 +68,21 @@ const NOTIFICATIONS_QUERY = gql`
 export function TopBar({ title }: TopBarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const { data: notifData, refetch: refetchNotifs } = useQuery(NOTIFICATIONS_QUERY, {
     fetchPolicy: 'cache-and-network',
+    pollInterval: 30000,
+  });
+
+  const [markAsRead] = useMutation(MARK_NOTIFICATION_AS_READ, {
+    onCompleted: () => refetchNotifs(),
+  });
+  const [markAllRead] = useMutation(MARK_ALL_NOTIFICATIONS_READ, {
+    onCompleted: () => refetchNotifs(),
   });
 
   const unreadCount = notifData?.unreadNotificationsCount || 0;
-  const appointments = notifData?.appointments || [];
+  const notifications = notifData?.notifications || [];
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -131,7 +142,7 @@ export function TopBar({ title }: TopBarProps) {
     setShowSearchResults(false);
   }, []);
 
-  const handleResultClick = (type: 'lead' | 'patient', id: string) => {
+  const handleResultClick = (type: 'lead' | 'patient') => {
     clearSearch();
     if (type === 'lead') {
       navigate(`/leads?search=${encodeURIComponent(searchQuery)}`);
@@ -148,6 +159,14 @@ export function TopBar({ title }: TopBarProps) {
 
   const handleProfile = () => {
     navigate('/settings');
+  };
+
+  const handleMarkAsRead = (id: string) => {
+    markAsRead({ variables: { id } });
+  };
+
+  const handleMarkAllRead = () => {
+    markAllRead();
   };
 
   return (
@@ -190,7 +209,7 @@ export function TopBar({ title }: TopBarProps) {
                           key={lead.id}
                           className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleResultClick('lead', lead.id)}
+                          onClick={() => handleResultClick('lead')}
                         >
                           <div className="text-sm font-medium">{lead.name}</div>
                           <div className="text-xs text-muted-foreground">{lead.phone} • {lead.cpf}</div>
@@ -206,7 +225,7 @@ export function TopBar({ title }: TopBarProps) {
                           key={patient.id}
                           className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleResultClick('patient', patient.id)}
+                          onClick={() => handleResultClick('patient')}
                         >
                           <div className="text-sm font-medium">{patient.lead?.name}</div>
                           <div className="text-xs text-muted-foreground">{patient.lead?.phone} • {patient.lead?.cpf}</div>
@@ -227,56 +246,79 @@ export function TopBar({ title }: TopBarProps) {
               <Bell className="h-5 w-5 text-muted-foreground" />
               {unreadCount > 0 && (
                 <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px] bg-destructive text-destructive-foreground">
-                  {unreadCount}
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </Badge>
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel>
-              <span>Próximas Consultas</span>
+          <DropdownMenuContent align="end" className="w-96">
+            <DropdownMenuLabel className="flex items-center justify-between py-3">
+              <span className="font-semibold">Notificações</span>
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-primary hover:text-primary gap-1 -mr-1"
+                  onClick={handleMarkAllRead}
+                >
+                  <CheckCheck className="h-3 w-3" />
+                  Marcar todas como lidas
+                </Button>
+              )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            
-            {appointments.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">
-                Nenhuma consulta agendada
+
+            {notifications.length === 0 ? (
+              <div className="py-10 text-center text-muted-foreground text-sm">
+                <Bell className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                Nenhuma notificação
               </div>
             ) : (
-              <ScrollArea className="h-[300px]">
-                {appointments.length > 0 && (
-                  <>
-                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                      <Calendar className="h-3 w-3 inline mr-1" />
-                      Consultas Agendadas
-                    </div>
-                    {appointments.slice(0, 5).map((apt: any) => (
-                      <DropdownMenuItem 
-                        key={apt.id}
-                        className="flex flex-col items-start gap-1 py-3 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 w-full">
-                          <span className="font-medium">{apt.patient?.lead?.name || 'Paciente'}</span>
-                          <span className="text-xs text-primary">
-                            {format(new Date(apt.scheduledAt), "dd/MM 'às' HH:mm")}
-                          </span>
+              <ScrollArea className="h-[380px]">
+                {notifications.map((notif: any) => {
+                  const isRead = notif.status === 'READ';
+                  const apt = notif.appointment;
+                  return (
+                    <div
+                      key={notif.id}
+                      className={`flex items-start gap-3 px-3 py-3 border-b last:border-b-0 transition-colors ${
+                        isRead ? 'opacity-55' : 'bg-primary/5 hover:bg-primary/10'
+                      }`}
+                    >
+                      <div className={`mt-2 h-2 w-2 rounded-full shrink-0 ${isRead ? 'bg-muted-foreground/30' : 'bg-primary'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">
+                          {apt?.patient?.lead?.name || 'Paciente não encontrado'}
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {apt.procedure} - Dr. {apt.surgeon?.name}
-                        </span>
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
+                        <div className="text-xs text-muted-foreground">
+                          {notificationTypeLabels[notif.type] || notif.type}
+                          {apt?.procedure && ` • ${apt.procedure}`}
+                        </div>
+                        {apt?.scheduledAt && (
+                          <div className="text-xs text-primary mt-0.5 font-medium">
+                            {format(new Date(apt.scheduledAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground/60 mt-0.5">
+                          {format(new Date(notif.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        </div>
+                      </div>
+                      {!isRead && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                          title="Marcar como lida"
+                          onClick={() => handleMarkAsRead(notif.id)}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
               </ScrollArea>
             )}
-            
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to="/settings" className="w-full text-center text-primary cursor-pointer">
-                Ver todas as notificações
-              </Link>
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
