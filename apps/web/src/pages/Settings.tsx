@@ -195,33 +195,39 @@ const Settings = () => {
   const [updateUser, { loading: updatingUser }] = useMutation(UPDATE_USER as any);
   const [updateProfile, { loading: updatingProfile }] = useMutation(UPDATE_PROFILE);
   const [createEvolutionInstance] = useMutation(CREATE_EVOLUTION_INSTANCE, {
+    onCompleted: () => {
+      setTimeout(() => refetchEvo(), 1000);
+    },
     update(cache, { data }) {
       if (!data?.createEvolutionInstance) return;
-      const existing: any = cache.readQuery({ query: GET_EVOLUTION_API_INSTANCES });
-      if (existing) {
-        cache.writeQuery({
-          query: GET_EVOLUTION_API_INSTANCES,
-          data: {
-            evolutionApiInstances: [...existing.evolutionApiInstances, data.createEvolutionInstance]
+      cache.modify({
+        fields: {
+          evolutionApiInstances(existing = []) {
+            const alreadyExists = existing.some((inst: any) => {
+              const name = inst.instanceName || cache.readField('instanceName', inst);
+              return name === data.createEvolutionInstance.instanceName;
+            });
+            if (alreadyExists) return existing;
+            return [...existing, data.createEvolutionInstance];
           }
-        });
-      }
+        }
+      });
     }
   });
+
   const [deleteEvolutionInstance] = useMutation(DELETE_EVOLUTION_INSTANCE, {
+    onCompleted: () => {
+      setTimeout(() => refetchEvo(), 1000);
+    },
     update(cache, { data }, { variables }) {
       if (!data?.deleteEvolutionInstance) return;
-      const existing: any = cache.readQuery({ query: GET_EVOLUTION_API_INSTANCES });
-      if (existing) {
-        cache.writeQuery({
-          query: GET_EVOLUTION_API_INSTANCES,
-          data: {
-            evolutionApiInstances: existing.evolutionApiInstances.filter(
-              (inst: any) => inst.instanceName !== variables?.name
-            )
+      cache.modify({
+        fields: {
+          evolutionApiInstances(existing = []) {
+            return existing.filter((inst: any) => inst.instanceName !== variables?.name);
           }
-        });
-      }
+        }
+      });
     }
   });
   const [connectEvolutionInstance] = useMutation(CONNECT_EVOLUTION_INSTANCE);
@@ -306,7 +312,6 @@ const Settings = () => {
       toast.success("Instância criada com sucesso!");
       setCreateInstanceDialogOpen(false);
       setNewInstanceName("");
-      refetchEvo();
     } catch (err: any) {
       toast.error(err.message || "Erro ao criar instância");
     }
@@ -322,7 +327,6 @@ const Settings = () => {
     try {
       await deleteEvolutionInstance({ variables: { name: instanceToDelete } });
       toast.success("Instância deletada com sucesso!");
-      refetchEvo();
       setDeleteInstanceDialogOpen(false);
       setInstanceToDelete(null);
     } catch (err: any) {

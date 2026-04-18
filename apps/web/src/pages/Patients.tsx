@@ -166,7 +166,7 @@ const Patients = () => {
   const effectivePatientData = patientData || prevPatientData;
 
   const { data: leadsData } = useQuery(GET_LEADS, {
-    variables: { status: 'CONVERTED' },
+    variables: { status: null, first: 500 }, // Fetch more leads to ensure we find all conversion candidates
     fetchPolicy: 'cache-first',
   });
 
@@ -211,7 +211,9 @@ const Patients = () => {
   const patients = effectivePatientsData?.patients?.edges?.map((e: any) => e.node) || [];
   const patient = effectivePatientData?.patient;
   const convertedLeads = leadsData?.leads?.edges?.map((e: any) => e.node) || [];
-  const availableLeadsForConversion = convertedLeads.filter((lead: any) => !lead.patient);
+  const availableLeadsForConversion = convertedLeads.filter((lead: any) => 
+    !lead.patient && (lead.status === 'CONVERTED' || lead.status === 'QUALIFIED')
+  );
 
   const openEditPatient = () => {
     if (!patient) return;
@@ -866,11 +868,17 @@ const Patients = () => {
                   <SelectValue placeholder="Selecione um lead" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableLeadsForConversion.map((lead: any) => (
-                    <SelectItem key={lead.id} value={lead.id}>
-                      {lead.name} - {lead.cpf}
-                    </SelectItem>
-                  ))}
+                  {availableLeadsForConversion.length === 0 ? (
+                    <div className="p-4 text-sm text-center text-muted-foreground">
+                      Nenhum lead qualificado ou convertido disponível para conversão.
+                    </div>
+                  ) : (
+                    availableLeadsForConversion.map((lead: any) => (
+                      <SelectItem key={lead.id} value={lead.id}>
+                        {lead.name} - {lead.cpf || 'Sem CPF'}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
