@@ -21,12 +21,17 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 
 **Funcionalidades principais:**
 
-- **Centralização de Leads** — Captura automática de redes sociais e canais digitais
+- **Centralização de Leads** — Kanban interativo com arrastar e soltar (Drag & Drop) e Optimistic UI
+- **Filtros Avançados de Leads** — Por origem, procedimento, WhatsApp ativo, status de paciente e agendamento
 - **Gestão de Agendas** — Controle em tempo real da disponibilidade dos cirurgiões
 - **Automação WhatsApp** — Disparos automáticos para confirmações e lembretes (RN05)
+- **Notificações em Tempo Real** — Centro de notificações com marcar como lida individual ou em massa
+- **Gestão de Instâncias WhatsApp** — Criação, conexão via QR Code e exclusão de instâncias da Evolution API diretamente pelo painel
+- **Conversão Lead → Paciente** — Fluxo completo de conversão com ficha clínica (pós-ops, documentos, histórico)
 - **Inteligência de Dados** — Dashboards de conversão, performance e ociosidade médica
 - **Import/Export** — Importação e exportação de leads via CSV
 - **Auditoria Completa** — Rastreabilidade total de ações e alterações (RN06)
+- **UX Premium** — Skeletons Anti-CLS, Debounce de busca, animações 60fps e Empty States informativos
 
 ### Stack
 
@@ -337,6 +342,15 @@ mutation ImportLeads($csvContent: String!) { importLeads(csvContent: $csvContent
 
 # Pacientes
 mutation CreatePatient($input: CreatePatientInput!) { createPatient(input: $input) { id dateOfBirth medicalRecord } }
+
+# Notificações
+mutation MarkNotificationAsRead($id: ID!) { markNotificationAsRead(id: $id) { id status } }
+mutation MarkAllNotificationsAsRead { markAllNotificationsAsRead }
+
+# Evolution API — Gerenciamento de Instâncias
+mutation CreateEvolutionInstance($name: String!) { createEvolutionInstance(name: $name) { connected instanceName state } }
+mutation DeleteEvolutionInstance($name: String!) { deleteEvolutionInstance(name: $name) }
+mutation ConnectEvolutionInstance($name: String!) { connectEvolutionInstance(name: $name) { qrCode pairingCode connected } }
 
 # Agendamentos
 mutation CreateAppointment($input: CreateAppointmentInput!) { createAppointment(input: $input) { id procedure scheduledAt status } }

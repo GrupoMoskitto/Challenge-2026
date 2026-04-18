@@ -66,7 +66,9 @@ function ThemeToggle({ collapsed }: { collapsed: boolean }) {
 }
 
 export function AppSidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    return localStorage.getItem("sidebar-collapsed") === "true";
+  });
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -75,6 +77,10 @@ export function AppSidebar() {
     localStorage.removeItem('user');
     window.location.href = '/login'; // Use window.location instead of navigate because the AppSidebar is outside Routes context maybe, or just to reset state fully
   };
+
+  useEffect(() => {
+    localStorage.setItem("sidebar-collapsed", String(collapsed));
+  }, [collapsed]);
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user?.role === 'ADMIN';

@@ -1839,20 +1839,21 @@ export const resolvers = {
       });
 
       if (!response.ok) {
-        let errorBody = {};
+        let errorBody: Record<string, unknown> = {};
         try {
-          errorBody = await response.json();
-        } catch (e) {}
+          errorBody = (await response.json()) as Record<string, unknown>;
+        } catch (_e) {}
         console.error("Evolution API Error:", errorBody);
-        
+
         // Extract message from typical Evolution API error structures
-        const errorMessage = (errorBody as any).response?.message || (errorBody as any).message || JSON.stringify(errorBody);
+        const nested = errorBody.response as Record<string, unknown> | undefined;
+        const errorMessage = (nested?.message as string) || (errorBody.message as string) || JSON.stringify(errorBody);
         throw new Error(`Falha Evolution API: ${errorMessage}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { instance?: { state?: string; instanceName?: string } };
       const state = data?.instance?.state || 'disconnected';
-      
+
       return {
         connected: state === 'open' || state === 'CONNECTED',
         instanceName: data?.instance?.instanceName || name,
@@ -1872,8 +1873,8 @@ export const resolvers = {
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || 'Falha ao deletar instância');
+        const err = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        throw new Error((err.message as string) || 'Falha ao deletar instância');
       }
 
       return true;
@@ -1890,12 +1891,12 @@ export const resolvers = {
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || 'Falha ao conectar instância');
+        const err = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        throw new Error((err.message as string) || 'Falha ao conectar instância');
       }
 
-      const data = await response.json();
-      
+      const data = (await response.json()) as { base64?: string; pairingCode?: string };
+
       return {
         qrCode: data?.base64 || null,
         pairingCode: data?.pairingCode || null,
