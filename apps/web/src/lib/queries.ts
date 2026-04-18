@@ -680,24 +680,24 @@ export const MARK_ALL_NOTIFICATIONS_READ = gql`
 `;
 
 export const CREATE_EVOLUTION_INSTANCE = gql`
-  mutation CreateEvolutionInstance($instanceName: String!) {
-    createEvolutionInstance(instanceName: $instanceName) {
-      instanceName
+  mutation CreateEvolutionInstance($name: String!) {
+    createEvolutionInstance(name: $name) {
       connected
+      instanceName
       state
     }
   }
 `;
 
 export const DELETE_EVOLUTION_INSTANCE = gql`
-  mutation DeleteEvolutionInstance($instanceName: String!) {
-    deleteEvolutionInstance(instanceName: $instanceName)
+  mutation DeleteEvolutionInstance($name: String!) {
+    deleteEvolutionInstance(name: $name)
   }
 `;
 
 export const CONNECT_EVOLUTION_INSTANCE = gql`
-  mutation ConnectEvolutionInstance($instanceName: String!) {
-    connectEvolutionInstance(instanceName: $instanceName) {
+  mutation ConnectEvolutionInstance($name: String!) {
+    connectEvolutionInstance(name: $name) {
       qrCode
       pairingCode
       connected

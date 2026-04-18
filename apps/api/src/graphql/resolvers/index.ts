@@ -1805,83 +1805,6 @@ export const resolvers = {
       });
       return true;
     },
-    createEvolutionInstance: async (_: unknown, { instanceName }: { instanceName: string }, context: Context) => {
-      if (!context.user) throw new Error('Usuário não autenticado');
-      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
-
-      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
-
-      const response = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: EVOLUTION_API_KEY,
-        },
-        body: JSON.stringify({
-          instanceName,
-          token: instanceName,
-          qrcode: true,
-        }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({})) as any;
-        throw new Error(errData.message || 'Erro ao criar instância na Evolution API');
-      }
-
-      const data = await response.json() as any;
-      return {
-        instanceName: data.instance?.instanceName || instanceName,
-        connected: false,
-        state: 'disconnected',
-      };
-    },
-    deleteEvolutionInstance: async (_: unknown, { instanceName }: { instanceName: string }, context: Context) => {
-      if (!context.user) throw new Error('Usuário não autenticado');
-      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
-
-      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
-
-      const response = await fetch(`${EVOLUTION_API_URL}/instance/delete/${instanceName}`, {
-        method: 'DELETE',
-        headers: { apikey: EVOLUTION_API_KEY },
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({})) as any;
-        throw new Error(errData.message || 'Erro ao excluir instância na Evolution API');
-      }
-
-      return true;
-    },
-    connectEvolutionInstance: async (_: unknown, { instanceName }: { instanceName: string }, context: Context) => {
-      if (!context.user) throw new Error('Usuário não autenticado');
-      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
-
-      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
-
-      const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
-        headers: { apikey: EVOLUTION_API_KEY },
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({})) as any;
-        throw new Error(errData.message || 'Erro ao conectar instância na Evolution API');
-      }
-
-      const data = await response.json() as any;
-      return {
-        qrCode: data.base64 || data.code || null,
-        pairingCode: data.pairingCode || null,
-        connected: data.instance?.state === 'open' || data.state === 'open',
-      };
-    },
     testMessageTemplate: async (_: unknown, { templateId, instanceName }: { templateId: string; instanceName: string }, context: Context) => {
       if (!context.user) throw new Error('Usuário não autenticado');
       if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
@@ -1893,6 +1816,91 @@ export const resolvers = {
       const { dispatchTemplateTest } = await import('../../services/whatsappQueue');
       await dispatchTemplateTest(templateId, instanceName, context.user.userId);
       return true;
+    },
+    createEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
+      if (!context.user || context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      
+      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
+      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY is not configured');
+
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': EVOLUTION_API_KEY
+        },
+        body: JSON.stringify({
+          instanceName: name,
+          token: EVOLUTION_API_KEY,
+          qrcode: true,
+          integration: "WHATSAPP-BAILEYS"
+        })
+      });
+
+      if (!response.ok) {
+        let errorBody = {};
+        try {
+          errorBody = await response.json();
+        } catch (e) {}
+        console.error("Evolution API Error:", errorBody);
+        
+        // Extract message from typical Evolution API error structures
+        const errorMessage = (errorBody as any).response?.message || (errorBody as any).message || JSON.stringify(errorBody);
+        throw new Error(`Falha Evolution API: ${errorMessage}`);
+      }
+
+      const data = await response.json();
+      const state = data?.instance?.state || 'disconnected';
+      
+      return {
+        connected: state === 'open' || state === 'CONNECTED',
+        instanceName: data?.instance?.instanceName || name,
+        state
+      };
+    },
+    deleteEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
+      if (!context.user || context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      
+      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
+      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY is not configured');
+
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/delete/${name}`, {
+        method: 'DELETE',
+        headers: { 'apikey': EVOLUTION_API_KEY }
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || 'Falha ao deletar instância');
+      }
+
+      return true;
+    },
+    connectEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
+      if (!context.user || context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      
+      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
+      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY is not configured');
+
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${name}`, {
+        headers: { 'apikey': EVOLUTION_API_KEY }
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || 'Falha ao conectar instância');
+      }
+
+      const data = await response.json();
+      
+      return {
+        qrCode: data?.base64 || null,
+        pairingCode: data?.pairingCode || null,
+        connected: false
+      };
     },
     createBudget: async (_: unknown, { input }: { input: {
       patientId: string;

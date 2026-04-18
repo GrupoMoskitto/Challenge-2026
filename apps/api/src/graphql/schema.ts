@@ -295,6 +295,7 @@ export const typeDefs = gql`
   type Notification {
     id: ID!
     appointmentId: ID!
+    appointment: Appointment!
     type: NotificationType!
     status: NotificationStatus!
     sentAt: DateTime
@@ -749,17 +750,17 @@ export const typeDefs = gql`
     markNotificationAsRead(id: ID!): Notification!
     markAllNotificationsAsRead: Boolean!
     
-    # Evolution API
-    createEvolutionInstance(instanceName: String!): EvolutionApiInstance!
-    deleteEvolutionInstance(instanceName: String!): Boolean!
-    connectEvolutionInstance(instanceName: String!): EvolutionConnectionPayload!
-    
     testMessageTemplate(templateId: ID!, instanceName: String!): Boolean!
 
     # Message Templates
     createMessageTemplate(input: CreateMessageTemplateInput!): MessageTemplate!
     updateMessageTemplate(input: UpdateMessageTemplateInput!): MessageTemplate!
-    deleteMessageTemplate(id: ID!): DeleteResult!
+    deleteMessageTemplate(id: ID!): MutationResponse!
+    
+    # Evolution API
+    createEvolutionInstance(name: String!): EvolutionApiInstance!
+    deleteEvolutionInstance(name: String!): Boolean!
+    connectEvolutionInstance(name: String!): EvolutionConnectionPayload!
 
     # Budgets
     createBudget(input: CreateBudgetInput!): Budget!

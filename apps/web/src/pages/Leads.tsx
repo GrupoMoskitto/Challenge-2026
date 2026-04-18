@@ -32,11 +32,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format } from "date-fns";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { MessageSquare, PhoneCall, History } from "lucide-react";
 
 const statusColumns = [
@@ -268,6 +263,13 @@ const Leads = () => {
             status,
           },
         },
+        optimisticResponse: {
+          updateLeadStatus: {
+            __typename: "Lead",
+            id: draggedLead.id,
+            status: status,
+          }
+        }
       });
       toast.success(`Lead movido para ${statusLabels[status]}`);
       const movedId = draggedLead.id;
@@ -289,7 +291,7 @@ const Leads = () => {
       if (error.graphQLErrors) {
         console.error('GraphQL errors:', error.graphQLErrors);
       }
-      alert(error.message || 'Erro ao atualizar status');
+      toast.error('Erro ao mover lead. Ação desfeita.');
     } finally {
       setDraggedLead(null);
     }
@@ -605,17 +607,30 @@ const Leads = () => {
   if (isInitialLoad) {
     return (
       <AppLayout title="Gestão de Leads">
+        {/* Skeleton Filters */}
         <div className="flex items-center gap-3 mb-6">
-          <Skeleton className="h-10 w-72" />
-          <Skeleton className="h-10 w-36" />
+          <Skeleton className="h-10 w-full max-w-md" />
+          <Skeleton className="h-10 w-28" />
           <Skeleton className="h-10 w-32 ml-auto" />
+          <Skeleton className="h-10 w-32" />
         </div>
-        <div className="grid grid-cols-5 gap-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="space-y-3">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-24 w-full" />
+        
+        {/* Skeleton Kanban Board */}
+        <div className="flex gap-4 h-[calc(100vh-220px)] overflow-x-auto pb-4 animate-in fade-in duration-500">
+          {statusColumns.map(({ status, label, color }) => (
+            <div
+              key={status}
+              className={`flex-1 min-w-[320px] bg-muted/40 rounded-xl flex flex-col border-t-4 ${color}`}
+            >
+              <div className="p-4 font-semibold flex items-center justify-between border-b bg-background/50 rounded-t-xl">
+                <span className="text-sm uppercase tracking-wider text-muted-foreground">{label}</span>
+                <Skeleton className="h-5 w-8 rounded-full" />
+              </div>
+              <div className="p-3 flex-1 flex flex-col gap-3">
+                <Skeleton className="h-[140px] w-full rounded-lg" />
+                <Skeleton className="h-[120px] w-full rounded-lg" />
+                <Skeleton className="h-[150px] w-full rounded-lg opacity-50" />
+              </div>
             </div>
           ))}
         </div>
@@ -916,102 +931,105 @@ const Leads = () => {
               "flex-1 p-2 space-y-2 rounded-b-lg min-h-[300px] transition-colors duration-200 bg-muted/50",
               dragOverColumn === status ? "bg-muted" : ""
             )}>
-              {getLeadsByStatus(status).map((lead) => (
-                <Card
-                  key={lead.id}
-                  id={`lead-card-${lead.id}`}
-                  style={lastMovedLeadId === lead.id ? { animationDuration: '3s' } : undefined}
-                  className={cn(
-                    "p-3 cursor-move transition-all border-l-4",
-                    draggedLead?.id === lead.id ? "opacity-50 scale-95 bg-card" : lastMovedLeadId === lead.id ? "bg-primary/20 ring-2 ring-primary animate-pulse shadow-lg duration-300" : "bg-card hover:shadow-md hover:-translate-y-0.5 duration-300",
-                    status === 'NEW' && "border-l-slate-500",
-                    status === 'CONTACTED' && "border-l-blue-500",
-                    status === 'QUALIFIED' && "border-l-yellow-500",
-                    status === 'CONVERTED' && "border-l-green-500",
-                    status === 'LOST' && "border-l-red-500"
-                  )}
-                  draggable={!deleteDialogOpen && !editDialogOpen}
-                  onDragStart={(e) => handleDragStart(lead, e)}
-                  onDragEnd={clearDragState}
-                >
-                  <CardContent className="p-0">
-                    <div className="flex items-start justify-between mb-2">
-                      <p className="font-medium text-sm truncate flex-1">{lead.name}</p>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-accent"
-                            aria-label={`Ações do lead ${lead.name}`}
-                            data-no-drag="true"
-                            draggable={false}
-                            onPointerDown={(e) => {
-                              e.stopPropagation();
-                              clearDragState();
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            data-no-drag="true"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => { e.stopPropagation(); handleEditClick(lead); }}
-                            className="cursor-pointer"
-                          >
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            data-no-drag="true"
-                            disabled={!canDeleteLeads}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            className={cn(
-                              "cursor-pointer",
-                              canDeleteLeads ? "text-destructive" : "text-muted-foreground opacity-60"
-                            )}
-                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(lead.id); }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            {canDeleteLeads ? 'Excluir' : 'Excluir (sem permissão)'}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <Phone className="h-3 w-3" />
-                      <span>{lead.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                      <Mail className="h-3 w-3" />
-                      <span className="truncate">{lead.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      {lead.whatsappActive && (
-                        <MessageCircle className="h-4 w-4 text-green-500 shrink-0" title="WhatsApp Ativo" />
-                      )}
-                      {lead.patient && (
-                        <UserCheck className="h-4 w-4 text-primary shrink-0" title="Já é Paciente" />
-                      )}
-                      {lead.appointments && lead.appointments.length > 0 && (
-                        <CalendarCheck className="h-4 w-4 text-blue-500 shrink-0" title="Possui Agendamento" />
-                      )}
-                      {lead.procedure && (
-                        <Badge 
-                          variant="outline" 
-                          className="text-[10px] bg-background ml-auto max-w-[140px] truncate whitespace-nowrap"
-                          title={lead.procedure}
-                        >
-                          {lead.procedure}
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {getLeadsByStatus(status).length === 0 ? (
+                <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-muted-foreground opacity-50 border-2 border-dashed border-muted-foreground/20 rounded-lg m-2">
+                  <MessageCircle className="h-8 w-8 mb-2 opacity-20" />
+                  <span className="text-sm font-medium">Nenhum lead</span>
+                </div>
+              ) : (
+                getLeadsByStatus(status).map((lead) => (
+                  <Card
+                    key={lead.id}
+                    id={`lead-card-${lead.id}`}
+                    style={lastMovedLeadId === lead.id ? { animationDuration: '3s' } : undefined}
+                    className={cn(
+                      "p-3 cursor-move transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform border-l-4",
+                      draggedLead?.id === lead.id ? "opacity-50 scale-95 bg-card" : lastMovedLeadId === lead.id ? "bg-primary/20 ring-2 ring-primary animate-pulse shadow-lg" : "bg-card hover:shadow-md hover:-translate-y-1",
+                      status === 'NEW' && "border-l-slate-500",
+                      status === 'CONTACTED' && "border-l-blue-500",
+                      status === 'QUALIFIED' && "border-l-yellow-500",
+                      status === 'CONVERTED' && "border-l-green-500",
+                      status === 'LOST' && "border-l-red-500"
+                    )}
+                    draggable={!deleteDialogOpen && !editDialogOpen}
+                    onDragStart={(e) => handleDragStart(lead, e)}
+                    onDragEnd={clearDragState}
+                  >
+                    <CardContent className="p-0">
+                      <div className="flex items-start justify-between mb-2">
+                        <p className="font-medium text-sm truncate flex-1">{lead.name}</p>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-accent"
+                              aria-label={`Ações do lead ${lead.name}`}
+                              data-no-drag="true"
+                              draggable={false}
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                clearDragState();
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              data-no-drag="true"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => { e.stopPropagation(); handleEditClick(lead); }}
+                              className="cursor-pointer"
+                            >
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              data-no-drag="true"
+                              disabled={!canDeleteLeads}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              className={cn(
+                                "cursor-pointer",
+                                canDeleteLeads ? "text-destructive" : "text-muted-foreground opacity-60"
+                              )}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteClick(lead.id); }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {canDeleteLeads ? 'Excluir' : 'Excluir (sem permissão)'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                        <Phone className="h-3 w-3" />
+                        <span>{lead.phone}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                        <Mail className="h-3 w-3" />
+                        <span className="truncate">{lead.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        {lead.whatsappActive && (
+                          <MessageCircle className="h-4 w-4 text-green-500" title="WhatsApp Ativo" />
+                        )}
+                        {lead.patient && (
+                          <UserCheck className="h-4 w-4 text-primary" title="Já é Paciente" />
+                        )}
+                        {lead.appointments && lead.appointments.length > 0 && (
+                          <CalendarCheck className="h-4 w-4 text-blue-500" title="Possui Agendamento" />
+                        )}
+                        {lead.procedure && (
+                          <Badge variant="outline" className="text-xs bg-background ml-auto">
+                            {lead.procedure}
+                          </Badge>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </div>
         ))}

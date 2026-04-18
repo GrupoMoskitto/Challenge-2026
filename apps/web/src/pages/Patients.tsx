@@ -473,11 +473,29 @@ const Patients = () => {
 
           <div className={cn("space-y-2 transition-opacity duration-200", isSearching && "opacity-60")}>
             {patients.length === 0 && !loadingPatients ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Nenhum paciente encontrado
-              </p>
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
+                <User className="h-12 w-12 mb-3 opacity-50" />
+                <p className="text-lg font-medium">Nenhum paciente encontrado</p>
+                <p className="text-sm mt-1">Tente ajustar seus filtros ou busca.</p>
+              </div>
             ) : patients.length === 0 && loadingPatients ? (
-              [...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
+              [...Array(5)].map((_, i) => (
+                <Card key={`skel-${i}`}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                      <Skeleton className="h-4 w-4 rounded-sm" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
             ) : (
               patients.map((p: any) => (
                 <Card
@@ -646,11 +664,10 @@ const Patients = () => {
 
                 <TabsContent value="contacts" className="mt-4 space-y-2">
                   {patient.lead?.contacts?.length === 0 && (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum contato registrado
-                      </CardContent>
-                    </Card>
+                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
+                      <MessageCircle className="h-10 w-10 mb-2 opacity-50" />
+                      <p className="text-sm font-medium">Nenhum contato registrado</p>
+                    </div>
                   )}
                   {patient.lead?.contacts?.map((contact: any) => (
                     <Card key={contact.id}>
@@ -681,11 +698,10 @@ const Patients = () => {
                     </Button>
                   </div>
                   {patient.documents?.length === 0 && (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum documento registrado
-                      </CardContent>
-                    </Card>
+                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
+                      <FileText className="h-10 w-10 mb-2 opacity-50" />
+                      <p className="text-sm font-medium">Nenhum documento registrado</p>
+                    </div>
                   )}
                   {patient.documents?.map((doc: any) => (
                     <Card key={doc.id}>
@@ -740,11 +756,10 @@ const Patients = () => {
                     </Button>
                   </div>
                   {patient.postOps?.length === 0 && (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum retorno agendado
-                      </CardContent>
-                    </Card>
+                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
+                      <Clock className="h-10 w-10 mb-2 opacity-50" />
+                      <p className="text-sm font-medium">Nenhum retorno agendado</p>
+                    </div>
                   )}
                   {patient.postOps?.map((postOp: any) => (
                     <Card key={postOp.id}>
@@ -779,11 +794,10 @@ const Patients = () => {
 
                 <TabsContent value="history" className="mt-4 space-y-2">
                   {patient.auditLogs?.length === 0 ? (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum registro de auditoria
-                      </CardContent>
-                    </Card>
+                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
+                      <History className="h-10 w-10 mb-2 opacity-50" />
+                      <p className="text-sm font-medium">Nenhum registro de auditoria</p>
+                    </div>
                   ) : (
                     patient.auditLogs?.map((log: any) => (
                       <Card key={log.id}>
