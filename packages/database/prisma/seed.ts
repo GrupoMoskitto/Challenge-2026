@@ -246,9 +246,9 @@ async function main() {
   const cities = ['Salvador/BA', 'Salvador/BA', 'Salvador/BA', 'Feira de Santana/BA', 'Lauro de Freitas/BA', 'Camaçari/BA', 'Vitória da Conquista/BA'];
   const phonePrefixes = ['(71)', '(73)', '(74)', '(75)', '(77)'];
 
-  // Create 60 leads
+  // Create 80 leads
   const leads = [];
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 80; i++) {
     const firstName = randomElement(firstNames);
     const lastName = randomElement(lastNames);
     const status = randomElement(statuses);
@@ -273,9 +273,9 @@ async function main() {
   }
   console.log(`✅ Created ${leads.length} leads`);
 
-  // Create 15 patients from converted leads
+  // Create 5 patients from converted leads (leaving others available for UI testing)
   const convertedLeads = leads.filter(l => l.status === LeadStatus.CONVERTED);
-  const patientLeads = convertedLeads.slice(0, 15);
+  const patientLeads = convertedLeads.slice(0, 3);
   
   const patients = [];
   const sexValues = ['Masculino', 'Feminino'];
