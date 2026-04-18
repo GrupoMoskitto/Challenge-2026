@@ -34,7 +34,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -168,17 +167,10 @@ const Settings = () => {
 
   const [selectedInstance, setSelectedInstance] = useState<string>("");
 
-  // Evolution API management state
-  const [createInstanceDialogOpen, setCreateInstanceDialogOpen] = useState(false);
-  const [newInstanceName, setNewInstanceName] = useState("");
-  const [qrCodeData, setQrCodeData] = useState<{ qrCode: string | null; pairingCode: string | null; instanceName: string } | null>(null);
-  const [qrLoading, setQrLoading] = useState(false);
-  const [qrModalOpen, setQrModalOpen] = useState(false);
-
   // GraphQL
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
   const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS, { skip: !isAdmin });
-  const { data: evoData, loading: evoLoading, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
+  const { data: evoData, loading: evoLoading, refetch: refetchEvo, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
   const { data: testPhoneData } = useQuery(GET_TEST_PHONE_LAST_DIGITS, { skip: !isAdmin });
 
   useEffect(() => {
@@ -202,12 +194,35 @@ const Settings = () => {
   const [toggleUserStatus] = useMutation(TOGGLE_USER_STATUS);
   const [updateUser, { loading: updatingUser }] = useMutation(UPDATE_USER as any);
   const [updateProfile, { loading: updatingProfile }] = useMutation(UPDATE_PROFILE);
-
-  const [createEvolutionInstance, { loading: creatingEvoInstance }] = useMutation(CREATE_EVOLUTION_INSTANCE, {
-    refetchQueries: [{ query: GET_EVOLUTION_API_INSTANCES }],
+  const [createEvolutionInstance] = useMutation(CREATE_EVOLUTION_INSTANCE, {
+    update(cache, { data }) {
+      if (!data?.createEvolutionInstance) return;
+      const existing: any = cache.readQuery({ query: GET_EVOLUTION_API_INSTANCES });
+      if (existing) {
+        cache.writeQuery({
+          query: GET_EVOLUTION_API_INSTANCES,
+          data: {
+            evolutionApiInstances: [...existing.evolutionApiInstances, data.createEvolutionInstance]
+          }
+        });
+      }
+    }
   });
-  const [deleteEvolutionInstance, { loading: deletingEvoInstance }] = useMutation(DELETE_EVOLUTION_INSTANCE, {
-    refetchQueries: [{ query: GET_EVOLUTION_API_INSTANCES }],
+  const [deleteEvolutionInstance] = useMutation(DELETE_EVOLUTION_INSTANCE, {
+    update(cache, { data }, { variables }) {
+      if (!data?.deleteEvolutionInstance) return;
+      const existing: any = cache.readQuery({ query: GET_EVOLUTION_API_INSTANCES });
+      if (existing) {
+        cache.writeQuery({
+          query: GET_EVOLUTION_API_INSTANCES,
+          data: {
+            evolutionApiInstances: existing.evolutionApiInstances.filter(
+              (inst: any) => inst.instanceName !== variables?.name
+            )
+          }
+        });
+      }
+    }
   });
   const [connectEvolutionInstance] = useMutation(CONNECT_EVOLUTION_INSTANCE);
 
@@ -270,6 +285,64 @@ const Settings = () => {
       refetchUsers();
     } catch (err: any) {
       toast.error(err.message || "Erro ao atualizar usuário");
+    }
+  };
+
+  // Evolution API UI State
+  const [createInstanceDialogOpen, setCreateInstanceDialogOpen] = useState(false);
+  const [newInstanceName, setNewInstanceName] = useState("");
+  const [qrCodeData, setQrCodeData] = useState<{ base64: string | null; pairingCode: string | null } | null>(null);
+  const [qrCodeDialogOpen, setQrCodeDialogOpen] = useState(false);
+  const [deleteInstanceDialogOpen, setDeleteInstanceDialogOpen] = useState(false);
+  const [instanceToDelete, setInstanceToDelete] = useState<string | null>(null);
+
+  const handleCreateInstance = async () => {
+    if (!newInstanceName.trim()) {
+      toast.error("O nome da instância não pode ser vazio");
+      return;
+    }
+    try {
+      await createEvolutionInstance({ variables: { name: newInstanceName.trim() } });
+      toast.success("Instância criada com sucesso!");
+      setCreateInstanceDialogOpen(false);
+      setNewInstanceName("");
+      refetchEvo();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao criar instância");
+    }
+  };
+
+  const confirmDeleteInstance = (name: string) => {
+    setInstanceToDelete(name);
+    setDeleteInstanceDialogOpen(true);
+  };
+
+  const handleDeleteInstance = async () => {
+    if (!instanceToDelete) return;
+    try {
+      await deleteEvolutionInstance({ variables: { name: instanceToDelete } });
+      toast.success("Instância deletada com sucesso!");
+      refetchEvo();
+      setDeleteInstanceDialogOpen(false);
+      setInstanceToDelete(null);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao deletar instância");
+    }
+  };
+
+  const handleConnectInstance = async (name: string) => {
+    try {
+      const { data } = await connectEvolutionInstance({ variables: { name } });
+      const { qrCode, pairingCode } = data.connectEvolutionInstance;
+      
+      if (qrCode) {
+        setQrCodeData({ base64: qrCode, pairingCode });
+        setQrCodeDialogOpen(true);
+      } else {
+        toast.info("A instância já pode estar conectada ou não retornou QR Code.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao gerar QR Code");
     }
   };
 
@@ -385,57 +458,6 @@ const Settings = () => {
       toast.error(err.message || "Erro ao disparar teste");
     }
   };
-
-  const handleCreateEvoInstance = async () => {
-    if (!newInstanceName.trim()) {
-      toast.error("Informe um nome para a instância");
-      return;
-    }
-    try {
-      await createEvolutionInstance({
-        variables: { instanceName: newInstanceName.trim() }
-      });
-      toast.success("Instância criada com sucesso!");
-      setCreateInstanceDialogOpen(false);
-      setNewInstanceName("");
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao criar instância");
-    }
-  };
-
-  const handleDeleteEvoInstance = async (instanceName: string) => {
-    if (!confirm(`Tem certeza que deseja excluir a instância "${instanceName}"?`)) return;
-    try {
-      await deleteEvolutionInstance({
-        variables: { instanceName }
-      });
-      toast.success("Instância excluída com sucesso!");
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao excluir instância");
-    }
-  };
-
-  const handleConnectEvoInstance = async (instanceName: string) => {
-    setQrLoading(true);
-    try {
-      const { data } = await connectEvolutionInstance({
-        variables: { instanceName }
-      });
-      if (data?.connectEvolutionInstance) {
-        setQrCodeData({
-          qrCode: data.connectEvolutionInstance.qrCode,
-          pairingCode: data.connectEvolutionInstance.pairingCode,
-          instanceName
-        });
-        setQrModalOpen(true);
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao conectar instância");
-    } finally {
-      setQrLoading(false);
-    }
-  };
-
 
   const renderTemplateForm = (form: TemplateForm, setForm: (f: TemplateForm) => void) => (
     <div className="space-y-4 py-4">
@@ -600,7 +622,7 @@ const Settings = () => {
           {isAdmin && (
             <TabsContent value="integrations">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <CardHeader className="flex flex-row items-start justify-between">
                   <div>
                     <CardTitle>Integrações</CardTitle>
                     <CardDescription>
@@ -619,56 +641,46 @@ const Settings = () => {
                       <Skeleton className="h-20 w-full" />
                     </div>
                   ) : evolutionInstances.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground border rounded-lg border-dashed">
-                      <Plug className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                      <p>Nenhuma instância encontrada na Evolution API.</p>
-                      <Button variant="link" onClick={() => setCreateInstanceDialogOpen(true)}>
-                        Criar primeira instância
-                      </Button>
+                    <div className="text-center py-6 text-muted-foreground border rounded-lg border-dashed">
+                      Nenhuma instância encontrada na Evolution API.
                     </div>
                   ) : (
-                    <div className="grid gap-4">
-                      {evolutionInstances.map((inst: any) => (
-                        <div key={inst.instanceName} className="border rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4 bg-card hover:bg-accent/5 transition-colors">
-                          <div className="flex items-center gap-4 w-full md:w-auto">
-                            <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${inst.connected ? 'bg-green-500/10' : 'bg-amber-500/10'}`}>
-                              <MessageSquare className={`h-5 w-5 ${inst.connected ? 'text-green-500' : 'text-amber-500'}`} />
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="font-semibold text-sm truncate">{inst.instanceName}</h4>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className={`h-2 w-2 rounded-full ${inst.connected ? 'bg-green-500' : 'bg-amber-500'}`} />
-                                <span className="text-xs text-muted-foreground capitalize">{inst.state || 'Status desconhecido'}</span>
-                              </div>
-                            </div>
+                    evolutionInstances.map((inst: any) => (
+                      <div key={inst.instanceName} className="border rounded-lg p-6 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`h-12 w-12 rounded-full flex items-center justify-center ${inst.connected ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
+                            <PhoneIcon className={`h-6 w-6 ${inst.connected ? 'text-green-500' : 'text-destructive'}`} />
                           </div>
-                          
-                          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-                            {!inst.connected && (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleConnectEvoInstance(inst.instanceName)}
-                                disabled={qrLoading}
-                                className="h-8"
-                              >
-                                {qrLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plug className="h-3 w-3 mr-1" />}
-                                Conectar
-                              </Button>
-                            )}
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleDeleteEvoInstance(inst.instanceName)}
-                              className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-1" />
-                              Excluir
-                            </Button>
+                          <div>
+                            <h4 className="font-semibold text-base">Instância: {inst.instanceName}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Status: <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs">{inst.state}</span>
+                            </p>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        <div>
+                          {inst.connected ? (
+                            <Badge className="bg-green-500">Conectado</Badge>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="destructive">Desconectado</Badge>
+                              <Button variant="outline" size="sm" onClick={() => handleConnectInstance(inst.instanceName)}>
+                                Conectar
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="ml-4 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => confirmDeleteInstance(inst.instanceName)}
+                          title="Excluir instância"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
                   )}
                 </CardContent>
               </Card>
@@ -1077,7 +1089,7 @@ const Settings = () => {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setConfirmDeactivateOpen(false)}>Cancelar</Button>
-            <Button 
+              <Button 
                 variant="destructive" 
                 disabled={deactivateConfirmText !== 'desativar'}
                 onClick={() => { if (deactivatingUserId) { handleToggleUserStatus(deactivatingUserId, true); setDeactivatingUserId(null); } setConfirmDeactivateOpen(false); }}>
@@ -1085,70 +1097,6 @@ const Settings = () => {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Evolution API - Create Instance Dialog */}
-      <Dialog open={createInstanceDialogOpen} onOpenChange={setCreateInstanceDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Nova Instância Evolution</DialogTitle>
-            <DialogDescription>
-              Crie uma nova instância para conectar um número de WhatsApp.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="instance-name">Nome da Instância</Label>
-              <Input 
-                id="instance-name"
-                value={newInstanceName} 
-                onChange={(e) => setNewInstanceName(e.target.value)}
-                placeholder="Ex: recepcao_principal"
-              />
-              <p className="text-[10px] text-muted-foreground">Use apenas letras, números e underscores.</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateInstanceDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateEvoInstance} disabled={creatingEvoInstance || !newInstanceName.trim()}>
-              {creatingEvoInstance ? "Criando..." : "Criar Instância"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Evolution API - QR Code Dialog */}
-      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Conectar WhatsApp</DialogTitle>
-            <DialogDescription>
-              Abra o WhatsApp no seu celular e escaneie o código abaixo para conectar a instância <strong>{qrCodeData?.instanceName}</strong>.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center justify-center py-6">
-            {qrCodeData?.qrCode ? (
-              <div className="bg-white p-4 rounded-lg shadow-sm border">
-                <img src={qrCodeData.qrCode} alt="WhatsApp QR Code" className="w-64 h-64" />
-              </div>
-            ) : (
-              <div className="text-center p-8 text-muted-foreground">
-                <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4" />
-                <p>Gerando código QR...</p>
-              </div>
-            )}
-            
-            {qrCodeData?.pairingCode && (
-              <div className="mt-6 w-full p-3 bg-muted rounded-md text-center">
-                <p className="text-xs text-muted-foreground mb-1">Ou use o código de pareamento:</p>
-                <code className="text-lg font-bold tracking-widest">{qrCodeData.pairingCode}</code>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button className="w-full" onClick={() => setQrModalOpen(false)}>Concluído</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1187,6 +1135,85 @@ const Settings = () => {
             <Button onClick={handleRunTest} disabled={testing || !selectedInstance}>
               {testing ? "Disparando..." : "Enviar Teste"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Instance Dialog */}
+      <Dialog open={createInstanceDialogOpen} onOpenChange={setCreateInstanceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Instância Evolution API</DialogTitle>
+            <DialogDescription>
+              Crie uma nova instância para conectar um número de WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="instance-name">Nome da Instância</Label>
+              <Input
+                id="instance-name"
+                placeholder="Ex: whatsapp-atendimento"
+                value={newInstanceName}
+                onChange={(e) => setNewInstanceName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">O nome não deve conter espaços.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCreateInstanceDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateInstance}>Criar Instância</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Code Dialog */}
+      <Dialog open={qrCodeDialogOpen} onOpenChange={setQrCodeDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Conectar WhatsApp</DialogTitle>
+            <DialogDescription>
+              Escaneie o QR Code abaixo com seu WhatsApp para conectar a instância.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center p-6 bg-muted/30 rounded-lg border border-dashed">
+            {qrCodeData?.base64 ? (
+              <img src={qrCodeData.base64} alt="WhatsApp QR Code" className="w-64 h-64 object-contain rounded" />
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-10">
+                Nenhum QR Code retornado.
+              </p>
+            )}
+            {qrCodeData?.pairingCode && (
+              <div className="mt-4 text-center">
+                <p className="text-sm text-muted-foreground mb-1">Ou use o código de pareamento:</p>
+                <code className="bg-background px-3 py-1.5 rounded-md text-lg font-bold tracking-widest border">
+                  {qrCodeData.pairingCode}
+                </code>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={() => {
+              setQrCodeDialogOpen(false);
+              refetchEvo();
+            }}>Concluído</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Delete Instance Dialog */}
+      <Dialog open={deleteInstanceDialogOpen} onOpenChange={setDeleteInstanceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Instância</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir a instância <strong className="text-foreground">{instanceToDelete}</strong>?
+              Esta ação desconectará seu número e interromperá todas as integrações.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setDeleteInstanceDialogOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDeleteInstance}>Excluir Instância</Button>
           </div>
         </DialogContent>
       </Dialog>
