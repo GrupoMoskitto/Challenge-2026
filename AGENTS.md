@@ -119,8 +119,69 @@ Frontend must map: `data?.users?.edges?.map((e) => e.node)`
 - Always import TabsContent: `import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"`
 - Use skeleton patterns from `@/components/ui/skeleton`: `CardSkeleton`, `ListSkeleton`, `CardListSkeleton`, `FormSkeleton`
 - Use `cache-first` fetchPolicy for instant data display without loading screens
+- **Debounce inputs** — Never fire queries on every keystroke. Always debounce search inputs with 300ms:
+  ```tsx
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  // use only debouncedSearch in useQuery variables
+  ```
+- **Skeleton Anti-CLS** — Skeletons must mirror the real layout exactly (same column count, card heights, header structure). Generic `<Skeleton className="h-20 w-full" />` causes layout shift and is not acceptable.
+- **Optimistic UI** — Use Apollo `optimisticResponse` for mutations that change visible state (drag-and-drop, status changes). Always provide a `cache.modify` `update` function as well:
+  ```tsx
+  await mutation({
+    variables: { ... },
+    optimisticResponse: { __typename: "Lead", id, status: newStatus },
+  });
+  ```
+- **Empty States** — Never leave columns or list sections empty/blank. Use a dashed-border box with a muted icon and descriptive text:
+  ```tsx
+  <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
+    <SomeIcon className="h-10 w-10 mb-2 opacity-50" />
+    <p className="text-sm font-medium">Nenhum registro</p>
+  </div>
+  ```
+- **Apollo Cache Updates** — Prefer `cache.modify` over `cache.writeQuery` for partial updates. For list mutations (create/delete), always update the cache immediately:
+  ```tsx
+  const [deleteItem] = useMutation(DELETE_ITEM, {
+    onCompleted: () => setTimeout(() => refetch(), 1000), // sync after 1s
+    update(cache, { data }, { variables }) {
+      cache.modify({
+        fields: {
+          items(existing = []) {
+            return existing.filter((i: any) => i.instanceName !== variables?.name);
+          }
+        }
+      });
+    }
+  });
+  ```
 
 ---
+
+## Evolution API Integration
+
+The Evolution API integration lives entirely in `apps/api/src/graphql/resolvers/index.ts`. Key patterns:
+
+- **Always type JSON responses** — never use `await response.json()` bare. Cast to a specific interface:
+  ```typescript
+  const data = (await response.json()) as { instance?: { state?: string; instanceName?: string } };
+  ```
+- **Always include `integration: "WHATSAPP-BAILEYS"`** in the create instance request body.
+- **Error extraction** — Evolution API nests errors in `response.message`. Use:
+  ```typescript
+  const nested = errorBody.response as Record<string, unknown> | undefined;
+  const msg = (nested?.message as string) || (errorBody.message as string) || JSON.stringify(errorBody);
+  ```
+- **Never use `confirm()`** for destructive actions — always use a `<Dialog>` with a descriptive warning.
+- **State variables for dialogs**:
+  ```tsx
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  ```
 
 ## Commands
 
@@ -156,6 +217,12 @@ pnpm --filter @crmed/database db:generate
 - GraphQL API: 200 requests per 15 min per IP (`express-rate-limit` in apps/api/src/index.ts)
 - If you get 429 errors, restart the API to clear limits: `fuser -k 3001/tcp && pnpm --filter @crmed/api dev &`
 - Rate limits are in-memory only — server restart clears them
+
+### TypeScript Strict Mode (no `any`)
+- All `response.json()` calls **must** be explicitly typed: `as Record<string, unknown>` or a specific interface
+- Catch variables are `unknown` in strict mode — always cast: `const err = (await res.json().catch(() => ({}))) as Record<string, unknown>`
+- Empty objects for fallback: `let body: Record<string, unknown> = {}` — never just `{}`
+- Unused catch variables: use `_e` instead of `e` to avoid lint warnings
 
 ### Dashboard Loops
 - Always use `useMemo` for `new Date()` to prevent infinite re-renders:

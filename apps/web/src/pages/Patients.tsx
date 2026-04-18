@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/popover";
 import { Calendar as CalendarIcon, Search, Phone, MessageCircle, Mail, FileText, Check, X, Clock, User, Pencil, Plus, ChevronLeft, ChevronRight, Filter, History, XCircle, Loader2 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
-import { 
-  GET_PATIENTS, 
+import {
+  GET_PATIENTS,
   GET_PATIENT,
   UPDATE_PATIENT,
   CREATE_DOCUMENT,
@@ -77,21 +77,61 @@ const documentStatusLabels: Record<string, string> = {
 };
 
 const auditActionLabels: Record<string, string> = {
-  CREATED: 'Criado',
-  UPDATED: 'Atualizado',
-  STATUS_CHANGE: 'Status alterado',
+  CREATED: "criado",
+  UPDATED: "modificado",
+  STATUS_CHANGE: "modificado",
+  DELETED: "removido",
 };
 
 const PAGE_SIZE = 20;
 
+const normalizeString = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const likelyFemaleName = (name?: string | null) => {
+  if (!name) return false;
+  const firstName = normalizeString(name).split(" ")[0];
+  return firstName.endsWith("a");
+};
+
+const getSexMismatchWarning = (name?: string | null, sex?: string | null) => {
+  if (!name || !sex) return null;
+  const normalizedSex = normalizeString(sex);
+  if (likelyFemaleName(name) && normalizedSex === "masculino") {
+    return "Possível inconsistência: nome sugere feminino e sexo está como masculino.";
+  }
+  return null;
+};
+
+const getAuditActionMeta = (action?: string) => {
+  switch (action) {
+    case "CREATED":
+      return { icon: Plus, iconClassName: "text-green-500", containerClassName: "bg-green-500/20" };
+    case "DELETED":
+      return { icon: XCircle, iconClassName: "text-red-500", containerClassName: "bg-red-500/20" };
+    default:
+      return { icon: History, iconClassName: "text-blue-500", containerClassName: "bg-blue-500/20" };
+  }
+};
+
+const getAuditMessage = (action?: string, patientName?: string | null) => {
+  const safeName = patientName || "cliente";
+  const normalizedAction = action || "UPDATED";
+  const actionLabel = auditActionLabels[normalizedAction] || "modificado";
+  return `Cliente ${safeName} ${actionLabel}!`;
+};
+
 const Patients = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(searchParams.get("patientId"));
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [showFilters, setShowFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") || "");
+  const [showFilters, setShowFilters] = useState(!!searchParams.get("status"));
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "contacts");
 
   useEffect(() => {
@@ -99,6 +139,14 @@ const Patients = () => {
     if (tab && ["contacts", "documents", "postop", "history"].includes(tab)) {
       setActiveTab(tab);
     }
+    const urlSearch = searchParams.get("search") || "";
+    const urlStatus = searchParams.get("status") || "";
+    const urlPatientId = searchParams.get("patientId");
+    setSearch((current) => (current === urlSearch ? current : urlSearch));
+    setDebouncedSearch((current) => (current === urlSearch ? current : urlSearch));
+    setStatusFilter((current) => (current === urlStatus ? current : urlStatus));
+    setShowFilters(!!urlStatus);
+    setSelectedPatientId((current) => (current === urlPatientId ? current : urlPatientId));
   }, [searchParams]);
 
   const handleTabChange = (value: string) => {
@@ -109,14 +157,28 @@ const Patients = () => {
   };
 
   useEffect(() => {
+    const newParams = new URLSearchParams(searchParams);
+    if (debouncedSearch) newParams.set("search", debouncedSearch);
+    else newParams.delete("search");
+    if (statusFilter) newParams.set("status", statusFilter);
+    else newParams.delete("status");
+    if (selectedPatientId) newParams.set("patientId", selectedPatientId);
+    else newParams.delete("patientId");
+    if (activeTab) newParams.set("tab", activeTab);
+    if (newParams.toString() !== searchParams.toString()) {
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [debouncedSearch, statusFilter, selectedPatientId, activeTab, searchParams, setSearchParams]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const { data: patientsData, previousData: prevPatientsData, loading: loadingPatients, error: patientsError, refetch: refetchPatients } = useQuery(GET_PATIENTS, {
-    variables: { 
+  const { data: patientsData, previousData: prevPatientsData, loading: loadingPatients, error: patientsError, refetch: refetchPatients, fetchMore } = useQuery(GET_PATIENTS, {
+    variables: {
       first: PAGE_SIZE,
       where: {
         ...(debouncedSearch ? { search: debouncedSearch } : {}),
@@ -146,13 +208,25 @@ const Patients = () => {
 
   const loadMore = async () => {
     if (!endCursor || !hasNextPage) return;
-    await refetchPatients({
-      first: PAGE_SIZE,
-      after: endCursor,
-      where: {
-        ...(debouncedSearch && { search: debouncedSearch }),
-        ...(statusFilter && { status: statusFilter }),
-      }
+    await fetchMore({
+      variables: {
+        first: PAGE_SIZE,
+        after: endCursor,
+        where: {
+          ...(debouncedSearch && { search: debouncedSearch }),
+          ...(statusFilter && { status: statusFilter }),
+        },
+      },
+      updateQuery: (previousResult, { fetchMoreResult }) => {
+        if (!fetchMoreResult?.patients?.edges?.length) return previousResult;
+        return {
+          ...fetchMoreResult,
+          patients: {
+            ...fetchMoreResult.patients,
+            edges: [...(previousResult?.patients?.edges || []), ...fetchMoreResult.patients.edges],
+          },
+        };
+      },
     });
   };
 
@@ -166,7 +240,7 @@ const Patients = () => {
   const effectivePatientData = patientData || prevPatientData;
 
   const { data: leadsData } = useQuery(GET_LEADS, {
-    variables: { status: null, first: 500 }, // Fetch more leads to ensure we find all conversion candidates
+    variables: { status: 'CONVERTED' },
     fetchPolicy: 'cache-first',
   });
 
@@ -178,15 +252,15 @@ const Patients = () => {
   const [updatePostOpStatus] = useMutation(UPDATE_POST_OP_STATUS);
 
   const [editPatientDialogOpen, setEditPatientDialogOpen] = useState(false);
-  const [editPatientForm, setEditPatientForm] = useState({ 
-    dateOfBirth: "", 
-    medicalRecord: "", 
+  const [editPatientForm, setEditPatientForm] = useState({
+    dateOfBirth: "",
+    medicalRecord: "",
     address: "",
     sex: "",
     weight: "",
     height: "",
     howMet: "",
-    reason: "" 
+    reason: ""
   });
   const [previousPatientState, setPreviousPatientState] = useState<any>(null);
 
@@ -197,10 +271,10 @@ const Patients = () => {
   const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
 
   const [createPatientDialogOpen, setCreatePatientDialogOpen] = useState(false);
-  const [createPatientForm, setCreatePatientForm] = useState({ 
-    leadId: "", 
-    dateOfBirth: "", 
-    medicalRecord: "", 
+  const [createPatientForm, setCreatePatientForm] = useState({
+    leadId: "",
+    dateOfBirth: "",
+    medicalRecord: "",
     address: "",
     sex: "",
     weight: "",
@@ -211,8 +285,19 @@ const Patients = () => {
   const patients = effectivePatientsData?.patients?.edges?.map((e: any) => e.node) || [];
   const patient = effectivePatientData?.patient;
   const convertedLeads = leadsData?.leads?.edges?.map((e: any) => e.node) || [];
-  const availableLeadsForConversion = convertedLeads.filter((lead: any) => 
-    !lead.patient && (lead.status === 'CONVERTED' || lead.status === 'QUALIFIED')
+  const availableLeadsForConversion = convertedLeads.filter((lead: any) => !lead.patient);
+  const hasActiveFilters = !!statusFilter;
+  const sexMismatchWarning = useMemo(
+    () => getSexMismatchWarning(patient?.lead?.name, patient?.sex),
+    [patient?.lead?.name, patient?.sex]
+  );
+  const createSexMismatchWarning = useMemo(() => {
+    const selectedLead = availableLeadsForConversion.find((lead: any) => lead.id === createPatientForm.leadId);
+    return getSexMismatchWarning(selectedLead?.name, createPatientForm.sex);
+  }, [availableLeadsForConversion, createPatientForm.leadId, createPatientForm.sex]);
+  const editSexMismatchWarning = useMemo(
+    () => getSexMismatchWarning(patient?.lead?.name, editPatientForm.sex),
+    [patient?.lead?.name, editPatientForm.sex]
   );
 
   const openEditPatient = () => {
@@ -259,11 +344,11 @@ const Patients = () => {
         height: patient.height,
         howMet: patient.howMet,
       });
-      
-      await updatePatient({ 
-        variables: { 
-          input: { 
-            id: patient.id, 
+
+      await updatePatient({
+        variables: {
+          input: {
+            id: patient.id,
             dateOfBirth: editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth).toISOString() : undefined,
             medicalRecord: editPatientForm.medicalRecord || undefined,
             address: editPatientForm.address || undefined,
@@ -272,8 +357,8 @@ const Patients = () => {
             height: editPatientForm.height ? parseFloat(editPatientForm.height) : undefined,
             howMet: editPatientForm.howMet || undefined,
             reason: editPatientForm.reason || undefined,
-          } 
-        } 
+          }
+        }
       });
       toast.success("Dados atualizados com sucesso!");
       showUndoableToast(
@@ -338,8 +423,8 @@ const Patients = () => {
       return toast.error("Selecione um lead e informe a data de nascimento");
     }
     try {
-      const result = await createPatient({ 
-        variables: { 
+      const result = await createPatient({
+        variables: {
           input: {
             leadId: createPatientForm.leadId,
             dateOfBirth: new Date(createPatientForm.dateOfBirth).toISOString(),
@@ -350,7 +435,7 @@ const Patients = () => {
             height: createPatientForm.height ? parseFloat(createPatientForm.height) : undefined,
             howMet: createPatientForm.howMet || undefined,
           }
-        } 
+        }
       });
       toast.success("Paciente criado com sucesso!");
       setCreatePatientDialogOpen(false);
@@ -383,14 +468,14 @@ const Patients = () => {
 
   const statusIcon = (status: string) => {
     switch (status) {
-      case 'READ': 
-      case 'ANSWERED': 
+      case 'READ':
+      case 'ANSWERED':
       case 'SIGNED':
         return <Check className="h-3 w-3 text-green-500" />;
-      case 'DELIVERED': 
+      case 'DELIVERED':
       case 'SENT':
         return <Clock className="h-3 w-3 text-muted-foreground" />;
-      case 'FAILED': 
+      case 'FAILED':
       case 'MISSED':
         return <X className="h-3 w-3 text-red-500" />;
       default:
@@ -437,8 +522,15 @@ const Patients = () => {
                 <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
               )}
             </div>
-            <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)}>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn("relative", hasActiveFilters && "border-primary")}
+              aria-label={hasActiveFilters ? "Filtros ativos" : "Abrir filtros"}
+            >
               <Filter className="h-4 w-4" />
+              {hasActiveFilters && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
             </Button>
             <Button size="sm" onClick={() => setCreatePatientDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
@@ -465,6 +557,19 @@ const Patients = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                {hasActiveFilters && (
+                  <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs">
+                    <span>Filtro ativo: {statusLabels[statusFilter]}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => setStatusFilter("")}
+                    >
+                      Limpar
+                    </Button>
+                  </div>
+                )}
               </div>
             </Card>
           )}
@@ -473,31 +578,34 @@ const Patients = () => {
             <span>{totalCount} pacientes</span>
           </div>
 
-          <div className={cn("space-y-2 transition-opacity duration-200", isSearching && "opacity-60")}>
+          <div
+            className={cn("space-y-2 transition-opacity duration-200", isSearching && "opacity-60")}
+            role="listbox"
+            aria-label="Lista de pacientes"
+          >
             {patients.length === 0 && !loadingPatients ? (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
-                <User className="h-12 w-12 mb-3 opacity-50" />
-                <p className="text-lg font-medium">Nenhum paciente encontrado</p>
-                <p className="text-sm mt-1">Tente ajustar seus filtros ou busca.</p>
-              </div>
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum paciente encontrado
+                  </p>
+                  {(search || hasActiveFilters) && (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => {
+                        setSearch("");
+                        setStatusFilter("");
+                      }}
+                    >
+                      Limpar busca e filtros
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
             ) : patients.length === 0 && loadingPatients ? (
-              [...Array(5)].map((_, i) => (
-                <Card key={`skel-${i}`}>
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div className="space-y-2">
-                        <Skeleton className="h-4 w-40" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Skeleton className="h-5 w-20 rounded-full" />
-                      <Skeleton className="h-4 w-4 rounded-sm" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+              [...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
             ) : (
               patients.map((p: any) => (
                 <Card
@@ -506,7 +614,16 @@ const Patients = () => {
                     "cursor-pointer hover:shadow-md transition-all duration-300",
                     selectedPatientId === p.id && "border-primary"
                   )}
+                  role="option"
+                  aria-selected={selectedPatientId === p.id}
+                  tabIndex={0}
                   onClick={() => setSelectedPatientId(p.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedPatientId(p.id);
+                    }
+                  }}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
@@ -515,12 +632,12 @@ const Patients = () => {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium truncate">{p.lead?.name}</p>
+                          <p className="font-medium truncate" title={p.lead?.name}>{p.lead?.name}</p>
                           <div className={cn("w-2 h-2 rounded-full", statusColors[p.lead?.status] || "bg-gray-400")} title={statusLabels[p.lead?.status]} />
                         </div>
-                        <p className="text-xs text-muted-foreground">{p.lead?.phone}</p>
+                        <p className="text-xs text-muted-foreground truncate" title={p.lead?.phone}>{p.lead?.phone}</p>
                         {p.bmi && (
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="text-xs text-muted-foreground mt-1 truncate" title={`IMC: ${p.bmi} • ${p.weight}kg • ${p.height}cm`}>
                             IMC: {p.bmi} • {p.weight}kg • {p.height}cm
                           </p>
                         )}
@@ -578,10 +695,10 @@ const Patients = () => {
               </Card>
               <Tabs value={activeTab} className="w-full">
                 <TabsList className="w-full">
-                  <TabsTrigger value="contacts" className="flex-1">Contatos</TabsTrigger>
-                  <TabsTrigger value="documents" className="flex-1">Documentos</TabsTrigger>
-                  <TabsTrigger value="postop" className="flex-1">Pós-Operatório</TabsTrigger>
-                  <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
+                  <TabsTrigger value="contacts" className="flex-1">Contatos ({patient.lead?.contacts?.length ?? 0})</TabsTrigger>
+                  <TabsTrigger value="documents" className="flex-1">Documentos ({patient.documents?.length ?? 0})</TabsTrigger>
+                  <TabsTrigger value="postop" className="flex-1">Pós-Operatório ({patient.postOps?.length ?? 0})</TabsTrigger>
+                  <TabsTrigger value="history" className="flex-1">Histórico ({patient.auditLogs?.length ?? 0})</TabsTrigger>
                 </TabsList>
                 <div className="mt-4">
                   {activeTab === "contacts" && <CardListSkeleton count={3} />}
@@ -609,11 +726,16 @@ const Patients = () => {
                         {patient.lead?.name?.split(" ").map((n: string) => n[0]).slice(0, 2).join("")}
                       </span>
                     </div>
-                    <div>
-                      <p className="font-semibold text-lg">{patient.lead?.name}</p>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-lg break-words" title={patient.lead?.name}>{patient.lead?.name}</p>
                       <p className="text-sm text-muted-foreground">CPF: {patient.lead?.cpf}</p>
                     </div>
                   </div>
+                  {sexMismatchWarning && (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                      {sexMismatchWarning}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-muted-foreground">Telefone</span>
@@ -621,7 +743,7 @@ const Patients = () => {
                     </div>
                     <div>
                       <span className="text-muted-foreground">E-mail</span>
-                      <p>{patient.lead?.email}</p>
+                      <p className="truncate" title={patient.lead?.email}>{patient.lead?.email}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Data de Nascimento</span>
@@ -633,7 +755,7 @@ const Patients = () => {
                     </div>
                     <div className="col-span-2">
                       <span className="text-muted-foreground">Endereço</span>
-                      <p>{patient.address || '-'}</p>
+                      <p className="break-words">{patient.address || '-'}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Sexo</span>
@@ -666,10 +788,11 @@ const Patients = () => {
 
                 <TabsContent value="contacts" className="mt-4 space-y-2">
                   {patient.lead?.contacts?.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
-                      <MessageCircle className="h-10 w-10 mb-2 opacity-50" />
-                      <p className="text-sm font-medium">Nenhum contato registrado</p>
-                    </div>
+                    <Card>
+                      <CardContent className="py-8 text-center text-muted-foreground">
+                        Nenhum contato registrado
+                      </CardContent>
+                    </Card>
                   )}
                   {patient.lead?.contacts?.map((contact: any) => (
                     <Card key={contact.id}>
@@ -700,10 +823,11 @@ const Patients = () => {
                     </Button>
                   </div>
                   {patient.documents?.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
-                      <FileText className="h-10 w-10 mb-2 opacity-50" />
-                      <p className="text-sm font-medium">Nenhum documento registrado</p>
-                    </div>
+                    <Card>
+                      <CardContent className="py-8 text-center text-muted-foreground">
+                        Nenhum documento registrado
+                      </CardContent>
+                    </Card>
                   )}
                   {patient.documents?.map((doc: any) => (
                     <Card key={doc.id}>
@@ -758,10 +882,11 @@ const Patients = () => {
                     </Button>
                   </div>
                   {patient.postOps?.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
-                      <Clock className="h-10 w-10 mb-2 opacity-50" />
-                      <p className="text-sm font-medium">Nenhum retorno agendado</p>
-                    </div>
+                    <Card>
+                      <CardContent className="py-8 text-center text-muted-foreground">
+                        Nenhum retorno agendado
+                      </CardContent>
+                    </Card>
                   )}
                   {patient.postOps?.map((postOp: any) => (
                     <Card key={postOp.id}>
@@ -780,10 +905,10 @@ const Patients = () => {
                           {postOp.status !== 'COMPLETED' && (
                             <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Marcar como Concluído" onClick={async () => {
                               try {
-                                await updatePostOpStatus({ variables: { id: postOp.id, status: 'COMPLETED' }});
+                                await updatePostOpStatus({ variables: { id: postOp.id, status: 'COMPLETED' } });
                                 toast.success("Pós-operatório concluído!");
                                 refetchPatient();
-                              } catch(e: any) { toast.error(e.message); }
+                              } catch (e: any) { toast.error(e.message); }
                             }}>
                               <Check className="h-4 w-4 text-green-500" />
                             </Button>
@@ -796,47 +921,48 @@ const Patients = () => {
 
                 <TabsContent value="history" className="mt-4 space-y-2">
                   {patient.auditLogs?.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
-                      <History className="h-10 w-10 mb-2 opacity-50" />
-                      <p className="text-sm font-medium">Nenhum registro de auditoria</p>
-                    </div>
+                    <Card>
+                      <CardContent className="py-8 text-center text-muted-foreground">
+                        Nenhum registro de auditoria
+                      </CardContent>
+                    </Card>
                   ) : (
-                    patient.auditLogs?.map((log: any) => (
-                      <Card key={log.id}>
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-3">
-                            <div className={cn(
-                              "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                              log.action === 'CREATED' ? "bg-green-500/20" : "bg-blue-500/20"
-                            )}>
-                              {log.action === 'CREATED' ? (
-                                <Plus className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <History className="h-4 w-4 text-blue-500" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-sm font-medium">
-                                  {auditActionLabels[log.action] || log.action}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm')}
-                                </span>
+                    patient.auditLogs?.map((log: any) => {
+                      const actionMeta = getAuditActionMeta(log.action);
+                      const ActionIcon = actionMeta.icon;
+                      return (
+                        <Card key={log.id}>
+                          <CardContent className="p-3">
+                            <div className="flex items-start gap-3">
+                              <div className={cn(
+                                "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                                actionMeta.containerClassName
+                              )}>
+                                <ActionIcon className={cn("h-4 w-4", actionMeta.iconClassName)} />
                               </div>
-                              {log.reason && (
-                                <p className="text-xs text-muted-foreground mb-1">{log.reason}</p>
-                              )}
-                              {log.newValue && (
-                                <p className="text-xs bg-muted p-2 rounded font-mono truncate">
-                                  {log.newValue.length > 100 ? log.newValue.substring(0, 100) + '...' : log.newValue}
-                                </p>
-                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-sm font-medium">
+                                    {getAuditMessage(log.action, patient.lead?.name)}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {format(new Date(log.createdAt), "dd/MM/yyyy HH:mm")}
+                                  </span>
+                                </div>
+                                {log.reason && (
+                                  <p className="text-xs text-muted-foreground mb-1">{log.reason}</p>
+                                )}
+                                {log.newValue && (
+                                  <p className="text-xs bg-muted p-2 rounded font-mono truncate">
+                                    {log.newValue.length > 100 ? log.newValue.substring(0, 100) + "..." : log.newValue}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
+                          </CardContent>
+                        </Card>
+                      );
+                    })
                   )}
                 </TabsContent>
               </Tabs>
@@ -863,22 +989,16 @@ const Patients = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Lead *</Label>
-              <Select value={createPatientForm.leadId} onValueChange={v => setCreatePatientForm(f => ({...f, leadId: v}))}>
+              <Select value={createPatientForm.leadId} onValueChange={v => setCreatePatientForm(f => ({ ...f, leadId: v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um lead" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableLeadsForConversion.length === 0 ? (
-                    <div className="p-4 text-sm text-center text-muted-foreground">
-                      Nenhum lead qualificado ou convertido disponível para conversão.
-                    </div>
-                  ) : (
-                    availableLeadsForConversion.map((lead: any) => (
-                      <SelectItem key={lead.id} value={lead.id}>
-                        {lead.name} - {lead.cpf || 'Sem CPF'}
-                      </SelectItem>
-                    ))
-                  )}
+                  {availableLeadsForConversion.map((lead: any) => (
+                    <SelectItem key={lead.id} value={lead.id}>
+                      {lead.name} - {lead.cpf}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -896,7 +1016,7 @@ const Patients = () => {
                     mode="single"
                     locale={ptBR}
                     selected={createPatientForm.dateOfBirth ? new Date(createPatientForm.dateOfBirth + 'T12:00:00') : undefined}
-                    onSelect={(date) => setCreatePatientForm(f => ({...f, dateOfBirth: date ? format(date, 'yyyy-MM-dd') : ""}))}
+                    onSelect={(date) => setCreatePatientForm(f => ({ ...f, dateOfBirth: date ? format(date, 'yyyy-MM-dd') : "" }))}
                     className="rounded-md"
                     initialFocus
                   />
@@ -905,15 +1025,15 @@ const Patients = () => {
             </div>
             <div className="space-y-2">
               <Label>Prontuário</Label>
-              <Input value={createPatientForm.medicalRecord} onChange={e => setCreatePatientForm(f => ({...f, medicalRecord: e.target.value}))} placeholder="Opcional" />
+              <Input value={createPatientForm.medicalRecord} onChange={e => setCreatePatientForm(f => ({ ...f, medicalRecord: e.target.value }))} placeholder="Opcional" />
             </div>
             <div className="space-y-2">
               <Label>Endereço</Label>
-              <Input value={createPatientForm.address} onChange={e => setCreatePatientForm(f => ({...f, address: e.target.value}))} placeholder="Opcional" />
+              <Input value={createPatientForm.address} onChange={e => setCreatePatientForm(f => ({ ...f, address: e.target.value }))} placeholder="Opcional" />
             </div>
             <div className="space-y-2">
               <Label>Sexo</Label>
-              <Select value={createPatientForm.sex} onValueChange={v => setCreatePatientForm(f => ({...f, sex: v}))}>
+              <Select value={createPatientForm.sex} onValueChange={v => setCreatePatientForm(f => ({ ...f, sex: v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
@@ -923,35 +1043,38 @@ const Patients = () => {
                   <SelectItem value="Outro">Outro</SelectItem>
                 </SelectContent>
               </Select>
+              {createSexMismatchWarning && (
+                <p className="text-xs text-amber-500">{createSexMismatchWarning}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Peso (kg)</Label>
-                <Input 
-                  type="number" 
-                  step="0.1" 
+                <Input
+                  type="number"
+                  step="0.1"
                   min="1"
                   max="300"
-                  value={createPatientForm.weight} 
-                  onChange={e => setCreatePatientForm(f => ({...f, weight: e.target.value}))} 
-                  placeholder="Ex: 70.5" 
+                  value={createPatientForm.weight}
+                  onChange={e => setCreatePatientForm(f => ({ ...f, weight: e.target.value }))}
+                  placeholder="Ex: 70.5"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Altura (cm)</Label>
-                <Input 
-                  type="number" 
+                <Input
+                  type="number"
                   min="50"
                   max="250"
-                  value={createPatientForm.height} 
-                  onChange={e => setCreatePatientForm(f => ({...f, height: e.target.value}))} 
-                  placeholder="Ex: 170" 
+                  value={createPatientForm.height}
+                  onChange={e => setCreatePatientForm(f => ({ ...f, height: e.target.value }))}
+                  placeholder="Ex: 170"
                 />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Como nos conheceu?</Label>
-              <Select value={createPatientForm.howMet} onValueChange={v => setCreatePatientForm(f => ({...f, howMet: v}))}>
+              <Select value={createPatientForm.howMet} onValueChange={v => setCreatePatientForm(f => ({ ...f, howMet: v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
@@ -997,7 +1120,7 @@ const Patients = () => {
                     mode="single"
                     locale={ptBR}
                     selected={editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth + 'T12:00:00') : undefined}
-                    onSelect={(date) => setEditPatientForm(f => ({...f, dateOfBirth: date ? format(date, 'yyyy-MM-dd') : ""}))}
+                    onSelect={(date) => setEditPatientForm(f => ({ ...f, dateOfBirth: date ? format(date, 'yyyy-MM-dd') : "" }))}
                     className="rounded-md"
                     initialFocus
                   />
@@ -1006,15 +1129,15 @@ const Patients = () => {
             </div>
             <div className="space-y-2">
               <Label>Prontuário</Label>
-              <Input value={editPatientForm.medicalRecord} onChange={e => setEditPatientForm(f => ({...f, medicalRecord: e.target.value}))} />
+              <Input value={editPatientForm.medicalRecord} onChange={e => setEditPatientForm(f => ({ ...f, medicalRecord: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>Endereço</Label>
-              <Input value={editPatientForm.address} onChange={e => setEditPatientForm(f => ({...f, address: e.target.value}))} />
+              <Input value={editPatientForm.address} onChange={e => setEditPatientForm(f => ({ ...f, address: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>Sexo</Label>
-              <Select value={editPatientForm.sex} onValueChange={v => setEditPatientForm(f => ({...f, sex: v}))}>
+              <Select value={editPatientForm.sex} onValueChange={v => setEditPatientForm(f => ({ ...f, sex: v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
@@ -1024,35 +1147,38 @@ const Patients = () => {
                   <SelectItem value="Outro">Outro</SelectItem>
                 </SelectContent>
               </Select>
+              {editSexMismatchWarning && (
+                <p className="text-xs text-amber-500">{editSexMismatchWarning}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Peso (kg)</Label>
-                <Input 
-                  type="number" 
-                  step="0.1" 
+                <Input
+                  type="number"
+                  step="0.1"
                   min="1"
                   max="300"
-                  value={editPatientForm.weight} 
-                  onChange={e => setEditPatientForm(f => ({...f, weight: e.target.value}))} 
-                  placeholder="Ex: 70.5" 
+                  value={editPatientForm.weight}
+                  onChange={e => setEditPatientForm(f => ({ ...f, weight: e.target.value }))}
+                  placeholder="Ex: 70.5"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Altura (cm)</Label>
-                <Input 
-                  type="number" 
+                <Input
+                  type="number"
                   min="50"
                   max="250"
-                  value={editPatientForm.height} 
-                  onChange={e => setEditPatientForm(f => ({...f, height: e.target.value}))} 
-                  placeholder="Ex: 170" 
+                  value={editPatientForm.height}
+                  onChange={e => setEditPatientForm(f => ({ ...f, height: e.target.value }))}
+                  placeholder="Ex: 170"
                 />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Como nos conheceu?</Label>
-              <Select value={editPatientForm.howMet} onValueChange={v => setEditPatientForm(f => ({...f, howMet: v}))}>
+              <Select value={editPatientForm.howMet} onValueChange={v => setEditPatientForm(f => ({ ...f, howMet: v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
@@ -1070,7 +1196,7 @@ const Patients = () => {
             </div>
             <div className="space-y-2">
               <Label>Motivo da alteração</Label>
-              <Input value={editPatientForm.reason} onChange={e => setEditPatientForm(f => ({...f, reason: e.target.value}))} placeholder="Opcional" />
+              <Input value={editPatientForm.reason} onChange={e => setEditPatientForm(f => ({ ...f, reason: e.target.value }))} placeholder="Opcional" />
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -1089,11 +1215,11 @@ const Patients = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Nome do Documento *</Label>
-              <Input value={newDocForm.name} onChange={e => setNewDocForm(f => ({...f, name: e.target.value}))} />
+              <Input value={newDocForm.name} onChange={e => setNewDocForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>Tipo *</Label>
-              <Select value={newDocForm.type} onValueChange={v => setNewDocForm(f => ({...f, type: v}))}>
+              <Select value={newDocForm.type} onValueChange={v => setNewDocForm(f => ({ ...f, type: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="CONTRACT">Contrato</SelectItem>
@@ -1105,7 +1231,7 @@ const Patients = () => {
             </div>
             <div className="space-y-2">
               <Label>Emissão *</Label>
-              <Input type="date" value={newDocForm.date} onChange={e => setNewDocForm(f => ({...f, date: e.target.value}))} />
+              <Input type="date" value={newDocForm.date} onChange={e => setNewDocForm(f => ({ ...f, date: e.target.value }))} />
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -1124,11 +1250,11 @@ const Patients = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Descrição *</Label>
-              <Input value={newPostOpForm.description} onChange={e => setNewPostOpForm(f => ({...f, description: e.target.value}))} />
+              <Input value={newPostOpForm.description} onChange={e => setNewPostOpForm(f => ({ ...f, description: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>Tipo *</Label>
-              <Select value={newPostOpForm.type} onValueChange={v => setNewPostOpForm(f => ({...f, type: v}))}>
+              <Select value={newPostOpForm.type} onValueChange={v => setNewPostOpForm(f => ({ ...f, type: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="RETURN">Retorno</SelectItem>
@@ -1138,7 +1264,28 @@ const Patients = () => {
             </div>
             <div className="space-y-2">
               <Label>Data Agendada *</Label>
-              <Input type="date" value={newPostOpForm.date} onChange={e => setNewPostOpForm(f => ({...f, date: e.target.value}))} />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {newPostOpForm.date
+                      ? format(new Date(newPostOpForm.date + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })
+                      : "Selecione a data"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 rounded-md border" align="start">
+                  <Calendar
+                    mode="single"
+                    locale={ptBR}
+                    selected={newPostOpForm.date ? new Date(newPostOpForm.date + "T12:00:00") : undefined}
+                    onSelect={(date) =>
+                      setNewPostOpForm((f) => ({ ...f, date: date ? format(date, "yyyy-MM-dd") : "" }))
+                    }
+                    className="rounded-md"
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div className="flex justify-end gap-2">
