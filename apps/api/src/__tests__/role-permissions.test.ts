@@ -58,7 +58,7 @@ describe('Role Permissions & Access Control', () => {
       const input = { id: 'lead-1', status: LeadStatus.CONVERTED };
 
       await expect(resolvers.Mutation.updateLeadStatus(null, { input }, context))
-        .rejects.toThrow('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
+        .rejects.toThrow('RN03_VIOLATION: Usuários do tipo RECEPTION não podem alterar status para CONVERTED.');
     });
 
     it('should block RECEPTION from changing lead status to LOST', async () => {
@@ -68,7 +68,7 @@ describe('Role Permissions & Access Control', () => {
       const input = { id: 'lead-1', status: LeadStatus.LOST };
 
       await expect(resolvers.Mutation.updateLeadStatus(null, { input }, context))
-        .rejects.toThrow('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
+        .rejects.toThrow('RN03_VIOLATION: Usuários do tipo RECEPTION não podem alterar status para LOST.');
     });
 
     it('should allow CALL_CENTER to change lead status to CONVERTED', async () => {

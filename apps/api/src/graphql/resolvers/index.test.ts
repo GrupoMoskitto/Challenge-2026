@@ -57,17 +57,15 @@ describe('RN06 - Audit Logs (updateLeadStatus)', () => {
     });
   });
 
-  it('should update the lead status but NOT create an audit log if user context is missing', async () => {
-    const mockLead = { id: 'lead-123', status: LeadStatus.NEW };
-    findUniqueSpy.mockResolvedValue(mockLead as any);
-    updateSpy.mockResolvedValue({ ...mockLead, status: LeadStatus.CONTACTED } as any);
-
+  it('should throw an authentication error if user context is missing', async () => {
     const input = { id: 'lead-123', status: LeadStatus.CONTACTED };
     const context: Context = {};
 
-    const result = await resolvers.Mutation.updateLeadStatus(null, { input }, context);
+    await expect(
+      resolvers.Mutation.updateLeadStatus(null, { input }, context)
+    ).rejects.toThrow('Usuário não autenticado');
 
-    expect(result.status).toBe(LeadStatus.CONTACTED);
+    expect(updateSpy).not.toHaveBeenCalled();
     expect(createAuditLogSpy).not.toHaveBeenCalled();
   });
 });
