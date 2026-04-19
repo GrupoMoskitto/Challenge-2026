@@ -415,7 +415,7 @@ Se `pnpm infra:dev` está rodando, a Evolution API já está ativa na porta `808
 
 **Via Manager UI (recomendado):**
 1. Acesse `http://localhost:8080/manager`
-2. Login com API Key: `***REMOVED***`
+2. Login com API Key: `<sua_chave_do_env>`
 3. Crie ou selecione a instância `crmed-whatsapp`
 4. Clique em **"Get QR Code"** e escaneie com o WhatsApp
 
