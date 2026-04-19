@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
+import { HistoricalDatePicker } from "@/components/ui/historical-date-picker";
 import {
   Popover,
   PopoverContent,
@@ -126,13 +127,15 @@ const getAuditMessage = (action?: string, patientName?: string | null) => {
 };
 
 const Patients = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(searchParams.get("patientId"));
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") || "");
   const [showFilters, setShowFilters] = useState(!!searchParams.get("status"));
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "contacts");
+  const [leadSearch, setLeadSearch] = useState("");
+  const [debouncedLeadSearch, setDebouncedLeadSearch] = useState("");
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -171,11 +174,24 @@ const Patients = () => {
   }, [debouncedSearch, statusFilter, selectedPatientId, activeTab, searchParams, setSearchParams]);
 
   useEffect(() => {
+    if (searchParams.get("create") === "true") {
+      setCreatePatientDialogOpen(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedLeadSearch(leadSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [leadSearch]);
 
   const { data: patientsData, previousData: prevPatientsData, loading: loadingPatients, error: patientsError, refetch: refetchPatients, fetchMore } = useQuery(GET_PATIENTS, {
     variables: {
@@ -239,10 +255,12 @@ const Patients = () => {
   // Keep previous patient visible while loading new one
   const effectivePatientData = patientData || prevPatientData;
 
-   const { data: leadsData } = useQuery(GET_LEADS, {
-     variables: {},
-     fetchPolicy: 'cache-first',
-   });
+    const { data: leadsData } = useQuery(GET_LEADS, {
+      variables: {
+        search: debouncedLeadSearch,
+      },
+      fetchPolicy: 'cache-first',
+    });
 
   const [updatePatient, { loading: updatingPatient }] = useMutation(UPDATE_PATIENT);
   const [createPatient, { loading: creatingPatient }] = useMutation(CREATE_PATIENT);
@@ -267,28 +285,32 @@ const Patients = () => {
   const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
 
-  const [newPostOpDialogOpen, setNewPostOpDialogOpen] = useState(false);
-  const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
+   const [newPostOpDialogOpen, setNewPostOpDialogOpen] = useState(false);
+   const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
 
-  const [createPatientDialogOpen, setCreatePatientDialogOpen] = useState(false);
-  const [createPatientForm, setCreatePatientForm] = useState({
-    leadId: "",
-    dateOfBirth: "",
-    medicalRecord: "",
-    address: "",
-    sex: "",
-    weight: "",
-    height: "",
-    howMet: ""
-  });
+   const [createPatientDialogOpen, setCreatePatientDialogOpen] = useState(!!searchParams.get("create"));
+   const [createPatientForm, setCreatePatientForm] = useState({
+     leadId: "",
+     dateOfBirth: "",
+     medicalRecord: "",
+     address: "",
+     sex: "",
+     weight: "",
+     height: "",
+     howMet: ""
+   });
 
   const patients = effectivePatientsData?.patients?.edges?.map((e: any) => e.node) || [];
   const patient = effectivePatientData?.patient;
    const allLeads = leadsData?.leads?.edges?.map((e: any) => e.node) || [];
    // Show leads that are NOT converted and don't have a patient yet (for conversion)
-   const availableLeadsForConversion = allLeads.filter((lead: any) => 
-     lead.status !== 'CONVERTED' && !lead.patient
-   );
+   const availableLeadsForConversion = allLeads
+      .filter((lead: any) => 
+        lead.status !== 'CONVERTED' && !lead.patient
+      )
+      .sort((a: any, b: any) => 
+        a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })
+      );
   const hasActiveFilters = !!statusFilter;
   const sexMismatchWarning = useMemo(
     () => getSexMismatchWarning(patient?.lead?.name, patient?.sex),
@@ -987,7 +1009,14 @@ const Patients = () => {
       </div>
 
       {/* Create Patient Dialog */}
-      <Dialog open={createPatientDialogOpen} onOpenChange={setCreatePatientDialogOpen}>
+      <Dialog open={createPatientDialogOpen} onOpenChange={(open) => {
+        setCreatePatientDialogOpen(open);
+        if (!open) {
+          const newParams = new URLSearchParams(searchParams);
+          newParams.delete("create");
+          setSearchParams(newParams, { replace: true });
+        }
+      }}>
         <DialogContent>
            <DialogHeader>
              <DialogTitle>Converter Lead em Paciente</DialogTitle>
@@ -996,41 +1025,36 @@ const Patients = () => {
              </DialogDescription>
            </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Lead *</Label>
-              <Select value={createPatientForm.leadId} onValueChange={v => setCreatePatientForm(f => ({ ...f, leadId: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um lead" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableLeadsForConversion.map((lead: any) => (
-                    <SelectItem key={lead.id} value={lead.id}>
-                      {lead.name} - {lead.cpf}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+             <div className="space-y-2">
+               <Label>Lead *</Label>
+               <Input
+                 value={leadSearch}
+                 onChange={(e) => setLeadSearch(e.target.value)}
+                 placeholder="Buscar lead por nome..."
+               />
+               <Select value={createPatientForm.leadId} onValueChange={v => setCreatePatientForm(f => ({ ...f, leadId: v }))}>
+                 <SelectTrigger>
+                   <SelectValue placeholder="Selecione um lead" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   {availableLeadsForConversion.map((lead: any) => (
+                     <SelectItem key={lead.id} value={lead.id}>
+                       {lead.name} - {lead.cpf}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+             </div>
             <div className="space-y-2">
               <Label>Data de Nascimento *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {createPatientForm.dateOfBirth ? format(new Date(createPatientForm.dateOfBirth + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : "Selecione a data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 rounded-md border" align="start">
-                  <Calendar
-                    mode="single"
-                    locale={ptBR}
-                    selected={createPatientForm.dateOfBirth ? new Date(createPatientForm.dateOfBirth + 'T12:00:00') : undefined}
-                    onSelect={(date) => setCreatePatientForm(f => ({ ...f, dateOfBirth: date ? format(date, 'yyyy-MM-dd') : "" }))}
-                    className="rounded-md"
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <HistoricalDatePicker
+                value={createPatientForm.dateOfBirth}
+                onChange={(iso) => setCreatePatientForm(f => ({ ...f, dateOfBirth: iso }))}
+                minYear={1900}
+                maxYear={new Date().getFullYear()}
+                locale={ptBR}
+                placeholder="Selecione a data"
+              />
             </div>
             <div className="space-y-2">
               <Label>Prontuário</Label>
@@ -1117,24 +1141,14 @@ const Patients = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Data de Nascimento</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {editPatientForm.dateOfBirth ? format(new Date(editPatientForm.dateOfBirth + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : "Selecione a data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 rounded-md border" align="start">
-                  <Calendar
-                    mode="single"
-                    locale={ptBR}
-                    selected={editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth + 'T12:00:00') : undefined}
-                    onSelect={(date) => setEditPatientForm(f => ({ ...f, dateOfBirth: date ? format(date, 'yyyy-MM-dd') : "" }))}
-                    className="rounded-md"
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <HistoricalDatePicker
+                value={editPatientForm.dateOfBirth}
+                onChange={(iso) => setEditPatientForm(f => ({ ...f, dateOfBirth: iso }))}
+                minYear={1900}
+                maxYear={new Date().getFullYear()}
+                locale={ptBR}
+                placeholder="Selecione a data"
+              />
             </div>
             <div className="space-y-2">
               <Label>Prontuário</Label>
@@ -1240,7 +1254,14 @@ const Patients = () => {
             </div>
             <div className="space-y-2">
               <Label>Emissão *</Label>
-              <Input type="date" value={newDocForm.date} onChange={e => setNewDocForm(f => ({ ...f, date: e.target.value }))} />
+              <HistoricalDatePicker
+                value={newDocForm.date}
+                onChange={(iso) => setNewDocForm(f => ({ ...f, date: iso }))}
+                minYear={1900}
+                maxYear={new Date().getFullYear()}
+                locale={ptBR}
+                placeholder="Selecione a data"
+              />
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -1283,16 +1304,16 @@ const Patients = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 rounded-md border" align="start">
-                  <Calendar
-                    mode="single"
-                    locale={ptBR}
-                    selected={newPostOpForm.date ? new Date(newPostOpForm.date + "T12:00:00") : undefined}
-                    onSelect={(date) =>
-                      setNewPostOpForm((f) => ({ ...f, date: date ? format(date, "yyyy-MM-dd") : "" }))
-                    }
-                    className="rounded-md"
-                    initialFocus
-                  />
+                    <Calendar
+                      mode="single"
+                      locale={ptBR}
+                      selected={newPostOpForm.date ? new Date(newPostOpForm.date + "T12:00:00") : undefined}
+                      onSelect={(date) =>
+                        setNewPostOpForm((f) => ({ ...f, date: date ? format(date, "yyyy-MM-dd") : "" }))
+                      }
+                      className="rounded-md"
+                      initialFocus
+                    />
                 </PopoverContent>
               </Popover>
             </div>

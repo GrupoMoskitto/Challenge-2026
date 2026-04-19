@@ -338,13 +338,17 @@ const Agenda = () => {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={dateObj}
-                onSelect={handleDateSelect}
-                locale={ptBR}
-                className="rounded-md"
-              />
+               <Calendar
+                 mode="single"
+                 selected={dateObj}
+                 onSelect={handleDateSelect}
+                 locale={ptBR}
+                 className="rounded-md"
+                 
+                 
+                 
+                 
+               />
             </PopoverContent>
           </Popover>
           
@@ -457,17 +461,21 @@ const Agenda = () => {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedSlot?.date ? parse(selectedSlot.date, 'yyyy-MM-dd', new Date()) : undefined}
-                      onSelect={(date) => {
-                        if (date) {
-                          setSelectedSlot((prev: any) => ({ ...prev, date: format(date, 'yyyy-MM-dd') }));
-                        }
-                      }}
-                      locale={ptBR}
-                      className="rounded-md"
-                    />
+                     <Calendar
+                       mode="single"
+                       selected={selectedSlot?.date ? parse(selectedSlot.date, 'yyyy-MM-dd', new Date()) : undefined}
+                       onSelect={(date) => {
+                         if (date) {
+                           setSelectedSlot((prev: any) => ({ ...prev, date: format(date, 'yyyy-MM-dd') }));
+                         }
+                       }}
+                       locale={ptBR}
+                       className="rounded-md"
+                       
+                       
+                       
+                       
+                     />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -657,18 +665,22 @@ const Agenda = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={newConsultDate}
-                    onSelect={(date) => {
-                      if (date) {
-                        setNewConsultDate(date);
-                        setNewConsultCalendarOpen(false);
-                      }
-                    }}
-                    locale={ptBR}
-                    className="rounded-md"
-                  />
+                    <Calendar
+                      mode="single"
+                      selected={newConsultDate}
+                      onSelect={(date) => {
+                        if (date) {
+                          setNewConsultDate(date);
+                          setNewConsultCalendarOpen(false);
+                        }
+                      }}
+                      locale={ptBR}
+                      className="rounded-md"
+                      
+                      
+                      
+                      
+                    />
                 </PopoverContent>
               </Popover>
             </div>

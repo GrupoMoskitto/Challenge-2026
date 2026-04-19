@@ -1873,12 +1873,14 @@ export const resolvers = {
         })
       });
 
-      if (!response.ok) {
-        let errorBody: Record<string, unknown> = {};
-        try {
-          errorBody = (await response.json()) as Record<string, unknown>;
-        } catch (_e) {}
-        console.error("Evolution API Error:", errorBody);
+       if (!response.ok) {
+         let errorBody: Record<string, unknown> = {};
+         try {
+           errorBody = (await response.json()) as Record<string, unknown>;
+         } catch (_e) {
+           // Intentional empty catch - errorBody remains empty if JSON parsing fails
+         }
+         console.error("Evolution API Error:", errorBody);
 
         // Extract message from typical Evolution API error structures
         const nested = errorBody.response as Record<string, unknown> | undefined;

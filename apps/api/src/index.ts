@@ -13,7 +13,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import { getSecurityPlugins, getIntrospectionConfig } from './config/graphql-security';
 import { logger } from './config/logger';
@@ -83,9 +83,7 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   store: createRedisStore(),
   message: 'Muitas tentativas de login. Tente novamente em 15 minutos.',
-  keyGenerator: (req) => {
-    return req.ip || req.socket.remoteAddress || 'unknown';
-  },
+  keyGenerator: (req) => ipKeyGenerator(req),
 });
 
 // Apply rate limiting

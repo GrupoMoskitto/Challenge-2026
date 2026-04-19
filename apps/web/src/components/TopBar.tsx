@@ -176,7 +176,10 @@ export function TopBar({ title }: TopBarProps) {
 
         <div className="flex items-center gap-4">
           {/* New Patient Button (Primary Action) */}
-          <button className="hidden md:flex bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium items-center gap-1.5 px-4 py-2 text-sm whitespace-nowrap transition-colors flex-shrink-0">
+          <button 
+            onClick={() => navigate('/patients?create=true')}
+            className="hidden md:flex bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium items-center gap-1.5 px-4 py-2 text-sm whitespace-nowrap transition-colors flex-shrink-0"
+          >
             <Plus className="h-4 w-4" />
             Novo Paciente
           </button>
