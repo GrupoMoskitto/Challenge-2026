@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,7 +120,7 @@ const Settings = () => {
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
-  const availableTabs = ["profile", ...(isAdmin ? ["integrations", "users", "templates"] : [])];
+  const availableTabs = React.useMemo(() => ["profile", ...(isAdmin ? ["integrations", "users", "templates"] : [])], [isAdmin]);
   const defaultTab = isAdmin ? "profile" : "profile";
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || defaultTab);
 
@@ -129,7 +129,7 @@ const Settings = () => {
     if (tab && availableTabs.includes(tab)) {
       setActiveTab(tab);
     }
-  }, [searchParams]);
+  }, [searchParams, availableTabs]);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
