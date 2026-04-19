@@ -13,7 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, Search, Phone, MessageCircle, Mail, FileText, Check, X, Clock, User, Pencil, Plus, ChevronLeft, ChevronRight, Filter, History, XCircle, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Phone, MessageCircle, Mail, FileText, Check, X, Clock, User, Pencil, Plus, ChevronLeft, ChevronRight, Filter, History, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_PATIENTS,
@@ -239,10 +239,10 @@ const Patients = () => {
   // Keep previous patient visible while loading new one
   const effectivePatientData = patientData || prevPatientData;
 
-  const { data: leadsData } = useQuery(GET_LEADS, {
-    variables: { status: 'CONVERTED' },
-    fetchPolicy: 'cache-first',
-  });
+   const { data: leadsData } = useQuery(GET_LEADS, {
+     variables: {},
+     fetchPolicy: 'cache-first',
+   });
 
   const [updatePatient, { loading: updatingPatient }] = useMutation(UPDATE_PATIENT);
   const [createPatient, { loading: creatingPatient }] = useMutation(CREATE_PATIENT);
@@ -284,8 +284,11 @@ const Patients = () => {
 
   const patients = effectivePatientsData?.patients?.edges?.map((e: any) => e.node) || [];
   const patient = effectivePatientData?.patient;
-  const convertedLeads = leadsData?.leads?.edges?.map((e: any) => e.node) || [];
-  const availableLeadsForConversion = convertedLeads.filter((lead: any) => !lead.patient);
+   const allLeads = leadsData?.leads?.edges?.map((e: any) => e.node) || [];
+   // Show leads that are NOT converted and don't have a patient yet (for conversion)
+   const availableLeadsForConversion = allLeads.filter((lead: any) => 
+     lead.status !== 'CONVERTED' && !lead.patient
+   );
   const hasActiveFilters = !!statusFilter;
   const sexMismatchWarning = useMemo(
     () => getSexMismatchWarning(patient?.lead?.name, patient?.sex),
@@ -509,34 +512,34 @@ const Patients = () => {
       <div className="flex gap-6">
         {/* Patient List */}
         <div className="w-1/3 space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar paciente..."
-                value={search}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-9 pr-9"
-              />
-              {isSearching && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
-              )}
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setShowFilters(!showFilters)}
-              className={cn("relative", hasActiveFilters && "border-primary")}
-              aria-label={hasActiveFilters ? "Filtros ativos" : "Abrir filtros"}
-            >
-              <Filter className="h-4 w-4" />
-              {hasActiveFilters && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
-            </Button>
-            <Button size="sm" onClick={() => setCreatePatientDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Novo
-            </Button>
-          </div>
+           <div className="flex items-center justify-between gap-2">
+             <div className="relative flex-1">
+               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+               <Input
+                 placeholder="Buscar paciente..."
+                 value={search}
+                 onChange={(e) => handleSearchChange(e.target.value)}
+                 className="pl-9 pr-9"
+               />
+               {isSearching && (
+                 <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+               )}
+             </div>
+             <Button
+               variant="outline"
+               size="icon"
+               onClick={() => setShowFilters(!showFilters)}
+               className={cn("relative", hasActiveFilters && "border-primary")}
+               aria-label={hasActiveFilters ? "Filtros ativos" : "Abrir filtros"}
+             >
+               <Filter className="h-4 w-4" />
+               {hasActiveFilters && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
+             </Button>
+             <Button size="sm" onClick={() => setCreatePatientDialogOpen(true)} className="ml-2">
+               <Plus className="h-4 w-4 mr-1" />
+               Novo
+             </Button>
+           </div>
 
           {showFilters && (
             <Card className="p-3">
@@ -636,11 +639,13 @@ const Patients = () => {
                           <div className={cn("w-2 h-2 rounded-full", statusColors[p.lead?.status] || "bg-gray-400")} title={statusLabels[p.lead?.status]} />
                         </div>
                         <p className="text-xs text-muted-foreground truncate" title={p.lead?.phone}>{p.lead?.phone}</p>
-                        {p.bmi && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate" title={`IMC: ${p.bmi} • ${p.weight}kg • ${p.height}cm`}>
-                            IMC: {p.bmi} • {p.weight}kg • {p.height}cm
-                          </p>
-                        )}
+                         {p.bmi && (
+                           <div className="flex flex-wrap gap-2 mt-1">
+                             <span className="bg-primary/20 text-primary px-2 py-0.5 rounded text-xs">IMC: {p.bmi}</span>
+                             <span className="bg-primary/20 text-primary px-2 py-0.5 rounded text-xs">{p.weight}kg</span>
+                             <span className="bg-primary/20 text-primary px-2 py-0.5 rounded text-xs">{p.height}cm</span>
+                           </div>
+                         )}
                       </div>
                     </div>
                   </CardContent>
@@ -720,22 +725,26 @@ const Patients = () => {
                   </Button>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="h-14 w-14 rounded-full bg-primary/20 flex items-center justify-center">
-                      <span className="text-lg font-bold text-primary">
-                        {patient.lead?.name?.split(" ").map((n: string) => n[0]).slice(0, 2).join("")}
-                      </span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-lg break-words" title={patient.lead?.name}>{patient.lead?.name}</p>
-                      <p className="text-sm text-muted-foreground">CPF: {patient.lead?.cpf}</p>
-                    </div>
-                  </div>
-                  {sexMismatchWarning && (
-                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                      {sexMismatchWarning}
-                    </div>
-                  )}
+                   <div className="flex items-center gap-3 mb-4">
+                     <div className="h-14 w-14 rounded-full bg-primary/20 flex items-center justify-center">
+                       <span className="text-lg font-bold text-primary">
+                         {patient.lead?.name?.split(" ").map((n: string) => n[0]).slice(0, 2).join("")}
+                       </span>
+                     </div>
+                     <div className="min-w-0">
+                       <p className="font-semibold text-lg break-words" title={patient.lead?.name}>{patient.lead?.name}</p>
+                       <div className="flex items-center gap-2 mt-1">
+                         <span className="text-xs text-muted-foreground">CPF</span>
+                         <p className="font-mono text-xs letter-spacing-wide">{patient.lead?.cpf}</p>
+                       </div>
+                     </div>
+                   </div>
+                   {sexMismatchWarning && (
+                     <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                       <AlertTriangle className="h-4 w-4 text-amber-400" />
+                       <span>{sexMismatchWarning}</span>
+                     </div>
+                   )}
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-muted-foreground">Telefone</span>
@@ -980,12 +989,12 @@ const Patients = () => {
       {/* Create Patient Dialog */}
       <Dialog open={createPatientDialogOpen} onOpenChange={setCreatePatientDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Converter Lead em Paciente</DialogTitle>
-            <DialogDescription>
-              Selecione um lead convertido para criar o registro de paciente.
-            </DialogDescription>
-          </DialogHeader>
+           <DialogHeader>
+             <DialogTitle>Converter Lead em Paciente</DialogTitle>
+             <DialogDescription>
+               Selecione um lead não convertido para criar o registro de paciente.
+             </DialogDescription>
+           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Lead *</Label>

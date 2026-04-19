@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck } from "lucide-react";
+import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import { useQuery, useMutation, gql } from "@apollo/client";
 import { MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_READ } from "@/lib/queries";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface TopBarProps {
   title: string;
@@ -173,71 +174,76 @@ export function TopBar({ title }: TopBarProps) {
     <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6 shrink-0">
       <h1 className="text-lg font-semibold text-foreground">{title}</h1>
 
-      <div className="flex items-center gap-4">
-        {/* Search */}
-        <div className="relative hidden md:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar paciente, CPF, telefone..."
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            onFocus={() => debouncedSearch.length >= 2 && setShowSearchResults(true)}
-            onBlur={() => setTimeout(() => setShowSearchResults(false), 300)}
-            className="pl-9 pr-8 w-72 h-9 bg-background"
-          />
-          {searchQuery && (
-            <button
-              onClick={clearSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-          {showSearchResults && (
-            <div className="absolute top-full mt-1 w-80 bg-background border rounded-md shadow-lg z-50 max-h-80 overflow-auto">
-              {searchLoading ? (
-                <div className="p-3 text-sm text-muted-foreground">Buscando...</div>
-              ) : searchResults.leads.length === 0 && searchResults.patients.length === 0 ? (
-                <div className="p-3 text-sm text-muted-foreground">Nenhum resultado encontrado</div>
-              ) : (
-                <>
-                  {searchResults.leads.length > 0 && (
-                    <div className="p-2">
-                      <div className="text-xs font-medium text-muted-foreground px-2 py-1">Leads</div>
-                      {searchResults.leads.map((lead: any) => (
-                        <div
-                          key={lead.id}
-                          className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleResultClick('lead')}
-                        >
-                          <div className="text-sm font-medium">{lead.name}</div>
-                          <div className="text-xs text-muted-foreground">{lead.phone} • {lead.cpf}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {searchResults.patients.length > 0 && (
-                    <div className="p-2 border-t">
-                      <div className="text-xs font-medium text-muted-foreground px-2 py-1">Pacientes</div>
-                      {searchResults.patients.map((patient: any) => (
-                        <div
-                          key={patient.id}
-                          className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleResultClick('patient')}
-                        >
-                          <div className="text-sm font-medium">{patient.lead?.name}</div>
-                          <div className="text-xs text-muted-foreground">{patient.lead?.phone} • {patient.lead?.cpf}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        <div className="flex items-center gap-4">
+          {/* New Patient Button (Primary Action) */}
+          <button className="hidden md:flex bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium items-center gap-1.5 px-4 py-2 text-sm whitespace-nowrap transition-colors flex-shrink-0">
+            <Plus className="h-4 w-4" />
+            Novo Paciente
+          </button>
+          {/* Search */}
+          <div className="flex-1 relative hidden md:block">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar paciente, CPF, telefone..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              onFocus={() => debouncedSearch.length >= 2 && setShowSearchResults(true)}
+              onBlur={() => setTimeout(() => setShowSearchResults(false), 300)}
+              className="pl-9 pr-8 w-full h-9 bg-background"
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            {showSearchResults && (
+              <div className="absolute top-full mt-1 w-80 bg-background border rounded-md shadow-lg z-50 max-h-80 overflow-auto">
+                {searchLoading ? (
+                  <div className="p-3 text-sm text-muted-foreground">Buscando...</div>
+                ) : searchResults.leads.length === 0 && searchResults.patients.length === 0 ? (
+                  <div className="p-3 text-sm text-muted-foreground">Nenhum resultado encontrado</div>
+                ) : (
+                  <>
+                    {searchResults.leads.length > 0 && (
+                      <div className="p-2">
+                        <div className="text-xs font-medium text-muted-foreground px-2 py-1">Leads</div>
+                        {searchResults.leads.map((lead: any) => (
+                          <div
+                            key={lead.id}
+                            className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleResultClick('lead')}
+                          >
+                            <div className="text-sm font-medium">{lead.name}</div>
+                            <div className="text-xs text-muted-foreground">{lead.phone} • {lead.cpf}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {searchResults.patients.length > 0 && (
+                      <div className="p-2 border-t">
+                        <div className="text-xs font-medium text-muted-foreground px-2 py-1">Pacientes</div>
+                        {searchResults.patients.map((patient: any) => (
+                          <div
+                            key={patient.id}
+                            className="px-2 py-2 hover:bg-accent rounded cursor-pointer"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleResultClick('patient')}
+                          >
+                            <div className="text-sm font-medium">{patient.lead?.name}</div>
+                            <div className="text-xs text-muted-foreground">{patient.lead?.phone} • {patient.lead?.cpf}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
 
         {/* Notifications */}
         <DropdownMenu>
