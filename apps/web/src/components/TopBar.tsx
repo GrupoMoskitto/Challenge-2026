@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
-import { removeAuthToken } from "@/lib/apollo";
+import { serverLogout } from "@/lib/apollo";
 import { useQuery, useMutation, gql } from "@apollo/client";
 import { MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_READ } from "@/lib/queries";
 import { format } from "date-fns";
@@ -152,8 +152,8 @@ export function TopBar({ title }: TopBarProps) {
     }
   };
 
-  const handleLogout = () => {
-    removeAuthToken();
+  const handleLogout = async () => {
+    await serverLogout();
     localStorage.removeItem('user');
     navigate('/login');
   };

@@ -17,6 +17,8 @@ const LOGIN_MUTATION = gql`
         name
         email
         role
+        isActive
+        createdAt
       }
     }
   }
@@ -31,6 +33,8 @@ interface LoginResponse {
       name: string;
       email: string;
       role: string;
+      isActive: boolean;
+      createdAt: string;
     };
   };
 }
@@ -81,7 +85,8 @@ export default function Login() {
   
   const [loginMutation, { loading }] = useMutation<LoginResponse>(LOGIN_MUTATION, {
     onCompleted: (data) => {
-      authLogin(data.login.token, data.login.refreshToken, data.login.user);
+      // Tokens are set as HTTP-Only cookies by the server — we only store user data
+      authLogin(data.login.user);
       setAttempts(0);
       navigate('/');
     },

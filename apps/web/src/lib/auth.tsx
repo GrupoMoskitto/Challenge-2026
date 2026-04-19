@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { gql, useQuery } from '@apollo/client';
+import { serverLogout } from './apollo';
 
 export interface User {
   id: string;
@@ -14,7 +15,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   refetch: () => void;
-  login: (token: string, refreshToken: string, userData: User) => void;
+  login: (userData: User) => void;
   logout: () => void;
 }
 
@@ -46,10 +47,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return stored ? JSON.parse(stored) : null;
   });
 
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('auth_token');
+  // We always try to fetch the current user — cookies are sent automatically
+  const hasStoredUser = typeof window !== 'undefined' && !!localStorage.getItem('user');
   
   const { data, loading, error, refetch } = useQuery<{ me: User }>(GET_ME, {
-    skip: !hasToken,
+    skip: !hasStoredUser,
     fetchPolicy: 'network-only',
   });
 
@@ -58,54 +60,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(data.me);
       localStorage.setItem('user', JSON.stringify(data.me));
     } else if (data && !data.me) {
-      // User null - invalid token
+      // User null - invalid/expired session
       setUser(null);
       localStorage.removeItem('user');
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('refresh_token');
     }
   }, [data]);
 
-  // Clean up stale auth when GetMe fails (e.g. after server restart with old tokens)
+  // Clean up stale auth when GetMe fails
   useEffect(() => {
-    if (error && hasToken) {
+    if (error && hasStoredUser) {
       const isAuthError = error.graphQLErrors?.some(
         (e) => e.extensions?.code === 'UNAUTHENTICATED' || e.message.includes('não autenticado')
       ) || error.networkError;
       if (isAuthError) {
         setUser(null);
         localStorage.removeItem('user');
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('refresh_token');
       }
     }
-  }, [error, hasToken]);
+  }, [error, hasStoredUser]);
 
-  // Clear user if no token
+  // Clear user if no stored user data
   useEffect(() => {
-    if (!hasToken) {
+    if (!hasStoredUser) {
       setUser(null);
-      localStorage.removeItem('user');
     }
-  }, [hasToken]);
+  }, [hasStoredUser]);
 
-  const login = (token: string, refreshToken: string, userData: User) => {
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('refresh_token', refreshToken);
+  /**
+   * Called after a successful login mutation.
+   * Tokens are set as HTTP-Only cookies by the server — we only store the user data.
+   */
+  const login = (userData: User) => {
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
   };
 
-  const logout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
+  /**
+   * Logout: calls the server to clear HTTP-Only cookies, then clears local state.
+   */
+  const logout = async () => {
+    await serverLogout();
     setUser(null);
   };
 
   const value: AuthContextType = {
     user,
-    loading: hasToken && !user && loading,
+    loading: hasStoredUser && !user && loading,
     refetch,
     login,
     logout,

@@ -2,8 +2,10 @@ import { prisma, checkUniqueness } from '@crmed/database';
 import { LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel, BudgetStatus, ComplaintStatus } from '@prisma/client';
 import { format, subDays } from 'date-fns';
 import { DateTimeScalar, IDScalar } from '../scalars';
-import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit } from '../../auth';
+import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit, COOKIE_OPTIONS, isTokenRevoked, revokeUserTokens, clearTokenRevocation } from '../../auth';
 import { dispatchLeadWelcome, dispatchLeadFollowup } from '../../services/whatsappQueue';
+import { assertAuthenticated, assertRole, enforceStatusChange, validateEnum } from '../../config/rbac';
+import { logger } from '../../config/logger';
 
 const encodeBase64 = (id: string): string => {
   return Buffer.from(id).toString('base64url');
@@ -15,6 +17,7 @@ export interface Context {
     email: string;
     role: string;
   };
+  res?: import('express').Response;
 }
 
 const surgeonCache = new WeakMap<Context, string | null>();
@@ -197,7 +200,8 @@ export const resolvers = {
         totalCount,
       };
     },
-    lead: async (_: unknown, { id }: { id: string }) => {
+    lead: async (_: unknown, { id }: { id: string }, context: Context) => {
+      assertAuthenticated(context);
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       return prisma.lead.findUnique({ 
         where: { id: decodedId },
@@ -835,7 +839,7 @@ export const resolvers = {
   Mutation: {
     login: async (_: unknown, { input }: { input: { email: string; password: string } }, context: Context) => {
       // Rate limiting - use IP from context or default
-      const clientIp = (context as any)?.ip || 'default-ip';
+      const clientIp = (context as Record<string, unknown>)?.ip as string || 'default-ip';
       if (!checkRateLimit(clientIp)) {
         throw new Error('Muitas tentativas de login. Tente novamente em 15 minutos.');
       }
@@ -856,28 +860,45 @@ export const resolvers = {
       if (!user.isActive) {
         throw new Error('Usuário inativo');
       }
+
+      // Check if user tokens were revoked (admin deactivated then reactivated)
+      const revoked = await isTokenRevoked(user.id);
+      if (revoked) {
+        // Clear revocation on successful login
+        await clearTokenRevocation(user.id);
+      }
       
       // Reset rate limit on successful login
       resetRateLimit(clientIp);
       
-      const token = generateToken({
+      const payload = {
         userId: user.id,
         email: user.email,
         role: user.role,
-      });
+      };
+
+      const token = generateToken(payload);
+      const refreshTokenValue = generateRefreshToken(payload);
+
+      // Set HTTP-Only cookies if response object is available
+      if (context.res) {
+        context.res.cookie('access_token', token, COOKIE_OPTIONS.ACCESS_TOKEN);
+        context.res.cookie('refresh_token', refreshTokenValue, COOKIE_OPTIONS.REFRESH_TOKEN);
+      }
       
-      const refreshToken = generateRefreshToken({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      });
-      
-      return { token, refreshToken, user };
+      // Return tokens in body for backward compatibility with existing clients
+      return { token, refreshToken: refreshTokenValue, user };
     },
-    refreshToken: async (_: unknown, { token }: { token: string }) => {
+    refreshToken: async (_: unknown, { token }: { token: string }, context: Context) => {
       const decoded = verifyRefreshToken(token);
       if (!decoded) {
         throw new Error('Refresh token inválido');
+      }
+
+      // Check token blacklist
+      const revoked = await isTokenRevoked(decoded.userId);
+      if (revoked) {
+        throw new Error('Sessão revogada. Faça login novamente.');
       }
       
       const user = await prisma.user.findUnique({
@@ -888,17 +909,20 @@ export const resolvers = {
         throw new Error('Usuário não encontrado ou inativo');
       }
       
-      const newToken = generateToken({
+      const payload = {
         userId: user.id,
         email: user.email,
         role: user.role,
-      });
-      
-      const newRefreshToken = generateRefreshToken({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      });
+      };
+
+      const newToken = generateToken(payload);
+      const newRefreshToken = generateRefreshToken(payload);
+
+      // Set HTTP-Only cookies if response available
+      if (context.res) {
+        context.res.cookie('access_token', newToken, COOKIE_OPTIONS.ACCESS_TOKEN);
+        context.res.cookie('refresh_token', newRefreshToken, COOKIE_OPTIONS.REFRESH_TOKEN);
+      }
       
       return { token: newToken, refreshToken: newRefreshToken };
     },
@@ -914,7 +938,8 @@ export const resolvers = {
       preferredDoctor?: string;
       whatsappActive?: boolean;
       notes?: string;
-    }}) => {
+    }}, context: Context) => {
+      assertAuthenticated(context);
       await checkUniqueness({ cpf: input.cpf, email: input.email, phone: input.phone });
 
       // Validate preferredDoctor if provided
@@ -949,13 +974,12 @@ export const resolvers = {
       status: LeadStatus;
       reason?: string;
     }}, context: Context) => {
-      // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
-      const criticalStatuses: LeadStatus[] = [LeadStatus.CONVERTED, LeadStatus.LOST];
-      if (criticalStatuses.includes(input.status) && !context.user) {
-        throw new Error('RN03_VIOLATION: Usuário não autenticado não pode converter ou perder leads');
-      }
+      // Auth + RBAC check first — no anonymous status changes
+      assertAuthenticated(context);
+
+      // Server-side enum validation — never trust client input
+      validateEnum(input.status, LeadStatus, 'LeadStatus');
       
-      // ID já vem como texto puro do frontend
       const leadId = input.id;
       
       const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
@@ -963,32 +987,24 @@ export const resolvers = {
         throw new Error('Lead não encontrado');
       }
 
-      // RN03: Restrição de Hierarquia para Mudanças de Status Críticos
-      if (
-        criticalStatuses.includes(input.status) &&
-        context.user?.role === 'RECEPTION'
-      ) {
-        throw new Error('RN03_VIOLATION: Usuários do tipo RECEPTION não podem converter ou perder leads.');
-      }
+      // RN03 + RN06: Centralized status change enforcement
+      await enforceStatusChange({
+        context,
+        entityType: 'Lead',
+        entityId: leadId,
+        oldStatus: currentLead.status,
+        newStatus: input.status,
+        blockedRoles: ['RECEPTION'],
+        criticalStatuses: ['CONVERTED', 'LOST'],
+        reason: input.reason,
+      });
 
       const updatedLead = await prisma.lead.update({
         where: { id: leadId },
         data: { status: input.status },
       });
 
-      if (context.user?.userId) {
-        await prisma.auditLog.create({
-          data: {
-            entityType: 'Lead',
-            entityId: leadId,
-            action: 'STATUS_CHANGE',
-            oldValue: currentLead.status,
-            newValue: input.status,
-            reason: input.reason || 'Alteração de status',
-            userId: context.user.userId,
-          },
-        });
-      }
+      // Note: AuditLog is already created by enforceStatusChange above (RN06)
 
       // Trigger Follow up logic if changed to CONTACTED
       if (input.status === LeadStatus.CONTACTED && currentLead.status === LeadStatus.NEW) {
@@ -1429,7 +1445,10 @@ export const resolvers = {
       crm: string;
       email: string;
       phone: string;
-    }}) => {
+    }}, context: Context) => {
+      assertAuthenticated(context);
+      assertRole(context, ['ADMIN'], 'criação de cirurgião');
+
       const existing = await prisma.surgeon.findFirst({
         where: { OR: [{ crm: input.crm }, { email: input.email }] },
       });
@@ -1472,13 +1491,18 @@ export const resolvers = {
       });
     },
     toggleUserStatus: async (_: unknown, { id }: { id: string }, context: Context) => {
-      if (!context.user) throw new Error('Usuário não autenticado');
-      if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores');
+      assertAuthenticated(context);
+      assertRole(context, ['ADMIN'], 'alteração de status de usuário');
       
       const decodedId = Buffer.from(id, 'base64url').toString('utf-8');
       const user = await prisma.user.findUnique({ where: { id: decodedId } });
       if (!user) throw new Error('Usuário não encontrado');
       
+      // Prevent admin from deactivating themselves
+      if (decodedId === context.user.userId) {
+        throw new Error('Não é possível desativar sua própria conta');
+      }
+
       const newStatus = !user.isActive;
 
       await prisma.auditLog.create({
@@ -1492,6 +1516,17 @@ export const resolvers = {
           userId: context.user.userId,
         },
       });
+
+      // PROACTIVE TOKEN REVOCATION: When deactivating a user, immediately
+      // invalidate all their active tokens via Redis blacklist
+      if (!newStatus) {
+        await revokeUserTokens(decodedId);
+        logger.info('Auth:Revocation', `User ${decodedId} deactivated — tokens revoked`);
+      } else {
+        // Re-activating: clear the blacklist so they can login again
+        await clearTokenRevocation(decodedId);
+        logger.info('Auth:Revocation', `User ${decodedId} reactivated — revocation cleared`);
+      }
 
       return prisma.user.update({
         where: { id: decodedId },

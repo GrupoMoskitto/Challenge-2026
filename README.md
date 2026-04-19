@@ -260,6 +260,23 @@ O projeto utiliza um arquivo central `.env.example` na raiz do repositório. Cop
 
 ---
 
+### Checklist de Produção (Deploy)
+
+Para subir o sistema em produção com total segurança (evitando vazamentos e instabilidades), garanta os seguintes itens na sua infraestrutura cloud (ex: AWS):
+
+1. **HTTPS Obrigatório (SSL/TLS)**
+   Os cookies de sessão de segurança (`access_token` e `refresh_token`) possuem a flag `Secure: true`. Portanto, eles **só funcionarão em ambientes com HTTPS**. Configure um Load Balancer (ALB) ou CloudFront com certificado ACM para habilitar a comunicação criptografada.
+2. **AWS WAF (Web Application Firewall)**
+   Recomenda-se acoplar o AWS WAF ao seu Load Balancer com regras (Core Rule Set) para barrar SQLi, XSS, e atuar contra DDoS e Botnets antes de atingir os containers Node.js.
+3. **Criptografia de Banco (KMS)**
+   Como um sistema hospitalar lida com dados confidenciais regidos pela LGPD (como dados de paciente e prontuário), garanta que a instância do banco de dados (ex: RDS PostgreSQL) possua criptografia de disco ativa.
+4. **Política Least Privilege (IAM)**
+   As políticas para Lambdas e ECS Workers foram desenhadas em `infra/iam-policies.md`. Forneça apenas as permissões de gravação/leitura de S3 nos diretórios necessários e acesso à VPC para o RDS, não aplique papéis genéricos.
+5. **Secrets Manager**
+   As variáveis como `DATABASE_URL`, `JWT_SECRET`, `REFRESH_SECRET`, `WEBHOOK_SECRET` e `EVOLUTION_API_KEY` não devem ficar hardcoded no servidor. Use um gestor de segredos integrado aos seus containers de produção (como o AWS Secrets Manager).
+
+---
+
 ### API GraphQL
 
 A API estará disponível em `http://localhost:3001/graphql` após iniciar o projeto.

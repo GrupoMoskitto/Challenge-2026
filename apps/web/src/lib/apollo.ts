@@ -1,70 +1,43 @@
 import { ApolloClient, InMemoryCache, createHttpLink, ApolloLink, Observable } from '@apollo/client';
-import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
-import { gql } from '@apollo/client';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/graphql';
+const API_BASE = API_URL.replace('/graphql', '');
 
 const httpLink = createHttpLink({
-  uri: import.meta.env.VITE_API_URL || 'http://localhost:3001/graphql',
+  uri: API_URL,
+  credentials: 'include', // Send cookies with every request
 });
 
-const REFRESH_TOKEN_MUTATION = gql`
-  mutation RefreshToken($token: String!) {
-    refreshToken(token: $token) {
-      token
-      refreshToken
-    }
-  }
-`;
-
-const TOKEN_EXPIRY_BUFFER = 60 * 1000;
+// Operations that don't need authentication
+const PUBLIC_OPERATIONS = ['Login', 'Register', 'RefreshToken'];
 
 // Mutex to prevent multiple simultaneous refresh attempts
-let refreshPromise: Promise<string | null> | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
-  // If a refresh is already in progress, wait for it instead of starting a new one
+async function refreshAccessToken(): Promise<boolean> {
   if (refreshPromise) {
     return refreshPromise;
   }
 
-  const refreshToken = localStorage.getItem('refresh_token');
-  
-  if (!refreshToken) {
-    return null;
-  }
-
   refreshPromise = (async () => {
     try {
-      const response = await fetch(import.meta.env.VITE_API_URL || 'http://localhost:3001/graphql', {
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operationName: 'RefreshToken',
-          query: REFRESH_TOKEN_MUTATION.loc?.source.body,
-          variables: { token: refreshToken },
-        }),
+        credentials: 'include', // Send cookies
+        headers: { 'Content-Type': 'application/json' },
       });
-      
-      const result = await response.json();
-      
-      if (result.data?.refreshToken) {
-        const { token, refreshToken: newRefreshToken } = result.data.refreshToken;
-        localStorage.setItem('auth_token', token);
-        localStorage.setItem('refresh_token', newRefreshToken);
-        return token;
+
+      if (response.ok) {
+        return true; // Cookies are automatically updated by the browser
       }
     } catch (error) {
       console.error('Failed to refresh token:', error);
     }
-    
-    // Refresh failed — clear tokens but do NOT hard redirect.
-    // Let AuthProvider and ProtectedRoute handle the redirect via React.
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
+
+    // Refresh failed — clear local user data
     localStorage.removeItem('user');
-    return null;
+    return false;
   })();
 
   try {
@@ -74,86 +47,44 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
-function getAccessToken(): string | null {
-  const token = localStorage.getItem('auth_token');
-  
-  if (!token) {
-    return null;
-  }
-  
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const isExpired = payload.exp * 1000 < Date.now();
-    
-    if (isExpired) {
-      return null;
-    }
-    
-    return token;
-  } catch {
-    return null;
-  }
-}
+// Link to handle token refresh on auth errors
+const refreshLink = new ApolloLink((operation, forward) => {
+  return new Observable((observer) => {
+    forward(operation).subscribe({
+      next: observer.next.bind(observer),
+      error: async (error) => {
+        // If we get an auth error, try refreshing the token
+        const isAuthError = error?.statusCode === 401 ||
+          error?.message?.includes('não autenticado');
 
-// Operations that don't need authentication
-const PUBLIC_OPERATIONS = ['Login', 'Register', 'RefreshToken'];
-
-const authLink = setContext(async (operation, { headers }) => {
-  // Don't try to attach/refresh tokens for public operations
-  if (PUBLIC_OPERATIONS.includes(operation.operationName || '')) {
-    return { headers };
-  }
-
-  let token = getAccessToken();
-  
-  if (!token) {
-    token = await refreshAccessToken();
-  }
-  
-  if (!token) {
-    return { headers };
-  }
-  
-  return {
-    headers: {
-      ...headers,
-      authorization: `Bearer ${token}`,
-    },
-  };
+        if (isAuthError && !PUBLIC_OPERATIONS.includes(operation.operationName || '')) {
+          const refreshed = await refreshAccessToken();
+          if (refreshed) {
+            // Retry the original operation
+            forward(operation).subscribe({
+              next: observer.next.bind(observer),
+              error: observer.error.bind(observer),
+              complete: observer.complete.bind(observer),
+            });
+            return;
+          }
+        }
+        observer.error(error);
+      },
+      complete: observer.complete.bind(observer),
+    });
+  });
 });
 
-const securityLink = new ApolloLink((operation, forward) => {
-  // Skip security check for public operations and login page
-  if (PUBLIC_OPERATIONS.includes(operation.operationName || '') || window.location.pathname === '/login') {
-    return forward(operation);
-  }
-
-  const token = getAccessToken();
-  const refreshToken = localStorage.getItem('refresh_token');
-  
-  // No tokens at all — clear storage and let React handle redirect
-  if (!token && !refreshToken) {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    // Don't hard redirect — return empty observable, React/ProtectedRoute will handle it
-    return new Observable(() => {});
-  }
-  
-  return forward(operation);
-});
-
-const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
+const errorLink = onError(({ graphQLErrors, networkError }) => {
   if (graphQLErrors) {
     graphQLErrors.forEach(({ message, locations, path, extensions }) => {
       console.error(
         `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
       );
-      // On auth errors, clear tokens — React/ProtectedRoute will redirect to login
+      // On auth errors, clear local user data (cookies are managed server-side)
       if (extensions?.code === 'UNAUTHENTICATED' || 
           message.includes('não autenticado')) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
       }
     });
@@ -161,15 +92,13 @@ const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
   if (networkError) {
     console.error(`[Network error]: ${networkError}`);
     if ('statusCode' in networkError && networkError.statusCode === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
     }
   }
 });
 
 export const apolloClient = new ApolloClient({
-  link: errorLink.concat(securityLink).concat(authLink).concat(httpLink),
+  link: errorLink.concat(refreshLink).concat(httpLink),
   cache: new InMemoryCache(),
   defaultOptions: {
     watchQuery: {
@@ -186,33 +115,25 @@ export const apolloClient = new ApolloClient({
   },
 });
 
-export const getAuthToken = (): string | null => {
-  return getAccessToken();
-};
-
-export const setAuthToken = (token: string, refreshToken: string) => {
+/**
+ * Logout — calls the server to clear HTTP-Only cookies
+ */
+export async function serverLogout(): Promise<void> {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const isExpired = payload.exp * 1000 < Date.now();
-    
-    if (isExpired) {
-      console.error('Token expirado');
-      return;
-    }
-    
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('refresh_token', refreshToken);
-  } catch {
-    console.error('Token inválido');
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch (error) {
+    console.error('Logout request failed:', error);
   }
-};
-
-export const removeAuthToken = () => {
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('refresh_token');
   localStorage.removeItem('user');
-};
+}
 
+/**
+ * Check if user appears to be authenticated
+ * (actual token validation happens server-side via cookies)
+ */
 export const isAuthenticated = (): boolean => {
-  return getAccessToken() !== null;
+  return !!localStorage.getItem('user');
 };

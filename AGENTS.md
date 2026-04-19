@@ -214,9 +214,9 @@ pnpm --filter @crmed/database db:generate
 
 ### Rate Limiting
 - Login: 5 attempts per 15 min per IP
-- GraphQL API: 200 requests per 15 min per IP (`express-rate-limit` in apps/api/src/index.ts)
-- If you get 429 errors, restart the API to clear limits: `fuser -k 3001/tcp && pnpm --filter @crmed/api dev &`
-- Rate limits are in-memory only — server restart clears them
+- GraphQL API: 200 requests per 15 min per IP
+- Rate limiting is distributed via **Redis** (`rate-limit-redis` in `apps/api/src/index.ts`). Limits persist across API restarts.
+- If you get 429 errors in dev, you must flush the Redis instance: `redis-cli flushall`
 
 ### TypeScript Strict Mode (no `any`)
 - All `response.json()` calls **must** be explicitly typed: `as Record<string, unknown>` or a specific interface
@@ -278,7 +278,11 @@ pnpm --filter @crmed/database db:generate
 
 - **Never** expose `password` in GraphQL resolvers
 - **Never** log tokens, passwords, or API keys
-- Validate inputs before passing to Prisma
+- **Authentication**: Tokens are stored strictly in `HttpOnly` cookies. Never write access tokens to `localStorage` or JavaScript variables.
+- **Apollo Client**: Always use `credentials: 'include'` when calling the API to send the secure cookies.
+- **RBAC**: Always use centralized helpers (`assertAuthenticated`, `assertRole`, `enforceStatusChange`) from `apps/api/src/config/rbac.ts` at the beginning of sensitive resolvers.
+- **Enum Validation**: Do not trust client inputs for enums. Always validate on the server using `validateEnum()`.
+- **Webhooks**: External endpoints (like Evolution API callbacks) must use `webhookSecurityMiddleware` for HMAC-SHA256 signature validation and IP allowlists.
 - Use `hashPassword()` from `src/auth.ts` for passwords
 - `DEV_ALLOWED_PHONE` must be respected in message sending
 
