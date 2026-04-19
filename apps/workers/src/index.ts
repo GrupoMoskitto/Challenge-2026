@@ -8,7 +8,8 @@ import { logger } from './config/logger';
 logger.info('System', 'CRMed Workers iniciando...');
 
 import express from 'express';
-import bodyParser from 'body-parser';
+import helmet from 'helmet';
+import { webhookSecurityMiddleware } from './config/webhook-security';
 
 const PORT = process.env.WORKERS_PORT || 3002;
 
@@ -30,40 +31,53 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const app = express();
-app.use(bodyParser.json());
 
-app.post('/webhook/evolution', async (req, res) => {
+// Security headers
+app.use(helmet());
+
+// Limit payload size to prevent DoS
+app.use(express.json({ limit: '1mb' }));
+
+// Apply webhook security middleware (HMAC + IP allowlist)
+app.post('/webhook/evolution', webhookSecurityMiddleware({
+    requireSecret: process.env.NODE_ENV === 'production',
+    enforceIpAllowlist: true,
+}), async (req, res) => {
     try {
-        const body = req.body;
+        const body = req.body as Record<string, unknown>;
         
         if (body.event !== 'messages.upsert') {
             return res.status(200).send('OK');
         }
 
-        const data = body.data;
-        const messageInfo = Array.isArray(data.message) ? data.message[0] : data.message;
+        const data = body.data as Record<string, unknown>;
+        const messageRaw = (data as Record<string, unknown>).message;
+        const messageInfo = Array.isArray(messageRaw) ? messageRaw[0] as Record<string, unknown> : messageRaw as Record<string, unknown>;
         
         if (!messageInfo) {
             return res.status(200).send('No message found');
         }
 
-        if (data.key?.fromMe || data.key?.remoteJid === 'status@broadcast') {
+        const key = (data as Record<string, unknown>).key as Record<string, unknown> | undefined;
+        if (key?.fromMe || key?.remoteJid === 'status@broadcast') {
             return res.status(200).send('Ignored');
         }
 
         // Ignore old messages (e.g. older than 10 seconds) to avoid processing backlogs
         const currentTimestamp = Math.floor(Date.now() / 1000);
-        const messageTimestamp = messageInfo.messageTimestamp;
-        const pushName = data.pushName || 'Você';
+        const messageTimestamp = (messageInfo as Record<string, unknown>).messageTimestamp as number | undefined;
+        const pushName = ((data as Record<string, unknown>).pushName as string) || 'Você';
         if (messageTimestamp && (currentTimestamp - messageTimestamp > 10)) {
             logger.info('Webhook', `Ignorando mensagem antiga de ${pushName} (${currentTimestamp - messageTimestamp}s atrás)`);
             return res.status(200).send('Ignored old message');
         }
 
-        const remoteJid = data.key?.remoteJid;
-        const instanceName = body.instance;
+        const remoteJid = key?.remoteJid as string | undefined;
+        const instanceName = body.instance as string;
         
-        const textMessage = messageInfo.conversation || messageInfo.extendedTextMessage?.text;
+        const conversation = (messageInfo as Record<string, unknown>).conversation as string | undefined;
+        const extendedText = (messageInfo as Record<string, unknown>).extendedTextMessage as Record<string, unknown> | undefined;
+        const textMessage = conversation || extendedText?.text as string | undefined;
 
         if (textMessage) {
             logger.info('Webhook', `Mensagem de ${pushName}: ${textMessage.substring(0, 50)}${textMessage.length > 50 ? '...' : ''}`);
@@ -73,8 +87,10 @@ app.post('/webhook/evolution', async (req, res) => {
         }
 
         res.status(200).send('OK');
-    } catch (error: any) {
-        const status = error?.response?.status;
+    } catch (error: unknown) {
+        const err = error as Record<string, unknown>;
+        const response = err?.response as Record<string, unknown> | undefined;
+        const status = response?.status as number | undefined;
         const isAuthError = status === 401 || status === 403;
         
         if (!isAuthError) {

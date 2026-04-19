@@ -14,7 +14,7 @@ import {
   Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { removeAuthToken } from "@/lib/apollo";
+import { serverLogout } from "@/lib/apollo";
 import { Button } from "./ui/button";
 
 const baseNavItems = [
@@ -72,8 +72,8 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    removeAuthToken();
+  const handleLogout = async () => {
+    await serverLogout();
     localStorage.removeItem('user');
     window.location.href = '/login'; // Use window.location instead of navigate because the AppSidebar is outside Routes context maybe, or just to reset state fully
   };
