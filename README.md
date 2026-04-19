@@ -270,9 +270,11 @@ Para subir o sistema em produção com total segurança (evitando vazamentos e i
    Recomenda-se acoplar o AWS WAF ao seu Load Balancer com regras (Core Rule Set) para barrar SQLi, XSS, e atuar contra DDoS e Botnets antes de atingir os containers Node.js.
 3. **Criptografia de Banco (KMS)**
    Como um sistema hospitalar lida com dados confidenciais regidos pela LGPD (como dados de paciente e prontuário), garanta que a instância do banco de dados (ex: RDS PostgreSQL) possua criptografia de disco ativa.
-4. **Política Least Privilege (IAM)**
+4. **Observabilidade (Tracing e Métricas)**
+   Sistemas de saúde exigem auditoria rigorosa de performance e falhas. Adicione ferramentas de **Distributed Tracing (OpenTelemetry)** e monitoramento de infraestrutura (como **Prometheus + Grafana** ou Datadog) para rastrear todas as requisições que transitam entre a API, Workers e banco de dados.
+5. **Política Least Privilege (IAM)**
    As políticas para Lambdas e ECS Workers foram desenhadas em `infra/iam-policies.md`. Forneça apenas as permissões de gravação/leitura de S3 nos diretórios necessários e acesso à VPC para o RDS, não aplique papéis genéricos.
-5. **Secrets Manager**
+6. **Secrets Manager**
    As variáveis como `DATABASE_URL`, `JWT_SECRET`, `REFRESH_SECRET`, `WEBHOOK_SECRET` e `EVOLUTION_API_KEY` não devem ficar hardcoded no servidor. Use um gestor de segredos integrado aos seus containers de produção (como o AWS Secrets Manager).
 
 ---
@@ -422,13 +424,13 @@ Se `pnpm infra:dev` está rodando, a Evolution API já está ativa na porta `808
 ```bash
 # Criar instância
 curl -X POST http://localhost:8080/instance/create \
-  -H "apikey: crmed_evolution_api_token_123" \
+  -H "apikey: $EVOLUTION_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"instanceName":"crmed-whatsapp","qrcode":true,"integration":"WHATSAPP-BAILEYS"}'
 
 # Verificar conexão
 curl http://localhost:8080/instance/connectionState/crmed-whatsapp \
-  -H "apikey: crmed_evolution_api_token_123"
+  -H "apikey: $EVOLUTION_API_KEY"
 ```
 
 </details>
@@ -455,7 +457,14 @@ A Evolution API sobe em segundo plano e sem stream de logs no terminal local; a 
 O pipeline GitHub Actions roda automaticamente a cada push:
 
 - **Linting** — ESLint flat config para todo o monorepo
-- **Testes** — Vitest validando RN01 (duplicidade), RN03 (hierarquia) e RN06 (auditoria)
+- **Testes Unitários/Integração** — Vitest validando RN01 (duplicidade), RN03 (hierarquia) e RN06 (auditoria)
+- **Coverage Report** — Geração de relatórios de cobertura do código durante o build do CI para garantir segurança das regras de negócio
+
+---
+
+### Gestão do Projeto
+
+Todas as regras de negócio, solicitações de features e correções de bugs deste MVP são rastreadas de forma transparente e colaborativa através do **GitHub Issues** e **Projects**. Nenhuma modificação sobe para a branch `main` sem estar vinculada a uma Issue devidamente documentada.
 
 ---
 
