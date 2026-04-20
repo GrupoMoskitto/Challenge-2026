@@ -83,7 +83,7 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   store: createRedisStore(),
   message: 'Muitas tentativas de login. Tente novamente em 15 minutos.',
-  keyGenerator: (req) => ipKeyGenerator(req),
+  keyGenerator: (req) => ipKeyGenerator(req.ip || ""),
 });
 
 // Apply rate limiting
