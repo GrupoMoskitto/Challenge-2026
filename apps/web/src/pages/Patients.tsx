@@ -57,9 +57,9 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-  NEW: 'bg-blue-500',
-  CONTACTED: 'bg-yellow-500',
-  QUALIFIED: 'bg-purple-500',
+  NEW: 'bg-gray-500',
+  CONTACTED: 'bg-blue-500',
+  QUALIFIED: 'bg-yellow-500',
   CONVERTED: 'bg-green-500',
   LOST: 'bg-red-500',
 };
@@ -658,7 +658,7 @@ const Patients = () => {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="font-medium truncate" title={p.lead?.name}>{p.lead?.name}</p>
-                          <div className={cn("w-2 h-2 rounded-full", statusColors[p.lead?.status] || "bg-gray-400")} title={statusLabels[p.lead?.status]} />
+                          <div className={cn("w-2 h-2 rounded-full", statusColors[p.lead?.status] || "bg-gray-400")} title={statusLabels[p.lead?.status] || p.lead?.status} />
                         </div>
                         <p className="text-xs text-muted-foreground truncate" title={p.lead?.phone}>{p.lead?.phone}</p>
                          {p.bmi && (
@@ -754,7 +754,14 @@ const Patients = () => {
                        </span>
                      </div>
                      <div className="min-w-0">
-                       <p className="font-semibold text-lg break-words" title={patient.lead?.name}>{patient.lead?.name}</p>
+                       <div className="flex items-center gap-2">
+                         <p className="font-semibold text-lg break-words" title={patient.lead?.name}>{patient.lead?.name}</p>
+                         <Badge 
+                           className={cn("text-[10px] px-2 py-0 h-4 uppercase text-white border-none shrink-0", statusColors[patient.lead?.status] || "bg-gray-400")}
+                         >
+                           {statusLabels[patient.lead?.status] || patient.lead?.status}
+                         </Badge>
+                       </div>
                        <div className="flex items-center gap-2 mt-1">
                          <span className="text-xs text-muted-foreground">CPF</span>
                          <p className="font-mono text-xs letter-spacing-wide">{patient.lead?.cpf}</p>

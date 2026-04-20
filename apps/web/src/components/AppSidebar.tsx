@@ -60,7 +60,7 @@ function ThemeToggle({ collapsed }: { collapsed: boolean }) {
       ) : (
         <Moon className="h-5 w-5 shrink-0" />
       )}
-      {!collapsed && <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>}
+      {!collapsed && <span className="whitespace-nowrap">{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>}
     </button>
   );
 }
@@ -93,7 +93,7 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        "flex flex-col h-screen border-r transition-all duration-300 ease-in-out shrink-0",
+        "flex flex-col h-screen border-r transition-all duration-300 ease-in-out shrink-0 overflow-hidden",
         "bg-sidebar-background/80 backdrop-blur-xl text-sidebar-foreground border-sidebar-border/50",
         collapsed ? "w-16" : "w-60"
       )}
@@ -104,7 +104,7 @@ export function AppSidebar() {
       </div>
 
       {/* Nav Items */}
-      <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto scrollbar-thin">
+      <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
         {navItems.map((item) => {
           const isActive = location.pathname === item.url || 
             (item.url !== "/" && location.pathname.startsWith(item.url));
@@ -123,19 +123,19 @@ export function AppSidebar() {
               activeClassName="bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary"
             >
               <item.icon className={cn("h-5 w-5 shrink-0", isActive && "text-sidebar-primary")} />
-              {!collapsed && <span>{item.title}</span>}
+              {!collapsed && <span className="whitespace-nowrap">{item.title}</span>}
             </NavLink>
           );
         })}
       </nav>
 
       {/* Theme Toggle */}
-      <div className="px-2 py-1">
+      <div className="px-2 py-1 overflow-x-hidden">
         <ThemeToggle collapsed={collapsed} />
       </div>
 
       {/* Logout Button */}
-      <div className="px-2 pb-2">
+      <div className="px-2 pb-2 overflow-x-hidden">
         <Button
           variant="ghost"
           className={cn(
@@ -145,7 +145,7 @@ export function AppSidebar() {
           onClick={handleLogout}
         >
           <LogOut className="h-5 w-5 shrink-0" />
-          {!collapsed && <span className="ml-3">Sair</span>}
+          {!collapsed && <span className="ml-3 whitespace-nowrap">Sair</span>}
         </Button>
       </div>
 

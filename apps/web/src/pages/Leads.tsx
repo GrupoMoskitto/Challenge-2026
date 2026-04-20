@@ -28,6 +28,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -753,30 +759,32 @@ const Leads = () => {
         </Button>
 
         <div className="ml-auto flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-muted-foreground" title="Legenda dos ícones">
-                <Info className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 p-3 space-y-3">
-              <h4 className="font-semibold text-sm">Legenda dos Ícones</h4>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center gap-3">
-                  <MessageCircle className="h-4 w-4 text-green-500" />
-                  <span className="text-muted-foreground">WhatsApp Ativo</span>
+          <TooltipProvider>
+            <Tooltip delayDuration={100}>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full h-8 w-8">
+                  <Info className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent align="end" className="w-64 p-3 space-y-3 bg-popover shadow-xl border-sidebar-border">
+                <h4 className="font-semibold text-sm">Legenda dos Ícones</h4>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <MessageCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-muted-foreground">WhatsApp Ativo</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <UserCheck className="h-4 w-4 text-primary" />
+                    <span className="text-muted-foreground">Já é Paciente</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <CalendarCheck className="h-4 w-4 text-blue-500" />
+                    <span className="text-muted-foreground">Possui Agendamento</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <UserCheck className="h-4 w-4 text-primary" />
-                  <span className="text-muted-foreground">Já é Paciente</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CalendarCheck className="h-4 w-4 text-blue-500" />
-                  <span className="text-muted-foreground">Possui Agendamento</span>
-                </div>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -1021,7 +1029,7 @@ const Leads = () => {
                           <CalendarCheck className="h-4 w-4 text-blue-500" title="Possui Agendamento" />
                         )}
                         {lead.procedure && (
-                          <Badge variant="outline" className="text-xs bg-background ml-auto">
+                          <Badge variant="outline" className="text-[10px] bg-background ml-auto max-w-[200px] truncate" title={lead.procedure}>
                             {lead.procedure}
                           </Badge>
                         )}

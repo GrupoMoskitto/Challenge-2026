@@ -296,7 +296,14 @@ export function TopBar({ title }: TopBarProps) {
                     >
                       <div className={`mt-2 h-2 w-2 rounded-full shrink-0 ${isRead ? 'bg-muted-foreground/30' : 'bg-primary'}`} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">
+                        <div 
+                          className="text-sm font-medium truncate cursor-pointer hover:text-primary hover:underline transition-colors"
+                          onClick={() => {
+                            if (apt?.patient?.id) {
+                              navigate(`/patients?patientId=${apt.patient.id}`);
+                            }
+                          }}
+                        >
                           {apt?.patient?.lead?.name || 'Paciente não encontrado'}
                         </div>
                         <div className="text-xs text-muted-foreground">
