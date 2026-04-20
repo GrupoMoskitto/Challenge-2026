@@ -32,6 +32,7 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 - **Import/Export** — Importação e exportação de leads via CSV
 - **Auditoria Completa** — Rastreabilidade total de ações e alterações (RN06)
 - **UX Premium** — Skeletons Anti-CLS, Debounce de busca, animações 60fps e Empty States informativos
+- **Navegação Estável** — Sincronização inteligente URL-Estado para evitar loops e garantir persistência de filtros
 
 ### Stack
 

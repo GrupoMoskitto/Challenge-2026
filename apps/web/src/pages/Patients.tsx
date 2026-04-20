@@ -137,41 +137,47 @@ const Patients = () => {
   const [leadSearch, setLeadSearch] = useState("");
   const [debouncedLeadSearch, setDebouncedLeadSearch] = useState("");
 
+  // Sync URL to State (The master sync)
   useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab && ["contacts", "documents", "postop", "history"].includes(tab)) {
-      setActiveTab(tab);
-    }
     const urlSearch = searchParams.get("search") || "";
     const urlStatus = searchParams.get("status") || "";
-    const urlPatientId = searchParams.get("patientId");
-    setSearch((current) => (current === urlSearch ? current : urlSearch));
-    setDebouncedSearch((current) => (current === urlSearch ? current : urlSearch));
-    setStatusFilter((current) => (current === urlStatus ? current : urlStatus));
-    setShowFilters(!!urlStatus);
-    setSelectedPatientId((current) => (current === urlPatientId ? current : urlPatientId));
+    const urlPatientId = searchParams.get("patientId") || null;
+    const urlTab = searchParams.get("tab") || "contacts";
+
+    if (search !== urlSearch) {
+      setSearch(urlSearch);
+      setDebouncedSearch(urlSearch);
+    }
+    if (statusFilter !== urlStatus) {
+      setStatusFilter(urlStatus);
+      setShowFilters(!!urlStatus);
+    }
+    if (selectedPatientId !== urlPatientId) {
+      setSelectedPatientId(urlPatientId);
+    }
+    if (activeTab !== urlTab) {
+      setActiveTab(urlTab);
+    }
   }, [searchParams]);
 
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
+  const updateUrl = (params: Record<string, string | null>) => {
     const newParams = new URLSearchParams(searchParams);
-    newParams.set("tab", value);
-    setSearchParams(newParams, { replace: true });
-  };
-
-  useEffect(() => {
-    const newParams = new URLSearchParams(searchParams);
-    if (debouncedSearch) newParams.set("search", debouncedSearch);
-    else newParams.delete("search");
-    if (statusFilter) newParams.set("status", statusFilter);
-    else newParams.delete("status");
-    if (selectedPatientId) newParams.set("patientId", selectedPatientId);
-    else newParams.delete("patientId");
-    if (activeTab) newParams.set("tab", activeTab);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === null || value === "" || (key === "tab" && value === "contacts")) {
+        newParams.delete(key);
+      } else {
+        newParams.set(key, value);
+      }
+    });
     if (newParams.toString() !== searchParams.toString()) {
       setSearchParams(newParams, { replace: true });
     }
-  }, [debouncedSearch, statusFilter, selectedPatientId, activeTab, searchParams, setSearchParams]);
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    updateUrl({ tab: value });
+  };
 
   useEffect(() => {
     if (searchParams.get("create") === "true") {
@@ -181,7 +187,10 @@ const Patients = () => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearch(search);
+      if (search !== debouncedSearch) {
+        setDebouncedSearch(search);
+        updateUrl({ search: search || null });
+      }
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
@@ -468,6 +477,7 @@ const Patients = () => {
       refetchPatients();
       if (result.data?.createPatient?.id) {
         setSelectedPatientId(result.data.createPatient.id);
+        updateUrl({ patientId: result.data.createPatient.id });
       }
     } catch (e: any) {
       toast.error(e.message || "Erro ao criar paciente");
@@ -479,7 +489,9 @@ const Patients = () => {
   }, []);
 
   const handleStatusFilterChange = useCallback((value: string) => {
-    setStatusFilter(value === "ALL" ? "" : value);
+    const newVal = value === "ALL" ? "" : value;
+    setStatusFilter(newVal);
+    updateUrl({ status: newVal || null });
   }, []);
 
   const contactIcon = (type: string) => {
@@ -589,7 +601,10 @@ const Patients = () => {
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 text-xs"
-                      onClick={() => setStatusFilter("")}
+                      onClick={() => {
+                        setStatusFilter("");
+                        updateUrl({ status: null });
+                      }}
                     >
                       Limpar
                     </Button>
@@ -622,6 +637,7 @@ const Patients = () => {
                       onClick={() => {
                         setSearch("");
                         setStatusFilter("");
+                        updateUrl({ search: null, status: null });
                       }}
                     >
                       Limpar busca e filtros
@@ -642,11 +658,15 @@ const Patients = () => {
                   role="option"
                   aria-selected={selectedPatientId === p.id}
                   tabIndex={0}
-                  onClick={() => setSelectedPatientId(p.id)}
+                  onClick={() => {
+                    setSelectedPatientId(p.id);
+                    updateUrl({ patientId: p.id });
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       setSelectedPatientId(p.id);
+                      updateUrl({ patientId: p.id });
                     }
                   }}
                 >

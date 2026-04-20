@@ -119,16 +119,12 @@ Frontend must map: `data?.users?.edges?.map((e) => e.node)`
 - Always import TabsContent: `import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"`
 - Use skeleton patterns from `@/components/ui/skeleton`: `CardSkeleton`, `ListSkeleton`, `CardListSkeleton`, `FormSkeleton`
 - Use `cache-first` fetchPolicy for instant data display without loading screens
-- **Debounce inputs** — Never fire queries on every keystroke. Always debounce search inputs with 300ms:
-  ```tsx
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
   // use only debouncedSearch in useQuery variables
   ```
+- **URL & State Synchronization** — To prevent infinite loops, follow the **One-Way Sync with Manual Triggers** pattern:
+  - **URL to State:** Use a single `useEffect` to sync URL params into local state.
+  - **State to URL:** NEVER use a reactive `useEffect` to sync state back to the URL. Instead, update the URL manually in event handlers (e.g., `handleTabChange`, `onSearchChange`) using a centralized `updateUrl` helper.
+  - **Equality Check:** Always compare the current `searchParams.toString()` with the new one before calling `setSearchParams` to avoid redundant re-renders.
 - **Skeleton Anti-CLS** — Skeletons must mirror the real layout exactly (same column count, card heights, header structure). Generic `<Skeleton className="h-20 w-full" />` causes layout shift and is not acceptable.
 - **Optimistic UI** — Use Apollo `optimisticResponse` for mutations that change visible state (drag-and-drop, status changes). Always provide a `cache.modify` `update` function as well:
   ```tsx
@@ -224,12 +220,12 @@ pnpm --filter @crmed/database db:generate
 - Empty objects for fallback: `let body: Record<string, unknown> = {}` — never just `{}`
 - Unused catch variables: use `_e` instead of `e` to avoid lint warnings
 
-### Dashboard Loops
-- Always use `useMemo` for `new Date()` to prevent infinite re-renders:
-  ```typescript
-  const today = useMemo(() => new Date(), []);
-  ```
 - Use `cache-first` fetchPolicy for stable queries like `performanceMetrics`
+
+### Infinite Navigation Loops
+- Occur when a reactive `useEffect` tries to sync state back to the URL while another effect is syncing the URL back to state.
+- **Fix:** Remove the state-to-url effect and use explicit `updateUrl` calls in user interaction handlers.
+- **Guard:** Always use `if (newParams.toString() !== searchParams.toString())` before calling `setSearchParams`.
 
 ### Dialog/Modal Patterns
 - Always add className to DialogContent: `className="sm:max-w-lg"`

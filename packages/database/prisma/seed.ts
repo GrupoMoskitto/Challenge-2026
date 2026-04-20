@@ -1,4 +1,4 @@
-import { PrismaClient, LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel, NotificationType } from '@prisma/client';
+import { PrismaClient, LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel, NotificationType, BudgetStatus, ComplaintStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -37,6 +37,10 @@ async function main() {
   console.log('🌱 Starting seed...');
 
   // Clean existing data
+  await prisma.treatment.deleteMany();
+  await prisma.complaint.deleteMany();
+  await prisma.budgetFollowUp.deleteMany();
+  await prisma.budget.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.postOp.deleteMany();
@@ -340,27 +344,101 @@ async function main() {
     });
     patients.push(patient);
 
-    // Create contacts for this lead
+    // Create contacts for this lead (more varied)
     await prisma.contact.createMany({
       data: [
         {
           leadId: lead.id,
-          date: randomDate(new Date('2026-01-01'), new Date('2026-03-01')),
-          type: randomElement([ContactType.WHATSAPP, ContactType.CALL, ContactType.EMAIL]),
-          direction: ContactDirection.OUTBOUND,
-          status: randomElement([ContactStatus.DELIVERED, ContactStatus.READ, ContactStatus.ANSWERED]),
-          message: 'Olá! Gostaríamos de confirmar seu interesse no procedimento.',
+          date: randomDate(new Date('2025-11-01'), new Date('2025-12-31')),
+          type: ContactType.WHATSAPP,
+          direction: ContactDirection.INBOUND,
+          status: ContactStatus.READ,
+          message: `Olá! Vi o anúncio de ${lead.procedure} no Instagram e gostaria de saber valores.`,
         },
         {
           leadId: lead.id,
-          date: randomDate(new Date('2026-01-01'), new Date('2026-03-01')),
-          type: randomElement([ContactType.WHATSAPP, ContactType.CALL]),
-          direction: Math.random() > 0.5 ? ContactDirection.INBOUND : ContactDirection.OUTBOUND,
-          status: randomElement([ContactStatus.DELIVERED, ContactStatus.READ, ContactStatus.ANSWERED]),
-          message: randomElement(['Sim, tenho interesse', 'Quero mais informações', 'Quando posso agendar?']),
+          date: randomDate(new Date('2026-01-01'), new Date('2026-01-05')),
+          type: ContactType.WHATSAPP,
+          direction: ContactDirection.OUTBOUND,
+          status: ContactStatus.READ,
+          message: `Olá! Que bom seu interesse. O valor depende de uma avaliação com o ${randomElement(surgeons).name}. Podemos agendar?`,
+        },
+        {
+          leadId: lead.id,
+          date: randomDate(new Date('2026-01-10'), new Date('2026-01-15')),
+          type: ContactType.CALL,
+          direction: ContactDirection.OUTBOUND,
+          status: ContactStatus.ANSWERED,
+          message: 'Ligação para agendamento realizada. Paciente confirmou para o próximo mês.',
+        },
+        {
+          leadId: lead.id,
+          date: randomDate(new Date('2026-02-01'), new Date('2026-02-28')),
+          type: ContactType.WHATSAPP,
+          direction: ContactDirection.INBOUND,
+          status: ContactStatus.READ,
+          message: 'Preciso desmarcar minha consulta de amanhã, tive um imprevisto.',
+        },
+        {
+          leadId: lead.id,
+          date: randomDate(new Date('2026-03-01'), new Date('2026-03-05')),
+          type: ContactType.WHATSAPP,
+          direction: ContactDirection.OUTBOUND,
+          status: ContactStatus.READ,
+          message: 'Sem problemas! Reagendamos para a próxima semana.',
         },
       ],
     });
+
+    // Create Budgets for patients
+    const budget = await prisma.budget.create({
+      data: {
+        patientId: patient.id,
+        surgeonId: randomElement(surgeons).id,
+        procedure: lead.procedure || 'Cirurgia Plástica',
+        amount: Math.floor(Math.random() * 15000) + 5000,
+        status: randomElement([BudgetStatus.OPEN, BudgetStatus.IN_PROGRESS, BudgetStatus.CONTRACT_SIGNED]),
+        notes: 'Orçamento padrão incluindo hospital e honorários médicos.',
+        returnDeadline: randomDate(new Date(), new Date('2026-12-31')),
+        followUps: {
+          create: [
+            {
+              date: new Date(),
+              notes: 'Paciente achou o valor justo, mas vai conversar com o marido.',
+              respondedBy: 'Vendas (Teste)',
+            },
+            {
+              date: randomDate(new Date('2026-03-01'), new Date()),
+              notes: 'Retornou perguntando sobre parcelamento no boleto.',
+              respondedBy: 'Financeiro',
+            }
+          ]
+        }
+      }
+    });
+
+    // Create a Complaint for some patients
+    if (Math.random() > 0.6) {
+      await prisma.complaint.create({
+        data: {
+          patientId: patient.id,
+          area: randomElement(['Financeiro', 'Médico', 'Atendimento']),
+          description: 'O paciente relatou demora no atendimento da recepção no dia da consulta.',
+          status: randomElement([ComplaintStatus.OPEN, ComplaintStatus.IN_PROGRESS, ComplaintStatus.RESOLVED]),
+          responseDeadline: randomDate(new Date(), new Date('2026-05-30')),
+          treatments: {
+            create: [
+              {
+                date: new Date(),
+                sector: 'Recepção',
+                description: 'Verificamos que houve um problema no sistema de senhas.',
+                solution: 'Sistema reiniciado e equipe orientada.',
+              }
+            ]
+          }
+        }
+      });
+    }
   }
   console.log(`✅ Created ${patients.length} patients with contacts and documents`);
 
@@ -385,7 +463,7 @@ async function main() {
         entityType: 'Patient',
         entityId: patient.id,
         action: 'CREATED',
-        newValue: { createdAt: new Date() },
+        newValue: JSON.stringify({ createdAt: new Date() }),
         reason: 'Seed - Created patient from converted lead',
         userId: users[0].id,
         patientId: patient.id,
@@ -399,7 +477,7 @@ async function main() {
           entityType: 'Appointment',
           entityId: appointment.id,
           action: 'CREATED',
-          newValue: { procedure: appointment.procedure, scheduledAt: appointment.scheduledAt },
+          newValue: JSON.stringify({ procedure: appointment.procedure, scheduledAt: appointment.scheduledAt }),
           reason: 'Seed - Created appointment',
           userId: users[0].id,
           appointmentId: appointment.id,
