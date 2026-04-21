@@ -56,6 +56,9 @@ const statusLabels: Record<string, string> = {
   LOST: 'Perdido',
 };
 
+const MAX_WEIGHT_KG = 400;
+const MAX_HEIGHT_CM = 300;
+
 const statusColors: Record<string, string> = {
   NEW: 'bg-gray-500',
   CONTACTED: 'bg-blue-500',
@@ -354,15 +357,15 @@ const Patients = () => {
   const handleUpdatePatient = async () => {
     if (editPatientForm.weight) {
       const w = parseFloat(editPatientForm.weight.replace(',', '.'));
-      if (isNaN(w) || w <= 0 || w > 400) {
-        toast.error("Por favor, insira um peso válido e realista (até 400kg).");
+      if (isNaN(w) || w <= 0 || w > MAX_WEIGHT_KG) {
+        toast.error(`Por favor, insira um peso válido e realista (até ${MAX_WEIGHT_KG}kg).`);
         return;
       }
     }
     if (editPatientForm.height) {
       const h = parseFloat(editPatientForm.height.replace(',', '.'));
-      if (isNaN(h) || h <= 0 || h > 300) {
-        toast.error("Por favor, insira uma altura válida e realista (em cm, até 300cm).");
+      if (isNaN(h) || h <= 0 || h > MAX_HEIGHT_CM) {
+        toast.error(`Por favor, insira uma altura válida e realista (em cm, até ${MAX_HEIGHT_CM}cm).`);
         return;
       }
     }
