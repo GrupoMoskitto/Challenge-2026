@@ -11,9 +11,6 @@ import {
   Clock,
   CalendarCheck,
   Phone,
-  DollarSign,
-  Activity,
-  FileText,
   ArrowUpRight,
   ArrowDownRight,
 } from "lucide-react";
@@ -28,14 +25,11 @@ import {
   Cell,
   PieChart,
   Pie,
-  LineChart,
-  Line,
   Legend,
   Area,
   AreaChart,
   FunnelChart,
   Funnel,
-  LabelList,
 } from "recharts";
 import { useQuery } from "@apollo/client";
 import { GET_DASHBOARD_STATS, GET_LEADS, GET_APPOINTMENTS, GET_PERFORMANCE_METRICS } from "@/lib/queries";
@@ -92,26 +86,6 @@ const getOriginColors = () => {
   };
 };
 
-const exportToCSV = (data: any[], filename: string) => {
-  if (data.length === 0) return;
-  
-  const headers = Object.keys(data[0]);
-  const csvContent = [
-    headers.join(';'),
-    ...data.map(row => headers.map(h => {
-      const val = row[h];
-      if (val instanceof Date) return format(val, 'yyyy-MM-dd HH:mm');
-      if (typeof val === 'object') return JSON.stringify(val);
-      return String(val ?? '');
-    }).join(';'))
-  ].join('\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-  link.click();
-};
 
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
@@ -143,7 +117,7 @@ const Dashboard = () => {
   };
   
   const { data: statsData, loading: statsLoading } = useQuery(GET_DASHBOARD_STATS);
-  const { data: leadsData, loading: leadsLoading, refetch: refetchLeads } = useQuery(GET_LEADS, {
+  const { data: leadsData, loading: leadsLoading } = useQuery(GET_LEADS, {
     variables: { first: 100 },
     fetchPolicy: 'network-only',
   });
@@ -202,7 +176,6 @@ const Dashboard = () => {
   const lostLeads = filteredLeads.filter((l: any) => l.status === 'LOST').length;
   const qualifiedLeads = filteredLeads.filter((l: any) => l.status === 'QUALIFIED').length;
   const contactedLeads = filteredLeads.filter((l: any) => l.status === 'CONTACTED').length;
-  const newLeads = filteredLeads.filter((l: any) => l.status === 'NEW').length;
 
   const totalLeads = filteredLeads.length;
   const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
@@ -251,7 +224,7 @@ const Dashboard = () => {
   }));
 
   const leadsByDay = filteredLeads.reduce((acc: Record<string, { leads: number, converted: number }>, lead: any) => {
-    const day = format(new Date(lead.createdAt), 'dd/MM');
+    const day = format(new Date(lead.createdAt), 'yyyy-MM-dd');
     acc[day] = acc[day] || { leads: 0, converted: 0 };
     acc[day].leads += 1;
     if (lead.status === 'CONVERTED') {
@@ -261,22 +234,14 @@ const Dashboard = () => {
   }, {});
 
   const trendData = Object.entries(leadsByDay)
-    .sort((a, b) => {
-      const [d1, m1, y1] = a[0].split('/');
-      const [d2, m2, y2] = b[0].split('/');
-      return new Date(`${m1}/${d1}/${y1}`).getTime() - new Date(`${m2}/${d2}/${y2}`).getTime();
-    })
+    .sort((a, b) => a[0].localeCompare(b[0]))
     .slice(-14)
-    .map(([date, data]: [string, any]) => ({ date, leads: data.leads, converted: data.converted }));
+    .map(([date, data]: [string, any]) => ({ 
+      date: format(new Date(date + 'T12:00:00'), 'dd/MM'), 
+      leads: data.leads, 
+      converted: data.converted 
+    }));
 
-  const surgeonAppointments = surgeons.map((surgeon: any) => {
-    const surgeonApts = appointments.filter((a: any) => a.surgeon?.id === surgeon.id);
-    return {
-      name: surgeon.name.split(' ').slice(1).join(' ') || surgeon.name,
-      appointments: surgeonApts.length,
-      converted: leads.filter((l: any) => l.preferredDoctor === surgeon.id && l.status === 'CONVERTED').length,
-    };
-  });
 
   const recentLeads = [...leads]
     .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

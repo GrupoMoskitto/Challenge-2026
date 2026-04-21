@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,8 +56,6 @@ const statusLabels: Record<string, string> = {
   LOST: 'Perdido',
 };
 
-const filterOrigins = ['Todas', 'Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Facebook', 'Outro'];
-const filterProcedures = ['Todos', 'Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Outro'];
 
 interface Lead {
   id: string;

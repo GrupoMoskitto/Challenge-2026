@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -70,7 +70,6 @@ export function AppSidebar() {
     return localStorage.getItem("sidebar-collapsed") === "true";
   });
   const location = useLocation();
-  const navigate = useNavigate();
 
   const handleLogout = async () => {
     await serverLogout();

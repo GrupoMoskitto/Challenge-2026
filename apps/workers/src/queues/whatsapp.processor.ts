@@ -1,4 +1,4 @@
-import { Queue, Worker, Job } from 'bullmq';
+import { Queue, Worker, Job, ConnectionOptions } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import { WhatsAppService } from '../services/whatsapp.service';
 import { prisma } from '@crmed/database';
@@ -8,7 +8,7 @@ export const WHATSAPP_QUEUE_NAME = 'whatsapp-reminders';
 
 // BullMQ Queue instance
 export const whatsappQueue = new Queue(WHATSAPP_QUEUE_NAME, {
-  connection: redisConnection as any,
+  connection: redisConnection as ConnectionOptions,
 });
 
 interface WhatsAppJobData {
@@ -24,16 +24,16 @@ interface WhatsAppJobData {
 // BullMQ Worker to process the events
 export const whatsappWorker = new Worker<WhatsAppJobData>(
   WHATSAPP_QUEUE_NAME,
-  async (job: Job) => {
+  async (job: Job<WhatsAppJobData>) => {
     logger.info('Worker', `Processando job ${job.id}: ${job.name}`);
-    const { appointmentId, leadId, patientName, phone, message, triggerDays, instanceName: jobInstanceName } = job.data as any;
+    const { appointmentId, leadId, phone, message, triggerDays, instanceName: jobInstanceName } = job.data;
 
     try {
       // 1. Send the WhatsApp message via Evolution API
       // Use the instance name from the job if provided, otherwise fallback to default
       const defaultInstance = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
       const instanceName = jobInstanceName || defaultInstance;
-      const result = await WhatsAppService.sendMessage(instanceName, phone, message);
+      await WhatsAppService.sendMessage(instanceName, phone, message);
 
       // 2. Fulfill RN06: Create an AuditLog representing the successful delivery
       await prisma.auditLog.create({
@@ -66,7 +66,7 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
     }
   },
   {
-    connection: redisConnection as any,
+    connection: redisConnection as ConnectionOptions,
     concurrency: 5, // Process up to 5 messages concurrently
   }
 );

@@ -246,7 +246,7 @@ async function main() {
     'Rua Pernambuco', 'Av. Paralela', 'Rua Chile', 'Rua da Bahia',
     'Av. Antônio Carlos Magalhães', 'Rua Professor Aristíes Novis'
   ];
-  const neighborhoods = ['Pituba', 'Barra', 'Rio Vermelho', 'Pelourinho', 'Brotas', 'Itaigara', 'Caminho das Árvores', 'Ondina', 'Graaça', 'Imbuí'];
+  const neighborhoods = ['Pituba', 'Barra', 'Rio Vermelho', 'Pelourinho', 'Brotas', 'Itaigara', 'Caminho das Árvores', 'Ondina', 'Graça', 'Imbuí'];
   const cities = ['Salvador/BA', 'Salvador/BA', 'Salvador/BA', 'Feira de Santana/BA', 'Lauro de Freitas/BA', 'Camaçari/BA', 'Vitória da Conquista/BA'];
   const phonePrefixes = ['(71)', '(73)', '(74)', '(75)', '(77)'];
 
@@ -391,7 +391,7 @@ async function main() {
     });
 
     // Create Budgets for patients
-    const budget = await prisma.budget.create({
+    await prisma.budget.create({
       data: {
         patientId: patient.id,
         surgeonId: randomElement(surgeons).id,
@@ -676,7 +676,7 @@ async function main() {
         action: 'STATUS_CHANGE',
         oldValue: JSON.stringify(LeadStatus.CONTACTED),
         newValue: JSON.stringify(LeadStatus.QUALIFIED),
-        reason: 'Paciente demonstrou interesse Real',
+        reason: 'Paciente demonstrou interesse real',
         userId: users[1].id,
       },
     }),

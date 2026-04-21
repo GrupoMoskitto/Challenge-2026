@@ -8,10 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { showUndoableToast } from "@/hooks/useUndoableToast";
 import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_MESSAGE_TEMPLATES,
@@ -50,7 +49,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, Bell, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Mail, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2 } from "lucide-react";
+import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2 } from "lucide-react";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrador",
@@ -121,7 +120,7 @@ const Settings = () => {
   const isAdmin = user?.role === 'ADMIN';
 
   const availableTabs = React.useMemo(() => ["profile", ...(isAdmin ? ["integrations", "users", "templates"] : [])], [isAdmin]);
-  const defaultTab = isAdmin ? "profile" : "profile";
+  const defaultTab = "profile";
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || defaultTab);
 
   useEffect(() => {
@@ -192,7 +191,7 @@ const Settings = () => {
   
   const [createUser, { loading: creatingUser }] = useMutation(CREATE_USER);
   const [toggleUserStatus] = useMutation(TOGGLE_USER_STATUS);
-  const [updateUser, { loading: updatingUser }] = useMutation(UPDATE_USER as any);
+  const [updateUser, { loading: updatingUser }] = useMutation(UPDATE_USER);
   const [updateProfile, { loading: updatingProfile }] = useMutation(UPDATE_PROFILE);
   const [createEvolutionInstance] = useMutation(CREATE_EVOLUTION_INSTANCE, {
     onCompleted: () => {

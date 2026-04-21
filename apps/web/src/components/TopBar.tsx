@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ import { useQuery, useMutation, gql } from "@apollo/client";
 import { MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_READ } from "@/lib/queries";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
 
 interface TopBarProps {
   title: string;

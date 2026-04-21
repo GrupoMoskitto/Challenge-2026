@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Trash } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_LEADS, GET_PATIENTS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
+import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_PATIENTS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
 import { validatePhone, sanitizeInput } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -84,11 +84,6 @@ const Agenda = () => {
     fetchPolicy: 'cache-first',
   });
 
-  const { data: leadsData, loading: loadingLeads } = useQuery(GET_LEADS, {
-    variables: { first: 100 },
-    fetchPolicy: 'cache-first',
-  });
-
   const { data: patientsData } = useQuery(GET_PATIENTS, {
     variables: { first: 100 },
     fetchPolicy: 'cache-first',
@@ -100,7 +95,6 @@ const Agenda = () => {
 
   const appointments = appointmentsData?.appointmentsByDate || [];
   const surgeons = surgeonsData?.surgeons || [];
-  const leads = leadsData?.leads?.edges?.map((edge: any) => edge.node) || [];
   const patients = patientsData?.patients?.edges?.map((edge: any) => edge.node) || [];
 
   const prevDay = () => {
@@ -129,7 +123,7 @@ const Agenda = () => {
     setSelectedSlot({ doctorId: surgeonId, time, date: currentDate });
     if (apt) {
       setEditingAppointmentId(apt.id);
-      setSelectedPatientId(apt.patient?.id || null); // Use patient ID, not lead ID
+      setSelectedPatientId(apt.patient?.id || null);
       const apptState = {
         patientName: apt.patient?.lead?.name || apt.patient?.name || '',
         patientPhone: apt.patient?.lead?.phone || apt.patient?.phone || '',
@@ -158,29 +152,25 @@ const Agenda = () => {
       return;
     }
 
-    // Validar cirurgião
     if (!selectedSlot.doctorId) {
       toast.error('Selecione o cirurgião');
       return;
     }
 
-    // Validar data
     if (!selectedSlot.date) {
       toast.error('Selecione a data');
       return;
     }
 
-    // Validar horário
     if (!selectedSlot.time) {
       toast.error('Selecione o horário');
       return;
     }
 
-    // Validar minuto múltiplo de 5 (segurança)
     const timeParts = selectedSlot.time.split(':');
     const minute = parseInt(timeParts[1], 10);
     if (minute % 5 !== 0) {
-      toast.error('Minutos devem ser múltiplos de 5 (00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)');
+      toast.error('Minutos devem ser múltiplos de 5');
       return;
     }
 
@@ -272,10 +262,7 @@ const Agenda = () => {
   };
 
   const confirmDeleteAppointment = async () => {
-    if (!appointmentToDelete) {
-      return;
-    }
-
+    if (!appointmentToDelete) return;
     if (deleteConfirmText.toLowerCase() !== 'deletar') {
       toast.error('Digite "deletar" para confirmar a exclusão');
       return;
@@ -287,15 +274,13 @@ const Agenda = () => {
       });
       await refetchAppointments();
       toast.success("Agendamento excluído!");
-      
       setSheetOpen(false);
       setEditingAppointmentId(null);
       setDeleteDialogOpen(false);
       setAppointmentToDelete(null);
       setDeleteConfirmText("");
     } catch (error: any) {
-      const errorMsg = error?.message || 'Erro ao excluir agendamento.';
-      toast.error(`Erro: ${errorMsg}`);
+      toast.error(`Erro: ${error.message || 'Erro ao excluir agendamento.'}`);
     }
   };
 
@@ -304,7 +289,7 @@ const Agenda = () => {
     setDeleteConfirmText("");
   };
 
-  const isInitialLoad = (loadingSurgeons || loadingAppointments || loadingLeads) && !appointmentsData && !surgeonsData;
+  const isInitialLoad = (loadingSurgeons || loadingAppointments) && !appointmentsData && !surgeonsData;
 
   if (isInitialLoad) {
     return (
@@ -323,7 +308,6 @@ const Agenda = () => {
 
   return (
     <AppLayout title="Agenda Médica">
-      {/* Date Navigation */}
       <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" onClick={prevDay}>
@@ -344,10 +328,6 @@ const Agenda = () => {
                  onSelect={handleDateSelect}
                  locale={ptBR}
                  className="rounded-md"
-                 
-                 
-                 
-                 
                />
             </PopoverContent>
           </Popover>
@@ -362,17 +342,13 @@ const Agenda = () => {
         </Button>
       </div>
 
-      {/* Schedule Grid */}
       <div className="bg-card border rounded-lg p-2 md:p-4 shadow-sm">
         <div className="grid grid-cols-[80px_repeat(auto-fit,minmax(220px,1fr))] gap-4 overflow-x-auto pb-4 items-start">
-          {/* Time Column */}
           <div className="sticky left-0 bg-card z-10">
-            {/* Espaçador invisível para alinhar com o topo dos cartões dos médicos */}
             <div className="mb-4 invisible pointer-events-none sticky top-0">
               <Card>
                 <CardHeader className="p-3">
                   <CardTitle className="text-sm">Horário</CardTitle>
-                  <p className="text-xs">Offset</p>
                 </CardHeader>
               </Card>
             </div>
@@ -385,7 +361,6 @@ const Agenda = () => {
             </div>
           </div>
 
-          {/* Doctor Columns */}
           {surgeons.map((surgeon: any) => (
             <div key={surgeon.id} className="min-w-[220px]">
               <Card className="mb-4 sticky top-0 z-20 shadow-sm">
@@ -397,11 +372,6 @@ const Agenda = () => {
               <div className="space-y-2">
                 {timeSlots.map((time) => {
                   const appointment = getAppointment(surgeon.id, time);
-                  if (loadingAppointments && !appointment) {
-                    return (
-                      <div key={time} className="h-20 border rounded-lg border-dashed border-border animate-pulse bg-muted/20" />
-                    );
-                  }
                   return (
                     <div
                       key={time}
@@ -439,7 +409,6 @@ const Agenda = () => {
         </div>
       </div>
 
-      {/* Appointment Form */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="overflow-y-auto sm:max-w-md">
           <SheetHeader>
@@ -449,7 +418,6 @@ const Agenda = () => {
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-5 py-6">
-            {/* Data e Hora - Sempre visível */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Data</Label>
@@ -471,10 +439,6 @@ const Agenda = () => {
                        }}
                        locale={ptBR}
                        className="rounded-md"
-                       
-                       
-                       
-                       
                      />
                   </PopoverContent>
                 </Popover>
@@ -544,7 +508,6 @@ const Agenda = () => {
                   <p className="font-medium">{newAppointment.patientName}</p>
                   <p className="text-sm text-muted-foreground">{newAppointment.patientPhone}</p>
                 </div>
-                <p className="text-xs text-orange-500">Para alterar o paciente, exclua e crie um novo agendamento.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -624,16 +587,14 @@ const Agenda = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Exclusão</DialogTitle>
-            <DialogDescription className="space-y-2">
-              <p>Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.</p>
-              <p className="text-sm font-medium">Digite <span className="text-destructive font-bold">deletar</span> para confirmar:</p>
+            <DialogDescription>
+              Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita. Digite "deletar" abaixo.
             </DialogDescription>
           </DialogHeader>
           <Input
             value={deleteConfirmText}
             onChange={(e) => setDeleteConfirmText(e.target.value)}
             placeholder="deletar"
-            className="border-2 border-destructive"
           />
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="outline" onClick={handleCloseDeleteDialog}>
@@ -676,10 +637,6 @@ const Agenda = () => {
                       }}
                       locale={ptBR}
                       className="rounded-md"
-                      
-                      
-                      
-                      
                     />
                 </PopoverContent>
               </Popover>

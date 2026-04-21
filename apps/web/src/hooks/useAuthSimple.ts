@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery, gql } from '@apollo/client';
 import { useLocalStorage } from './useLocalStorage';
 

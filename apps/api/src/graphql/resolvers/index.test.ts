@@ -294,7 +294,7 @@ describe('patients query - Pagination', () => {
     patientCountSpy.mockResolvedValue(1);
 
     const context: Context = { user: { userId: 'test-user', email: 'test@crmed.com', role: 'ADMIN' } };
-    const result = await resolvers.Query.patients(null, { 
+    await resolvers.Query.patients(null, { 
       first: 10, 
       where: { status: LeadStatus.CONVERTED } 
     }, context);
@@ -319,7 +319,7 @@ describe('patients query - Pagination', () => {
     patientCountSpy.mockResolvedValue(1);
 
     const context: Context = { user: { userId: 'test-user', email: 'test@crmed.com', role: 'ADMIN' } };
-    const result = await resolvers.Query.patients(null, { 
+    await resolvers.Query.patients(null, { 
       first: 10, 
       where: { search: 'João' } 
     }, context);
