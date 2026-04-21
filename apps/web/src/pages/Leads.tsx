@@ -47,6 +47,7 @@ const statusColumns = [
   { status: 'CONVERTED', label: 'Convertido', color: 'border-t-green-500' },
   { status: 'LOST', label: 'Perdido', color: 'border-t-red-500' },
 ];
+const LEAD_MOVED_ANIMATION_DURATION_MS = 3000;
 
 const statusLabels: Record<string, string> = {
   NEW: 'Novo',
@@ -286,7 +287,7 @@ const Leads = () => {
       // Stop pulse after 3s
       setTimeout(() => {
         setLastMovedLeadId(null);
-      }, 3000);
+      }, LEAD_MOVED_ANIMATION_DURATION_MS);
     } catch (error: any) {
       console.error('Error updating lead status:', error);
       if (error.networkError) {
