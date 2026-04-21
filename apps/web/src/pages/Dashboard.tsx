@@ -36,6 +36,8 @@ import { GET_DASHBOARD_STATS, GET_LEADS, GET_APPOINTMENTS, GET_PERFORMANCE_METRI
 import { format, subDays, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+const TREND_CHART_DAYS = 14;
+
 const statusLabels: Record<string, string> = {
   NEW: "Novo",
   CONTACTED: "Contatado",
@@ -235,7 +237,7 @@ const Dashboard = () => {
 
   const trendData = Object.entries(leadsByDay)
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(-14)
+    .slice(-TREND_CHART_DAYS)
     .map(([date, data]: [string, any]) => ({ 
       date: format(new Date(date + 'T12:00:00'), 'dd/MM'), 
       leads: data.leads, 
