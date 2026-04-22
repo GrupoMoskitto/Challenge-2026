@@ -54,14 +54,50 @@ export const IDScalar = new GraphQLScalarType({
   },
   parseValue(value: unknown): string {
     if (typeof value === 'string') {
-      return decodeBase64(value);
+      const decoded = decodeBase64(value);
+      return decoded.split(':').pop() || decoded;
     }
     throw new Error('ID must be a base64url string');
   },
   parseLiteral(ast: any): string {
     if (ast.kind === Kind.STRING) {
-      return decodeBase64(ast.value);
+      const decoded = decodeBase64(ast.value);
+      return decoded.split(':').pop() || decoded;
     }
     throw new Error('ID must be a string');
+  },
+});
+
+export const JSONScalar = new GraphQLScalarType({
+  name: 'JSON',
+  description: 'The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).',
+  serialize(value: unknown): any {
+    return value;
+  },
+  parseValue(value: unknown): any {
+    return value;
+  },
+  parseLiteral(ast: any): any {
+    switch (ast.kind) {
+      case Kind.STRING:
+      case Kind.BOOLEAN:
+        return ast.value;
+      case Kind.INT:
+      case Kind.FLOAT:
+        return parseFloat(ast.value);
+      case Kind.OBJECT: {
+        const value = Object.create(null);
+        ast.fields.forEach((field: any) => {
+          value[field.name.value] = JSONScalar.parseLiteral(field.value, {});
+        });
+        return value;
+      }
+      case Kind.LIST:
+        return ast.values.map((n: any) => JSONScalar.parseLiteral(n, {}));
+      case Kind.NULL:
+        return null;
+      default:
+        return undefined;
+    }
   },
 });

@@ -1,20 +1,31 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
-import { Calendar } from "@/components/ui/calendar";
-import { HistoricalDatePicker } from "@/components/ui/historical-date-picker";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar as CalendarIcon, Search, Phone, MessageCircle, Mail, FileText, Check, X, Clock, User, Pencil, Plus, ChevronRight, Filter, History, XCircle, Loader2, AlertTriangle } from "lucide-react";
+import { 
+  Calendar as CalendarIcon, 
+  Search, 
+  Phone, 
+  MessageCircle, 
+  Mail, 
+  FileText, 
+  Check, 
+  X, 
+  Clock, 
+  User, 
+  Pencil, 
+  Plus, 
+  ChevronRight, 
+  Filter, 
+  History as HistoryIcon, 
+  Loader2, 
+  AlertTriangle,
+  Trash2
+} from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import {
   GET_PATIENTS,
@@ -24,8 +35,6 @@ import {
   UPDATE_DOCUMENT_STATUS,
   CREATE_POST_OP,
   UPDATE_POST_OP_STATUS,
-  CREATE_PATIENT,
-  GET_LEADS,
 } from "@/lib/queries";
 import {
   Dialog,
@@ -43,33 +52,16 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { showUndoableToast } from "@/hooks/useUndoableToast";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-const statusLabels: Record<string, string> = {
-  NEW: 'Novo',
-  CONTACTED: 'Contato',
-  QUALIFIED: 'Qualificado',
-  CONVERTED: 'Convertido',
-  LOST: 'Perdido',
-};
-
-const MAX_WEIGHT_KG = 400;
-const MAX_HEIGHT_CM = 300;
-
-const statusColors: Record<string, string> = {
-  NEW: 'bg-gray-500',
-  CONTACTED: 'bg-blue-500',
-  QUALIFIED: 'bg-yellow-500',
-  CONVERTED: 'bg-green-500',
-  LOST: 'bg-red-500',
-};
+import { usePatientModal } from "@/components/PatientModalContext";
+import { AuditDiff } from "@/components/AuditDiff";
+import { HistoricalDatePicker } from "@/components/ui/historical-date-picker";
 
 const documentTypeLabels: Record<string, string> = {
   CONTRACT: 'Contrato',
-  TERM: 'Termo',
   EXAM: 'Exame',
   OTHER: 'Outro',
 };
@@ -87,28 +79,20 @@ const auditActionLabels: Record<string, string> = {
   DELETED: "removido",
 };
 
-const PAGE_SIZE = 20;
-
-const normalizeString = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-const likelyFemaleName = (name?: string | null) => {
-  if (!name) return false;
-  const firstName = normalizeString(name).split(" ")[0];
-  return firstName.endsWith("a");
+const statusColors: Record<string, string> = {
+  NEW: 'bg-gray-500',
+  CONTACTED: 'bg-blue-500',
+  QUALIFIED: 'bg-yellow-500',
+  CONVERTED: 'bg-green-500',
+  LOST: 'bg-red-500',
 };
 
-const getSexMismatchWarning = (name?: string | null, sex?: string | null) => {
-  if (!name || !sex) return null;
-  const normalizedSex = normalizeString(sex);
-  if (likelyFemaleName(name) && normalizedSex === "masculino") {
-    return "Possível inconsistência: nome sugere feminino e sexo está como masculino.";
-  }
-  return null;
+const statusLabels: Record<string, string> = {
+  NEW: 'Novo',
+  CONTACTED: 'Contato',
+  QUALIFIED: 'Qualificado',
+  CONVERTED: 'Convertido',
+  LOST: 'Perdido',
 };
 
 const getAuditActionMeta = (action?: string) => {
@@ -116,76 +100,53 @@ const getAuditActionMeta = (action?: string) => {
     case "CREATED":
       return { icon: Plus, iconClassName: "text-green-500", containerClassName: "bg-green-500/20" };
     case "DELETED":
-      return { icon: XCircle, iconClassName: "text-red-500", containerClassName: "bg-red-500/20" };
+      return { icon: Trash2, iconClassName: "text-red-500", containerClassName: "bg-red-500/20" };
     default:
-      return { icon: History, iconClassName: "text-blue-500", containerClassName: "bg-blue-500/20" };
+      return { icon: HistoryIcon, iconClassName: "text-blue-500", containerClassName: "bg-blue-500/20" };
   }
 };
 
-const getAuditMessage = (action?: string, patientName?: string | null) => {
-  const safeName = patientName || "cliente";
-  const normalizedAction = action || "UPDATED";
-  const actionLabel = auditActionLabels[normalizedAction] || "modificado";
-  return `Cliente ${safeName} ${actionLabel}!`;
+const getAuditMessage = (action: string, leadName?: string | null) => {
+  if (action === 'STATUS_CHANGE') return 'Alteração de status';
+  const safeName = leadName || "cliente";
+  const actionLabel = auditActionLabels[action] || "modificado";
+  return `Paciente ${safeName} ${actionLabel}!`;
 };
 
+const MAX_WEIGHT_KG = 400;
+const MAX_HEIGHT_CM = 300;
+const PAGE_SIZE = 20;
+
 const Patients = () => {
-   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(searchParams.get("patientId"));
+  const { openCreatePatientModal } = usePatientModal();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") || "");
   const [showFilters, setShowFilters] = useState(!!searchParams.get("status"));
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "contacts");
-  const [leadSearch, setLeadSearch] = useState("");
-  const [debouncedLeadSearch, setDebouncedLeadSearch] = useState("");
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "timeline");
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(searchParams.get("patientId"));
 
-  // Sync URL to State (The master sync)
+  const updateUrl = useCallback((params: Record<string, string | null>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === null) newParams.delete(key);
+      else newParams.set(key, value);
+    });
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   useEffect(() => {
     const urlSearch = searchParams.get("search") || "";
     const urlStatus = searchParams.get("status") || "";
     const urlPatientId = searchParams.get("patientId") || null;
-    const urlTab = searchParams.get("tab") || "contacts";
+    const urlTab = searchParams.get("tab") || "timeline";
 
-    if (search !== urlSearch) {
-      setSearch(urlSearch);
-      setDebouncedSearch(urlSearch);
-    }
-    if (statusFilter !== urlStatus) {
-      setStatusFilter(urlStatus);
-      setShowFilters(!!urlStatus);
-    }
-    if (selectedPatientId !== urlPatientId) {
-      setSelectedPatientId(urlPatientId);
-    }
-    if (activeTab !== urlTab) {
-      setActiveTab(urlTab);
-    }
-  }, [searchParams]);
-
-  const updateUrl = (params: Record<string, string | null>) => {
-    const newParams = new URLSearchParams(searchParams);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value === null || value === "" || (key === "tab" && value === "contacts")) {
-        newParams.delete(key);
-      } else {
-        newParams.set(key, value);
-      }
-    });
-    if (newParams.toString() !== searchParams.toString()) {
-      setSearchParams(newParams, { replace: true });
-    }
-  };
-
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-    updateUrl({ tab: value });
-  };
-
-  useEffect(() => {
-    if (searchParams.get("create") === "true") {
-      setCreatePatientDialogOpen(true);
-    }
+    if (search !== urlSearch) { setSearch(urlSearch); setDebouncedSearch(urlSearch); }
+    if (statusFilter !== urlStatus) { setStatusFilter(urlStatus); setShowFilters(!!urlStatus); }
+    if (urlPatientId !== selectedPatientId) { setSelectedPatientId(urlPatientId); }
+    if (urlTab !== activeTab) { setActiveTab(urlTab); }
   }, [searchParams]);
 
   useEffect(() => {
@@ -196,86 +157,35 @@ const Patients = () => {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, debouncedSearch, updateUrl]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedLeadSearch(leadSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [leadSearch]);
+    if (searchParams.get("create") === "true") {
+      openCreatePatientModal();
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("create");
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, openCreatePatientModal, setSearchParams]);
 
-  const { data: patientsData, previousData: prevPatientsData, loading: loadingPatients, error: patientsError, refetch: refetchPatients, fetchMore } = useQuery(GET_PATIENTS, {
-    variables: {
-      first: PAGE_SIZE,
-      where: {
-        ...(debouncedSearch ? { search: debouncedSearch } : {}),
-        ...(statusFilter && statusFilter !== "ALL" ? { status: statusFilter } : {}),
-      }
-    },
+  const { data: patientsData, previousData: prevPatientData, loading: loadingPatients, fetchMore } = useQuery(GET_PATIENTS, {
+    variables: { first: PAGE_SIZE, search: debouncedSearch || undefined, status: statusFilter || undefined },
+    notifyOnNetworkStatusChange: true,
     fetchPolicy: 'cache-and-network',
   });
 
-  // Use previous data while loading new search results to prevent flickering
-  const effectivePatientsData = patientsData || prevPatientsData;
-
-  // Derive pagination from data instead of separate state (avoids stale values)
-  const totalCount = effectivePatientsData?.patients?.totalCount ?? 0;
-  const hasNextPage = effectivePatientsData?.patients?.pageInfo?.hasNextPage ?? false;
-  const endCursor = effectivePatientsData?.patients?.pageInfo?.endCursor ?? null;
-
-  // Detect if this is a re-fetch (not initial load) — used for subtle loading indicator
-  const isSearching = loadingPatients && !!effectivePatientsData;
-
-  // Debug error
-  useEffect(() => {
-    if (patientsError) {
-      console.error('Patients query error:', patientsError);
-    }
-  }, [patientsError]);
-
-  const loadMore = async () => {
-    if (!endCursor || !hasNextPage) return;
-    await fetchMore({
-      variables: {
-        first: PAGE_SIZE,
-        after: endCursor,
-        where: {
-          ...(debouncedSearch && { search: debouncedSearch }),
-          ...(statusFilter && { status: statusFilter }),
-        },
-      },
-      updateQuery: (previousResult, { fetchMoreResult }) => {
-        if (!fetchMoreResult?.patients?.edges?.length) return previousResult;
-        return {
-          ...fetchMoreResult,
-          patients: {
-            ...fetchMoreResult.patients,
-            edges: [...(previousResult?.patients?.edges || []), ...fetchMoreResult.patients.edges],
-          },
-        };
-      },
-    });
-  };
-
-  const { data: patientData, previousData: prevPatientData, loading: loadingPatient, refetch: refetchPatient } = useQuery(GET_PATIENT, {
-    variables: { id: selectedPatientId },
+  const { data: patientQueryData, loading: loadingPatient, refetch: refetchPatient } = useQuery(GET_PATIENT, {
+    variables: { id: selectedPatientId || "" },
     skip: !selectedPatientId,
-    fetchPolicy: 'cache-first',
+    fetchPolicy: 'cache-and-network',
   });
 
-  // Keep previous patient visible while loading new one
-  const effectivePatientData = patientData || prevPatientData;
+  const currentPatientRef = useRef<any>(null);
+  useEffect(() => { if (patientQueryData?.patient) currentPatientRef.current = patientQueryData.patient; }, [patientQueryData]);
 
-    const { data: leadsData } = useQuery(GET_LEADS, {
-      variables: {
-        search: debouncedLeadSearch,
-      },
-      fetchPolicy: 'cache-first',
-    });
+  const patient = patientQueryData?.patient || currentPatientRef.current;
 
   const [updatePatient, { loading: updatingPatient }] = useMutation(UPDATE_PATIENT);
-  const [createPatient, { loading: creatingPatient }] = useMutation(CREATE_PATIENT);
   const [createDocument, { loading: creatingDoc }] = useMutation(CREATE_DOCUMENT);
   const [updateDocumentStatus] = useMutation(UPDATE_DOCUMENT_STATUS);
   const [createPostOp, { loading: creatingPostOp }] = useMutation(CREATE_POST_OP);
@@ -283,221 +193,103 @@ const Patients = () => {
 
   const [editPatientDialogOpen, setEditPatientDialogOpen] = useState(false);
   const [editPatientForm, setEditPatientForm] = useState({
-    dateOfBirth: "",
-    medicalRecord: "",
-    address: "",
-    sex: "",
-    weight: "",
-    height: "",
-    howMet: "",
-    reason: ""
+    dateOfBirth: "", medicalRecord: "", address: "", sex: "", weight: "", height: "", howMet: "", reason: ""
   });
-  const [previousPatientState, setPreviousPatientState] = useState<any>(null);
 
   const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
+  const [newPostOpDialogOpen, setNewPostOpDialogOpen] = useState(false);
+  const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
 
-   const [newPostOpDialogOpen, setNewPostOpDialogOpen] = useState(false);
-   const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
+  const effectivePatientsData = patientsData || prevPatientData;
+  const pagination = effectivePatientsData?.patients?.pageInfo;
+  const patientList = effectivePatientsData?.patients?.edges?.map((e: any) => e.node) || [];
 
-   const [createPatientDialogOpen, setCreatePatientDialogOpen] = useState(!!searchParams.get("create"));
-   const [createPatientForm, setCreatePatientForm] = useState({
-     leadId: "",
-     dateOfBirth: "",
-     medicalRecord: "",
-     address: "",
-     sex: "",
-     weight: "",
-     height: "",
-     howMet: ""
-   });
-
-  const patients = effectivePatientsData?.patients?.edges?.map((e: any) => e.node) || [];
-  const patient = effectivePatientData?.patient;
-   const allLeads = leadsData?.leads?.edges?.map((e: any) => e.node) || [];
-   // Show leads that are NOT converted and don't have a patient yet (for conversion)
-   const availableLeadsForConversion = allLeads
-      .filter((lead: any) => 
-        lead.status !== 'CONVERTED' && !lead.patient
-      )
-      .sort((a: any, b: any) => 
-        a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })
-      );
-  const hasActiveFilters = !!statusFilter;
-  const sexMismatchWarning = useMemo(
-    () => getSexMismatchWarning(patient?.lead?.name, patient?.sex),
-    [patient?.lead?.name, patient?.sex]
-  );
-  const createSexMismatchWarning = useMemo(() => {
-    const selectedLead = availableLeadsForConversion.find((lead: any) => lead.id === createPatientForm.leadId);
-    return getSexMismatchWarning(selectedLead?.name, createPatientForm.sex);
-  }, [availableLeadsForConversion, createPatientForm.leadId, createPatientForm.sex]);
-  const editSexMismatchWarning = useMemo(
-    () => getSexMismatchWarning(patient?.lead?.name, editPatientForm.sex),
-    [patient?.lead?.name, editPatientForm.sex]
-  );
-
-  const openEditPatient = () => {
-    if (!patient) return;
-    const weight = patient.weight !== null && patient.weight !== undefined ? String(patient.weight) : "";
-    const height = patient.height !== null && patient.height !== undefined ? String(patient.height) : "";
-    setEditPatientForm({
-      dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
-      medicalRecord: patient.medicalRecord || "",
-      address: patient.address || "",
-      sex: patient.sex || "",
-      weight: weight,
-      height: height,
-      howMet: patient.howMet || "",
-      reason: "",
-    });
-    setEditPatientDialogOpen(true);
-  };
+  const handleTabChange = useCallback((v: string) => { setActiveTab(v); updateUrl({ tab: v }); }, [updateUrl]);
 
   const handleUpdatePatient = async () => {
-    if (editPatientForm.weight) {
-      const w = parseFloat(editPatientForm.weight.replace(',', '.'));
-      if (isNaN(w) || w <= 0 || w > MAX_WEIGHT_KG) {
-        toast.error(`Por favor, insira um peso válido e realista (até ${MAX_WEIGHT_KG}kg).`);
-        return;
-      }
-    }
-    if (editPatientForm.height) {
-      const h = parseFloat(editPatientForm.height.replace(',', '.'));
-      if (isNaN(h) || h <= 0 || h > MAX_HEIGHT_CM) {
-        toast.error(`Por favor, insira uma altura válida e realista (em cm, até ${MAX_HEIGHT_CM}cm).`);
-        return;
-      }
-    }
+    if (!selectedPatientId) return;
+    const wStr = (editPatientForm.weight || "").toString().replace(",", ".");
+    const hStr = (editPatientForm.height || "").toString().replace(",", ".");
+    const w = parseFloat(wStr);
+    const h = parseFloat(hStr);
+    if (editPatientForm.weight && (isNaN(w) || w <= 0 || w > MAX_WEIGHT_KG)) return toast.error("Peso inválido.");
+    if (editPatientForm.height && (isNaN(h) || h <= 0 || h > MAX_HEIGHT_CM)) return toast.error("Altura inválida.");
 
     try {
-      // Save previous state for undo
-      setPreviousPatientState({
-        dateOfBirth: patient.dateOfBirth,
-        medicalRecord: patient.medicalRecord,
-        address: patient.address,
-        sex: patient.sex,
-        weight: patient.weight,
-        height: patient.height,
-        howMet: patient.howMet,
-      });
-
       await updatePatient({
         variables: {
           input: {
-            id: patient.id,
+            id: selectedPatientId,
             dateOfBirth: editPatientForm.dateOfBirth ? new Date(editPatientForm.dateOfBirth).toISOString() : undefined,
             medicalRecord: editPatientForm.medicalRecord || undefined,
             address: editPatientForm.address || undefined,
             sex: editPatientForm.sex || undefined,
-            weight: editPatientForm.weight ? parseFloat(editPatientForm.weight) : undefined,
-            height: editPatientForm.height ? parseFloat(editPatientForm.height) : undefined,
+            weight: isNaN(w) ? undefined : w,
+            height: isNaN(h) ? undefined : h,
             howMet: editPatientForm.howMet || undefined,
             reason: editPatientForm.reason || undefined,
           }
         }
       });
-      toast.success("Dados atualizados com sucesso!");
-      showUndoableToast(
-        "Dados atualizados!",
-        async () => {
-          if (previousPatientState) {
-            await updatePatient({
-              variables: {
-                input: {
-                  id: patient.id,
-                  dateOfBirth: previousPatientState.dateOfBirth,
-                  medicalRecord: previousPatientState.medicalRecord || undefined,
-                  address: previousPatientState.address || undefined,
-                  sex: previousPatientState.sex || undefined,
-                  weight: previousPatientState.weight || undefined,
-                  height: previousPatientState.height || undefined,
-                  howMet: previousPatientState.howMet || undefined,
-                  reason: 'Undo: Reversão de alteração',
-                }
-              }
-            });
-            await refetchPatient();
-          }
-        },
-        "Desfazer"
-      );
+      toast.success("Paciente atualizado!");
       setEditPatientDialogOpen(false);
-      await refetchPatient();
-    } catch (e: any) {
-      toast.error(e.message || "Erro ao atualizar");
-    }
+      refetchPatient();
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const handleCreateDocument = async () => {
-    if (!newDocForm.name || !newDocForm.date) return toast.error("Preencha nome e data");
+    if (!selectedPatientId || !newDocForm.name) return;
     try {
-      await createDocument({ variables: { input: { patientId: patient.id, ...newDocForm, date: new Date(newDocForm.date).toISOString() } } });
-      toast.success("Documento adicionado!");
+      await createDocument({
+        variables: {
+          input: {
+            patientId: selectedPatientId,
+            name: newDocForm.name,
+            type: newDocForm.type,
+            date: new Date(newDocForm.date).toISOString()
+          }
+        }
+      });
+      toast.success("Documento registrado!");
       setNewDocDialogOpen(false);
       setNewDocForm({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
       refetchPatient();
-    } catch (e: any) {
-      toast.error(e.message || "Erro ao adicionar documento");
-    }
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const handleCreatePostOp = async () => {
-    if (!newPostOpForm.description || !newPostOpForm.date) return toast.error("Preencha descrição e data");
+    if (!selectedPatientId || !newPostOpForm.description) return;
     try {
-      await createPostOp({ variables: { input: { patientId: patient.id, ...newPostOpForm, date: new Date(newPostOpForm.date).toISOString() } } });
+      await createPostOp({
+        variables: {
+          input: {
+            patientId: selectedPatientId,
+            description: newPostOpForm.description,
+            type: newPostOpForm.type,
+            date: new Date(newPostOpForm.date).toISOString()
+          }
+        }
+      });
       toast.success("Pós-operatório agendado!");
       setNewPostOpDialogOpen(false);
       setNewPostOpForm({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
       refetchPatient();
-    } catch (e: any) {
-      toast.error(e.message || "Erro ao agendar pós-op");
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const StatusIconComponent = ({ status }: { status: string }) => {
+    switch (status) {
+      case 'READ':
+      case 'ANSWERED':
+      case 'SIGNED': return <Check className="h-3 w-3 text-green-500" />;
+      case 'FAILED':
+      case 'MISSED': return <X className="h-3 w-3 text-red-500" />;
+      default: return <Clock className="h-3 w-3 text-muted-foreground" />;
     }
   };
 
-  const handleCreatePatient = async () => {
-    if (!createPatientForm.leadId || !createPatientForm.dateOfBirth) {
-      return toast.error("Selecione um lead e informe a data de nascimento");
-    }
-    try {
-      const result = await createPatient({
-        variables: {
-          input: {
-            leadId: createPatientForm.leadId,
-            dateOfBirth: new Date(createPatientForm.dateOfBirth).toISOString(),
-            medicalRecord: createPatientForm.medicalRecord || undefined,
-            address: createPatientForm.address || undefined,
-            sex: createPatientForm.sex || undefined,
-            weight: createPatientForm.weight ? parseFloat(createPatientForm.weight) : undefined,
-            height: createPatientForm.height ? parseFloat(createPatientForm.height) : undefined,
-            howMet: createPatientForm.howMet || undefined,
-          }
-        }
-      });
-      toast.success("Paciente criado com sucesso!");
-      setCreatePatientDialogOpen(false);
-      setCreatePatientForm({ leadId: "", dateOfBirth: "", medicalRecord: "", address: "", sex: "", weight: "", height: "", howMet: "" });
-      refetchPatients();
-      if (result.data?.createPatient?.id) {
-        setSelectedPatientId(result.data.createPatient.id);
-        updateUrl({ patientId: result.data.createPatient.id });
-      }
-    } catch (e: any) {
-      toast.error(e.message || "Erro ao criar paciente");
-    }
-  };
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearch(value);
-  }, []);
-
-  const handleStatusFilterChange = useCallback((value: string) => {
-    const newVal = value === "ALL" ? "" : value;
-    setStatusFilter(newVal);
-    updateUrl({ status: newVal || null });
-  }, []);
-
-  const contactIcon = (type: string) => {
+  const ContactIconComponent = ({ type }: { type: string }) => {
     switch (type) {
       case 'WHATSAPP': return <MessageCircle className="h-4 w-4 text-green-500" />;
       case 'CALL': return <Phone className="h-4 w-4 text-blue-500" />;
@@ -506,268 +298,87 @@ const Patients = () => {
     }
   };
 
-  const statusIcon = (status: string) => {
-    switch (status) {
-      case 'READ':
-      case 'ANSWERED':
-      case 'SIGNED':
-        return <Check className="h-3 w-3 text-green-500" />;
-      case 'DELIVERED':
-      case 'SENT':
-        return <Clock className="h-3 w-3 text-muted-foreground" />;
-      case 'FAILED':
-      case 'MISSED':
-        return <X className="h-3 w-3 text-red-500" />;
-      default:
-        return <Clock className="h-3 w-3 text-muted-foreground" />;
-    }
-  };
-
-  const isInitialLoad = loadingPatients && !patientsData;
-
-  if (isInitialLoad) {
-    return (
-      <AppLayout title="Pacientes">
-        <div className="flex gap-6">
-          <div className="w-1/3 space-y-2">
-            <Skeleton className="h-10 w-full" />
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))}
-          </div>
-          <div className="flex-1 space-y-4">
-            <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-64 w-full" />
-          </div>
-        </div>
-      </AppLayout>
-    );
+  if (loadingPatients && !patientsData) {
+    return <AppLayout title="Pacientes"><div className="flex gap-6"><div className="w-1/3 space-y-2"><Skeleton className="h-10 w-full" />{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div><div className="flex-1 space-y-4"><Skeleton className="h-64 w-full" /><Skeleton className="h-64 w-full" /></div></div></AppLayout>;
   }
 
   return (
     <AppLayout title="Pacientes">
       <div className="flex gap-6">
-        {/* Patient List */}
         <div className="w-1/3 space-y-4">
            <div className="flex items-center justify-between gap-2">
              <div className="relative flex-1">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-               <Input
-                 placeholder="Buscar paciente..."
-                 value={search}
-                 onChange={(e) => handleSearchChange(e.target.value)}
-                 className="pl-9 pr-9"
-               />
-               {isSearching && (
-                 <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
-               )}
+               <Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 pr-9" />
+               {loadingPatients && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />}
              </div>
-             <Button
-               variant="outline"
-               size="icon"
-               onClick={() => setShowFilters(!showFilters)}
-               className={cn("relative", hasActiveFilters && "border-primary")}
-               aria-label={hasActiveFilters ? "Filtros ativos" : "Abrir filtros"}
-             >
+             <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)} className={cn(!!statusFilter && "border-primary")}>
                <Filter className="h-4 w-4" />
-               {hasActiveFilters && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
              </Button>
-             <Button size="sm" onClick={() => setCreatePatientDialogOpen(true)} className="ml-2">
-               <Plus className="h-4 w-4 mr-1" />
-               Novo
-             </Button>
+             <Button size="sm" onClick={() => openCreatePatientModal()} className="ml-2"><Plus className="h-4 w-4 mr-1" /> Novo</Button>
            </div>
 
           {showFilters && (
-            <Card className="p-3">
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Status do Lead</Label>
-                  <Select value={statusFilter || "ALL"} onValueChange={handleStatusFilterChange}>
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">Todos</SelectItem>
-                      <SelectItem value="NEW">Novo</SelectItem>
-                      <SelectItem value="CONTACTED">Contato</SelectItem>
-                      <SelectItem value="QUALIFIED">Qualificado</SelectItem>
-                      <SelectItem value="CONVERTED">Convertido</SelectItem>
-                      <SelectItem value="LOST">Perdido</SelectItem>
-                    </SelectContent>
-                  </Select>
+            <Card className="bg-muted/30 border-dashed">
+              <CardContent className="p-3 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground">Filtros</span>
+                  <Button variant="ghost" size="sm" onClick={() => { setStatusFilter(""); updateUrl({ status: null }); }} className="h-6 text-[10px]">Limpar</Button>
                 </div>
-                {hasActiveFilters && (
-                  <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs">
-                    <span>Filtro ativo: {statusLabels[statusFilter]}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => {
-                        setStatusFilter("");
-                        updateUrl({ status: null });
-                      }}
-                    >
-                      Limpar
-                    </Button>
-                  </div>
-                )}
-              </div>
+                <Select value={statusFilter || "ALL"} onValueChange={v => { const n = v === "ALL" ? "" : v; setStatusFilter(n); updateUrl({ status: n || null }); }}>
+                  <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder="Todos os status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todos os status</SelectItem>
+                    {Object.entries(statusLabels).map(([val, label]) => <SelectItem key={val} value={val}>{label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </CardContent>
             </Card>
           )}
 
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{totalCount} pacientes</span>
-          </div>
-
-          <div
-            className={cn("space-y-2 transition-opacity duration-200", isSearching && "opacity-60")}
-            role="listbox"
-            aria-label="Lista de pacientes"
-          >
-            {patients.length === 0 && !loadingPatients ? (
-              <Card>
-                <CardContent className="py-8 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Nenhum paciente encontrado
-                  </p>
-                  {(search || hasActiveFilters) && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="mt-2"
-                      onClick={() => {
-                        setSearch("");
-                        setStatusFilter("");
-                        updateUrl({ search: null, status: null });
-                      }}
-                    >
-                      Limpar busca e filtros
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ) : patients.length === 0 && loadingPatients ? (
-              [...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
-            ) : (
-              patients.map((p: any) => (
-                <Card
-                  key={p.id}
-                  className={cn(
-                    "cursor-pointer hover:shadow-md transition-all duration-300",
-                    selectedPatientId === p.id && "border-primary"
-                  )}
-                  role="option"
-                  aria-selected={selectedPatientId === p.id}
-                  tabIndex={0}
-                  onClick={() => {
-                    setSelectedPatientId(p.id);
-                    updateUrl({ patientId: p.id });
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setSelectedPatientId(p.id);
-                      updateUrl({ patientId: p.id });
-                    }
-                  }}
+          <div className="space-y-2">
+            {patientList.length === 0 ? <div className="py-12 text-center bg-muted/20 rounded-lg border-2 border-dashed text-sm text-muted-foreground">Nenhum encontrado</div> : (
+              patientList.map((p_item: any) => (
+                <Card 
+                  key={p_item.id} 
+                  className={cn("cursor-pointer transition-all hover:border-primary/50", selectedPatientId === p_item.id && "border-primary ring-1 ring-primary/20 bg-primary/5")}
+                  onClick={() => { setSelectedPatientId(p_item.id); updateUrl({ patientId: p_item.id }); }}
                 >
                   <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                        <User className="h-5 w-5 text-primary" />
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate">{p_item.lead?.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{p_item.lead?.phone}</p>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium truncate" title={p.lead?.name}>{p.lead?.name}</p>
-                          <div className={cn("w-2 h-2 rounded-full", statusColors[p.lead?.status] || "bg-gray-400")} title={statusLabels[p.lead?.status] || p.lead?.status} />
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate" title={p.lead?.phone}>{p.lead?.phone}</p>
-                         {p.bmi && (
-                           <div className="flex flex-wrap gap-2 mt-1">
-                             <span className="bg-primary/20 text-primary px-2 py-0.5 rounded text-xs">IMC: {p.bmi}</span>
-                             <span className="bg-primary/20 text-primary px-2 py-0.5 rounded text-xs">{p.weight}kg</span>
-                             <span className="bg-primary/20 text-primary px-2 py-0.5 rounded text-xs">{p.height}cm</span>
-                           </div>
-                         )}
-                      </div>
+                      <Badge className={cn("text-[10px] h-4", statusColors[p_item.lead?.status])}>{statusLabels[p_item.lead?.status]}</Badge>
                     </div>
                   </CardContent>
                 </Card>
               ))
             )}
+            {pagination?.hasNextPage && <Button variant="ghost" className="w-full text-xs text-muted-foreground h-8" onClick={() => fetchMore({ variables: { after: pagination.endCursor } })} disabled={loadingPatients}>Carregar mais</Button>}
           </div>
-
-          {hasNextPage && (
-            <div className="flex justify-center">
-              <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingPatients}>
-                <ChevronRight className="h-4 w-4 mr-1" />
-                Carregar mais
-              </Button>
-            </div>
-          )}
         </div>
 
-        {/* Patient Details */}
-        <div className="flex-1 space-y-4">
-          {!selectedPatientId ? (
-            <Card>
-              <CardContent className="flex items-center justify-center h-64">
-                <p className="text-muted-foreground">Selecione um paciente para ver os detalhes</p>
-              </CardContent>
-            </Card>
-          ) : loadingPatient && !effectivePatientData?.patient ? (
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-40 w-full" />
-              </CardContent>
-            </Card>
-          ) : loadingPatient && effectivePatientData?.patient ? (
-            <div className="space-y-4">
-              <Card>
-                <CardContent className="p-6 space-y-3">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Skeleton className="h-14 w-14 rounded-full" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-6 w-32" />
-                      <Skeleton className="h-4 w-24" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Tabs value={activeTab} className="w-full">
-                <TabsList className="w-full">
-                  <TabsTrigger value="contacts" className="flex-1">Contatos ({patient.lead?.contacts?.length ?? 0})</TabsTrigger>
-                  <TabsTrigger value="documents" className="flex-1">Documentos ({patient.documents?.length ?? 0})</TabsTrigger>
-                  <TabsTrigger value="postop" className="flex-1">Pós-Operatório ({patient.postOps?.length ?? 0})</TabsTrigger>
-                  <TabsTrigger value="history" className="flex-1">Histórico ({patient.auditLogs?.length ?? 0})</TabsTrigger>
-                </TabsList>
-                <div className="mt-4">
-                  {activeTab === "contacts" && <CardListSkeleton count={3} />}
-                  {activeTab === "documents" && <CardListSkeleton count={2} />}
-                  {activeTab === "postop" && <CardListSkeleton count={2} />}
-                  {activeTab === "history" && <CardListSkeleton count={3} />}
-                </div>
-              </Tabs>
-            </div>
-          ) : patient ? (
-            <div className={cn("space-y-4 transition-opacity duration-200", loadingPatient && "opacity-60")}>
-              {/* Patient Info Card */}
+        <div className="flex-1 min-w-0">
+          {loadingPatient && !patient ? <div className="space-y-4"><Skeleton className="h-64 w-full" /><CardListSkeleton count={3} /></div> : patient ? (
+            <div className={cn("space-y-4 transition-opacity", loadingPatient && "opacity-60")}>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-base">Dados Pessoais</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={openEditPatient}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Editar
-                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    setEditPatientForm({
+                      dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
+                      medicalRecord: patient.medicalRecord || "",
+                      address: patient.address || "",
+                      sex: patient.sex || "",
+                      weight: patient.weight?.toString() || "",
+                      height: patient.height?.toString() || "",
+                      howMet: patient.howMet || "",
+                      reason: ""
+                    });
+                    setEditPatientDialogOpen(true);
+                  }}><Pencil className="h-4 w-4 mr-2" />Editar</Button>
                 </CardHeader>
                 <CardContent className="space-y-3">
                    <div className="flex items-center gap-3 mb-4">
@@ -778,580 +389,145 @@ const Patients = () => {
                      </div>
                      <div className="min-w-0">
                        <div className="flex items-center gap-2">
-                         <p className="font-semibold text-lg break-words" title={patient.lead?.name}>{patient.lead?.name}</p>
-                         <Badge 
-                           className={cn("text-[10px] px-2 py-0 h-4 uppercase text-white border-none shrink-0", statusColors[patient.lead?.status] || "bg-gray-400")}
-                         >
-                           {statusLabels[patient.lead?.status] || patient.lead?.status}
-                         </Badge>
+                         <p className="font-semibold text-lg break-words">{patient.lead?.name}</p>
+                         <Badge className={cn("text-[10px] px-2 h-4 text-white border-none", statusColors[patient.lead?.status])}>{statusLabels[patient.lead?.status]}</Badge>
                        </div>
-                       <div className="flex items-center gap-2 mt-1">
-                         <span className="text-xs text-muted-foreground">CPF</span>
-                         <p className="font-mono text-xs letter-spacing-wide">{patient.lead?.cpf}</p>
-                       </div>
+                       <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground"><span>CPF</span><p className="font-mono">{patient.lead?.cpf}</p></div>
                      </div>
                    </div>
-                   {sexMismatchWarning && (
-                     <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-                       <AlertTriangle className="h-4 w-4 text-amber-400" />
-                       <span>{sexMismatchWarning}</span>
-                     </div>
-                   )}
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Telefone</span>
-                      <p>{patient.lead?.phone}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">E-mail</span>
-                      <p className="truncate" title={patient.lead?.email}>{patient.lead?.email}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Data de Nascimento</span>
-                      <p>{patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Prontuário</span>
-                      <p>{patient.medicalRecord || '-'}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-muted-foreground">Endereço</span>
-                      <p className="break-words">{patient.address || '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Sexo</span>
-                      <p>{patient.sex || '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Peso (kg)</span>
-                      <p>{patient.weight || '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Altura (cm)</span>
-                      <p>{patient.height || '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Como nos conheceu</span>
-                      <p>{patient.howMet || '-'}</p>
-                    </div>
+                    <div><span className="text-muted-foreground">Telefone</span><p>{patient.lead?.phone}</p></div>
+                    <div><span className="text-muted-foreground">E-mail</span><p className="truncate">{patient.lead?.email}</p></div>
+                    <div><span className="text-muted-foreground">Data de Nascimento</span><p>{patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</p></div>
+                    <div><span className="text-muted-foreground">Prontuário</span><p>{patient.medicalRecord || '-'}</p></div>
+                    <div className="col-span-2"><span className="text-muted-foreground">Endereço</span><p className="break-words">{patient.address || '-'}</p></div>
+                    <div><span className="text-muted-foreground">Sexo</span><p>{patient.sex || '-'}</p></div>
+                    <div><span className="text-muted-foreground">Peso (kg)</span><p>{patient.weight || '-'}</p></div>
+                    <div><span className="text-muted-foreground">Altura (cm)</span><p>{patient.height || '-'}</p></div>
+                    <div><span className="text-muted-foreground">Como nos conheceu</span><p>{patient.howMet || '-'}</p></div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Tabs */}
               <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <TabsList className="w-full">
-                  <TabsTrigger value="contacts" className="flex-1">Contatos</TabsTrigger>
+                  <TabsTrigger value="timeline" className="flex-1">Linha do Tempo</TabsTrigger>
                   <TabsTrigger value="documents" className="flex-1">Documentos</TabsTrigger>
                   <TabsTrigger value="postop" className="flex-1">Pós-Operatório</TabsTrigger>
-                  <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
                 </TabsList>
+                <TabsContent value="timeline" className="mt-6">
+                  {(() => {
+                    const contacts = patient.lead?.contacts || [];
+                    const auditLogs = patient.auditLogs || [];
+                    const timelineItems = [
+                      ...contacts.map((c: any) => ({ ...c, itemType: 'CONTACT', timestamp: new Date(c.date) })),
+                      ...auditLogs.map((l: any) => ({ ...l, itemType: 'AUDIT', timestamp: new Date(l.createdAt) }))
+                    ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-                <TabsContent value="contacts" className="mt-4 space-y-2">
-                  {patient.lead?.contacts?.length === 0 && (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum contato registrado
-                      </CardContent>
-                    </Card>
-                  )}
-                  {patient.lead?.contacts?.map((contact: any) => (
-                    <Card key={contact.id}>
-                      <CardContent className="p-3 flex items-start gap-3">
-                        {contactIcon(contact.type)}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium">
-                              {contact.direction === 'INBOUND' ? 'Recebido' : 'Enviado'}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(contact.date), 'dd/MM/yyyy HH:mm')}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{contact.message}</p>
-                        </div>
-                        {statusIcon(contact.status)}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </TabsContent>
+                    if (timelineItems.length === 0) return <div className="py-20 text-center text-sm text-muted-foreground">Nenhuma atividade.</div>;
+                    return (
+                      <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
+                        {timelineItems.map((t_item: any) => {
+                          const isContact = t_item.itemType === 'CONTACT';
+                          const meta = !isContact ? getAuditActionMeta(t_item.action) : null;
+                          const IconComp = isContact ? (t_item.type === 'WHATSAPP' ? MessageCircle : t_item.type === 'EMAIL' ? Mail : PhoneCall) : meta!.icon;
+                          const colorClass = isContact 
+                            ? (t_item.type === 'WHATSAPP' ? "text-green-600 bg-green-500/20" : t_item.type === 'EMAIL' ? "text-purple-600 bg-purple-500/20" : "text-blue-600 bg-blue-500/20")
+                            : meta!.containerClassName + " " + meta!.iconClassName;
 
-                <TabsContent value="documents" className="mt-4 space-y-4">
-                  <div className="flex justify-end">
-                    <Button size="sm" onClick={() => setNewDocDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Novo Documento
-                    </Button>
-                  </div>
-                  {patient.documents?.length === 0 && (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum documento registrado
-                      </CardContent>
-                    </Card>
-                  )}
-                  {patient.documents?.map((doc: any) => (
-                    <Card key={doc.id}>
-                      <CardContent className="p-3 flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{doc.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {documentTypeLabels[doc.type]} • {format(new Date(doc.date), 'dd/MM/yyyy')}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={doc.status === 'SIGNED' ? 'default' : doc.status === 'UPLOADED' ? 'secondary' : 'outline'}>
-                            {documentStatusLabels[doc.status]}
-                          </Badge>
-                          {doc.status === 'PENDING' && (
-                            <div className="flex flex-col gap-1 ml-2">
-                              {doc.type === 'CONTRACT' || doc.type === 'TERM' ? (
-                                <Button size="sm" variant="outline" className="h-8 text-xs px-2" onClick={async () => {
-                                  try {
-                                    await updateDocumentStatus({ variables: { id: doc.id, status: 'SIGNED' } });
-                                    toast.success("Documento assinado!");
-                                    refetchPatient();
-                                  } catch (e: any) { toast.error(e.message); }
-                                }}>
-                                  Marcar Assinado
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="outline" className="h-8 text-xs px-2" onClick={async () => {
-                                  try {
-                                    await updateDocumentStatus({ variables: { id: doc.id, status: 'UPLOADED' } });
-                                    toast.success("Documento enviado!");
-                                    refetchPatient();
-                                  } catch (e: any) { toast.error(e.message); }
-                                }}>
-                                  Marcar Enviado
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </TabsContent>
-
-                <TabsContent value="postop" className="mt-4 space-y-4">
-                  <div className="flex justify-end">
-                    <Button size="sm" onClick={() => setNewPostOpDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Agendar Retorno
-                    </Button>
-                  </div>
-                  {patient.postOps?.length === 0 && (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum retorno agendado
-                      </CardContent>
-                    </Card>
-                  )}
-                  {patient.postOps?.map((postOp: any) => (
-                    <Card key={postOp.id}>
-                      <CardContent className="p-3 flex items-center gap-3">
-                        <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{postOp.description}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(postOp.date), 'dd/MM/yyyy')}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={postOp.status === 'COMPLETED' ? 'default' : postOp.status === 'SCHEDULED' ? 'secondary' : 'outline'}>
-                            {postOp.status === 'COMPLETED' ? 'Concluído' : postOp.status === 'SCHEDULED' ? 'Agendado' : 'Pendente'}
-                          </Badge>
-                          {postOp.status !== 'COMPLETED' && (
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Marcar como Concluído" onClick={async () => {
-                              try {
-                                await updatePostOpStatus({ variables: { id: postOp.id, status: 'COMPLETED' } });
-                                toast.success("Pós-operatório concluído!");
-                                refetchPatient();
-                              } catch (e: any) { toast.error(e.message); }
-                            }}>
-                              <Check className="h-4 w-4 text-green-500" />
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </TabsContent>
-
-                <TabsContent value="history" className="mt-4 space-y-2">
-                  {patient.auditLogs?.length === 0 ? (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        Nenhum registro de auditoria
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    patient.auditLogs?.map((log: any) => {
-                      const actionMeta = getAuditActionMeta(log.action);
-                      const ActionIcon = actionMeta.icon;
-                      return (
-                        <Card key={log.id}>
-                          <CardContent className="p-3">
-                            <div className="flex items-start gap-3">
-                              <div className={cn(
-                                "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                                actionMeta.containerClassName
-                              )}>
-                                <ActionIcon className={cn("h-4 w-4", actionMeta.iconClassName)} />
+                          return (
+                            <div key={t_item.id} className="relative flex items-start gap-4">
+                              <div className={cn("flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm z-10", colorClass)}>
+                                <IconComp className="h-4 w-4" />
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-sm font-medium">
-                                    {getAuditMessage(log.action, patient.lead?.name)}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {format(new Date(log.createdAt), "dd/MM/yyyy HH:mm")}
-                                  </span>
+                              <div className="flex-1 bg-card p-4 rounded-lg border shadow-sm transition-all hover:shadow-md min-w-0">
+                                <div className="flex items-start sm:items-center justify-between gap-2 mb-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant={isContact ? (t_item.direction === 'OUTBOUND' ? 'default' : 'secondary') : 'outline'} className="text-[10px] px-1.5 py-0">
+                                      {isContact ? (t_item.direction === 'OUTBOUND' ? 'Enviado' : 'Recebido') : (t_item.action === 'CREATED' ? 'Criação' : t_item.action === 'STATUS_CHANGE' ? 'Status' : 'Alteração')}
+                                    </Badge>
+                                    {isContact && <span className="text-[10px] font-bold uppercase text-muted-foreground/70">{t_item.type}</span>}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {isContact && <StatusIconComponent status={t_item.status} />}
+                                    <time className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{format(t_item.timestamp, "dd/MM/yyyy HH:mm")}</time>
+                                  </div>
                                 </div>
-                                {log.reason && (
-                                  <p className="text-xs text-muted-foreground mb-1">{log.reason}</p>
-                                )}
-                                {log.newValue && (
-                                  <p className="text-xs bg-muted p-2 rounded font-mono truncate">
-                                    {log.newValue.length > 100 ? log.newValue.substring(0, 100) + "..." : log.newValue}
-                                  </p>
-                                )}
+                                <p className="text-sm text-foreground/90 leading-relaxed">{isContact ? t_item.message : getAuditMessage(t_item.action, patient.lead?.name)}</p>
+                                {!isContact && <AuditDiff oldValue={t_item.oldValue} newValue={t_item.newValue} className="mt-3 bg-muted/20" />}
+                                {t_item.user && <p className="text-[10px] text-muted-foreground mt-3 pt-2 border-t flex items-center"><User className="h-3 w-3 mr-1 opacity-50" /> <span className="font-semibold">{t_item.user.name}</span></p>}
                               </div>
                             </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })
-                  )}
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </TabsContent>
+                <TabsContent value="documents" className="mt-4 space-y-4">
+                  <div className="flex justify-end"><Button size="sm" onClick={() => setNewDocDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Novo</Button></div>
+                  {patient.documents?.map((doc: any) => (
+                    <Card key={doc.id}><CardContent className="p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3"><FileText className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm font-medium">{doc.name}</p><p className="text-xs text-muted-foreground">{documentTypeLabels[doc.type]} • {format(new Date(doc.date), 'dd/MM/yyyy')}</p></div></div>
+                      <Badge variant={doc.status === 'SIGNED' ? 'default' : 'outline'}>{documentStatusLabels[doc.status]}</Badge>
+                    </CardContent></Card>
+                  ))}
+                </TabsContent>
+                <TabsContent value="postop" className="mt-4 space-y-4">
+                  <div className="flex justify-end"><Button size="sm" onClick={() => setNewPostOpDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Agendar</Button></div>
+                  {patient.postOps?.map((po: any) => (
+                    <Card key={po.id}><CardContent className="p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3"><CalendarIcon className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm font-medium">{po.description}</p><p className="text-xs text-muted-foreground">{format(new Date(po.date), 'dd/MM/yyyy')}</p></div></div>
+                      <Badge variant={po.status === 'COMPLETED' ? 'default' : 'outline'}>{po.status === 'COMPLETED' ? 'Concluído' : 'Agendado'}</Badge>
+                    </CardContent></Card>
+                  ))}
                 </TabsContent>
               </Tabs>
             </div>
-          ) : (
-            <Card>
-              <CardContent className="flex items-center justify-center h-64">
-                <p className="text-muted-foreground">Erro ao carregar dados do paciente</p>
-              </CardContent>
-            </Card>
-          )}
+          ) : <Card><CardContent className="p-12 text-center text-muted-foreground">Selecione um paciente</CardContent></Card>}
         </div>
       </div>
 
-      {/* Create Patient Dialog */}
-      <Dialog open={createPatientDialogOpen} onOpenChange={(open) => {
-        setCreatePatientDialogOpen(open);
-        if (!open) {
-          const newParams = new URLSearchParams(searchParams);
-          newParams.delete("create");
-          setSearchParams(newParams, { replace: true });
-        }
-      }}>
-        <DialogContent>
-           <DialogHeader>
-             <DialogTitle>Converter Lead em Paciente</DialogTitle>
-             <DialogDescription>
-               Selecione um lead não convertido para criar o registro de paciente.
-             </DialogDescription>
-           </DialogHeader>
-          <div className="space-y-4 py-4">
-             <div className="space-y-2">
-               <Label>Lead *</Label>
-               <Input
-                 value={leadSearch}
-                 onChange={(e) => setLeadSearch(e.target.value)}
-                 placeholder="Buscar lead por nome..."
-               />
-               <Select value={createPatientForm.leadId} onValueChange={v => setCreatePatientForm(f => ({ ...f, leadId: v }))}>
-                 <SelectTrigger>
-                   <SelectValue placeholder="Selecione um lead" />
-                 </SelectTrigger>
-                 <SelectContent>
-                   {availableLeadsForConversion.map((lead: any) => (
-                     <SelectItem key={lead.id} value={lead.id}>
-                       {lead.name} - {lead.cpf}
-                     </SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
-             </div>
-            <div className="space-y-2">
-              <Label>Data de Nascimento *</Label>
-              <HistoricalDatePicker
-                value={createPatientForm.dateOfBirth}
-                onChange={(iso) => setCreatePatientForm(f => ({ ...f, dateOfBirth: iso }))}
-                minYear={1900}
-                maxYear={new Date().getFullYear()}
-                locale={ptBR}
-                placeholder="Selecione a data"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Prontuário</Label>
-              <Input value={createPatientForm.medicalRecord} onChange={e => setCreatePatientForm(f => ({ ...f, medicalRecord: e.target.value }))} placeholder="Opcional" />
-            </div>
-            <div className="space-y-2">
-              <Label>Endereço</Label>
-              <Input value={createPatientForm.address} onChange={e => setCreatePatientForm(f => ({ ...f, address: e.target.value }))} placeholder="Opcional" />
-            </div>
-            <div className="space-y-2">
-              <Label>Sexo</Label>
-              <Select value={createPatientForm.sex} onValueChange={v => setCreatePatientForm(f => ({ ...f, sex: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Masculino">Masculino</SelectItem>
-                  <SelectItem value="Feminino">Feminino</SelectItem>
-                  <SelectItem value="Outro">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-              {createSexMismatchWarning && (
-                <p className="text-xs text-amber-500">{createSexMismatchWarning}</p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Peso (kg)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="1"
-                  max="300"
-                  value={createPatientForm.weight}
-                  onChange={e => setCreatePatientForm(f => ({ ...f, weight: e.target.value }))}
-                  placeholder="Ex: 70.5"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Altura (cm)</Label>
-                <Input
-                  type="number"
-                  min="50"
-                  max="250"
-                  value={createPatientForm.height}
-                  onChange={e => setCreatePatientForm(f => ({ ...f, height: e.target.value }))}
-                  placeholder="Ex: 170"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Como nos conheceu?</Label>
-              <Select value={createPatientForm.howMet} onValueChange={v => setCreatePatientForm(f => ({ ...f, howMet: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Instagram">Instagram</SelectItem>
-                  <SelectItem value="Facebook">Facebook</SelectItem>
-                  <SelectItem value="Google">Google</SelectItem>
-                  <SelectItem value="TikTok">TikTok</SelectItem>
-                  <SelectItem value="Indicação">Indicação</SelectItem>
-                  <SelectItem value="Google Ads">Google Ads</SelectItem>
-                  <SelectItem value="Facebook Ads">Facebook Ads</SelectItem>
-                  <SelectItem value="Outro">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setCreatePatientDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreatePatient} disabled={creatingPatient} className="min-w-[140px]">{creatingPatient ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Criando...</> : "Criar Paciente"}</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Patient Dialog */}
       <Dialog open={editPatientDialogOpen} onOpenChange={setEditPatientDialogOpen}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Editar Paciente</DialogTitle>
-            <DialogDescription>Atualize os dados do paciente.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Data de Nascimento</Label>
-              <HistoricalDatePicker
-                value={editPatientForm.dateOfBirth}
-                onChange={(iso) => setEditPatientForm(f => ({ ...f, dateOfBirth: iso }))}
-                minYear={1900}
-                maxYear={new Date().getFullYear()}
-                locale={ptBR}
-                placeholder="Selecione a data"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Prontuário</Label>
-              <Input value={editPatientForm.medicalRecord} onChange={e => setEditPatientForm(f => ({ ...f, medicalRecord: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Endereço</Label>
-              <Input value={editPatientForm.address} onChange={e => setEditPatientForm(f => ({ ...f, address: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Sexo</Label>
-              <Select value={editPatientForm.sex} onValueChange={v => setEditPatientForm(f => ({ ...f, sex: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Masculino">Masculino</SelectItem>
-                  <SelectItem value="Feminino">Feminino</SelectItem>
-                  <SelectItem value="Outro">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-              {editSexMismatchWarning && (
-                <p className="text-xs text-amber-500">{editSexMismatchWarning}</p>
-              )}
-            </div>
+          <DialogHeader><DialogTitle>Editar Paciente</DialogTitle></DialogHeader>
+          <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Peso (kg)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="1"
-                  max="300"
-                  value={editPatientForm.weight}
-                  onChange={e => setEditPatientForm(f => ({ ...f, weight: e.target.value }))}
-                  placeholder="Ex: 70.5"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Altura (cm)</Label>
-                <Input
-                  type="number"
-                  min="50"
-                  max="250"
-                  value={editPatientForm.height}
-                  onChange={e => setEditPatientForm(f => ({ ...f, height: e.target.value }))}
-                  placeholder="Ex: 170"
-                />
-              </div>
+              <div className="space-y-2"><Label>Nascimento</Label><HistoricalDatePicker value={editPatientForm.dateOfBirth} onChange={iso => setEditPatientForm(f => ({...f, dateOfBirth: iso}))} minYear={1900} locale={ptBR} /></div>
+              <div className="space-y-2"><Label>Prontuário</Label><Input value={editPatientForm.medicalRecord} onChange={e => setEditPatientForm(f => ({...f, medicalRecord: e.target.value}))} /></div>
             </div>
-            <div className="space-y-2">
-              <Label>Como nos conheceu?</Label>
-              <Select value={editPatientForm.howMet} onValueChange={v => setEditPatientForm(f => ({ ...f, howMet: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Instagram">Instagram</SelectItem>
-                  <SelectItem value="Facebook">Facebook</SelectItem>
-                  <SelectItem value="Google">Google</SelectItem>
-                  <SelectItem value="TikTok">TikTok</SelectItem>
-                  <SelectItem value="Indicação">Indicação</SelectItem>
-                  <SelectItem value="Google Ads">Google Ads</SelectItem>
-                  <SelectItem value="Facebook Ads">Facebook Ads</SelectItem>
-                  <SelectItem value="Outro">Outro</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-2"><Label>Endereço</Label><Input value={editPatientForm.address} onChange={e => setEditPatientForm(f => ({...f, address: e.target.value}))} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Sexo</Label><Select value={editPatientForm.sex} onValueChange={v => setEditPatientForm(f => ({...f, sex: v}))}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent><SelectItem value="Masculino">Masculino</SelectItem><SelectItem value="Feminino">Feminino</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2"><Label>Peso (kg)</Label><Input type="number" step="0.1" value={editPatientForm.weight} onChange={e => setEditPatientForm(f => ({...f, weight: e.target.value}))} /></div>
             </div>
-            <div className="space-y-2">
-              <Label>Motivo da alteração</Label>
-              <Input value={editPatientForm.reason} onChange={e => setEditPatientForm(f => ({ ...f, reason: e.target.value }))} placeholder="Opcional" />
-            </div>
+            <div className="space-y-2"><Label>Motivo</Label><Input value={editPatientForm.reason} onChange={e => setEditPatientForm(f => ({...f, reason: e.target.value}))} /></div>
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setEditPatientDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleUpdatePatient} disabled={updatingPatient} className="min-w-[120px]">{updatingPatient ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar"}</Button>
-          </div>
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditPatientDialogOpen(false)}>Cancelar</Button><Button onClick={handleUpdatePatient} disabled={updatingPatient}>Salvar</Button></div>
         </DialogContent>
       </Dialog>
 
-      {/* New Document Dialog */}
       <Dialog open={newDocDialogOpen} onOpenChange={setNewDocDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Novo Documento</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Novo Documento</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Nome do Documento *</Label>
-              <Input value={newDocForm.name} onChange={e => setNewDocForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo *</Label>
-              <Select value={newDocForm.type} onValueChange={v => setNewDocForm(f => ({ ...f, type: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CONTRACT">Contrato</SelectItem>
-                  <SelectItem value="TERM">Termo</SelectItem>
-                  <SelectItem value="EXAM">Exame</SelectItem>
-                  <SelectItem value="OTHER">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Emissão *</Label>
-              <HistoricalDatePicker
-                value={newDocForm.date}
-                onChange={(iso) => setNewDocForm(f => ({ ...f, date: iso }))}
-                minYear={1900}
-                maxYear={new Date().getFullYear()}
-                locale={ptBR}
-                placeholder="Selecione a data"
-              />
-            </div>
+            <div className="space-y-2"><Label>Nome do Arquivo *</Label><Input value={newDocForm.name} onChange={e => setNewDocForm(f => ({...f, name: e.target.value}))} /></div>
+            <div className="space-y-2"><Label>Tipo *</Label><Select value={newDocForm.type} onValueChange={v => setNewDocForm(f => ({...f, type: v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(documentTypeLabels).map(([val, label]) => <SelectItem key={val} value={val}>{label}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Emissão *</Label><HistoricalDatePicker value={newDocForm.date} onChange={(iso) => setNewDocForm(f => ({...f, date: iso }))} minYear={2020} locale={ptBR} /></div>
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setNewDocDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateDocument} disabled={creatingDoc} className="min-w-[180px]">{creatingDoc ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adicionando...</> : "Adicionar Documento"}</Button>
-          </div>
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setNewDocDialogOpen(false)}>Cancelar</Button><Button onClick={handleCreateDocument} disabled={creatingDoc} className="min-w-[120px]">{creatingDoc ? <Loader2 className="animate-spin h-4 w-4" /> : "Registrar"}</Button></div>
         </DialogContent>
       </Dialog>
 
-      {/* New PostOp Dialog */}
       <Dialog open={newPostOpDialogOpen} onOpenChange={setNewPostOpDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Agendar Pós-Operatório</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Agendar Pós-Operatório</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Descrição *</Label>
-              <Input value={newPostOpForm.description} onChange={e => setNewPostOpForm(f => ({ ...f, description: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo *</Label>
-              <Select value={newPostOpForm.type} onValueChange={v => setNewPostOpForm(f => ({ ...f, type: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="RETURN">Retorno</SelectItem>
-                  <SelectItem value="REPAIR">Reparo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Data Agendada *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {newPostOpForm.date
-                      ? format(new Date(newPostOpForm.date + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })
-                      : "Selecione a data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 rounded-md border" align="start">
-                    <Calendar
-                      mode="single"
-                      locale={ptBR}
-                      selected={newPostOpForm.date ? new Date(newPostOpForm.date + "T12:00:00") : undefined}
-                      onSelect={(date) =>
-                        setNewPostOpForm((f) => ({ ...f, date: date ? format(date, "yyyy-MM-dd") : "" }))
-                      }
-                      className="rounded-md"
-                      initialFocus
-                    />
-                </PopoverContent>
-              </Popover>
-            </div>
+            <div className="space-y-2"><Label>Descrição *</Label><Input value={newPostOpForm.description} onChange={e => setNewPostOpForm(f => ({...f, description: e.target.value}))} /></div>
+            <div className="space-y-2"><Label>Tipo *</Label><Select value={newPostOpForm.type} onValueChange={v => setNewPostOpForm(f => ({...f, type: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="RETURN">Retorno</SelectItem><SelectItem value="SURGERY">Cirurgia</SelectItem><SelectItem value="PROCEDURE">Procedimento</SelectItem><SelectItem value="OTHER">Outro</SelectItem></SelectContent></Select></div>
+            <div className="space-y-2"><Label>Data Agendada *</Label><HistoricalDatePicker value={newPostOpForm.date} onChange={(iso) => setNewPostOpForm(f => ({...f, date: iso }))} minYear={new Date().getFullYear()} locale={ptBR} /></div>
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setNewPostOpDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreatePostOp} disabled={creatingPostOp} className="min-w-[160px]">{creatingPostOp ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Agendando...</> : "Agendar Retorno"}</Button>
-          </div>
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setNewPostOpDialogOpen(false)}>Cancelar</Button><Button onClick={handleCreatePostOp} disabled={creatingPostOp} className="min-w-[120px]">{creatingPostOp ? <Loader2 className="animate-spin h-4 w-4" /> : "Agendar"}</Button></div>
         </DialogContent>
       </Dialog>
     </AppLayout>

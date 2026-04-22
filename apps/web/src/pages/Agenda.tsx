@@ -224,6 +224,7 @@ const Agenda = () => {
           },
         });
       }
+      await refetchAppointments();
       showUndoableToast(
         "Agendamento salvo!",
         async () => {
@@ -349,6 +350,7 @@ const Agenda = () => {
               <Card>
                 <CardHeader className="p-3">
                   <CardTitle className="text-sm">Horário</CardTitle>
+                  <p className="text-xs">&nbsp;</p>
                 </CardHeader>
               </Card>
             </div>
