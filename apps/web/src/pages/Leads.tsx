@@ -15,7 +15,6 @@ import {
   Pencil, 
   Trash2, 
   Phone, 
-  PhoneCall, 
   Mail, 
   Filter, 
   Download, 
@@ -28,11 +27,9 @@ import {
   Calendar, 
   Clock, 
   History as HistoryIcon, 
-  XCircle, 
   Check, 
   X
-} from "lucide-react";
-import { useQuery, useMutation } from "@apollo/client";
+  } from "lucide-react";import { useQuery, useMutation } from "@apollo/client";
 import { 
   GET_LEADS, 
   UPDATE_LEAD_STATUS, 
@@ -763,7 +760,7 @@ function LeadTimeline({ leadId }: { leadId?: string }) {
         {timelineItems.map((item: any) => {
           const isContact = item.itemType === 'CONTACT';
           const meta = !isContact ? getAuditActionMeta(item.action) : null;
-          const IconComp = isContact ? (item.type === 'WHATSAPP' ? MessageCircle : item.type === 'EMAIL' ? Mail : PhoneCall) : meta!.icon;
+          const IconComp = isContact ? (item.type === 'WHATSAPP' ? MessageCircle : item.type === 'EMAIL' ? Mail : Phone) : meta!.icon;
           const colorClass = isContact 
             ? (item.type === 'WHATSAPP' ? "text-green-600 bg-green-500/10 border-green-500/20" : item.type === 'EMAIL' ? "text-purple-600 bg-purple-500/10 border-purple-500/20" : "text-blue-600 bg-blue-500/10 border-blue-500/20")
             : meta!.containerClassName + " " + meta!.iconClassName.replace('text-', 'border-') + " border border-primary/10 bg-background";

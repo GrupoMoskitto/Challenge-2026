@@ -9,7 +9,7 @@ import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
 import { 
   Calendar as CalendarIcon, 
   Search, 
-  Phone, 
+  Phone,
   MessageCircle, 
   Mail, 
   FileText, 
@@ -414,7 +414,7 @@ const Patients = () => {
                         {timelineItems.map((t_item: any) => {
                           const isContact = t_item.itemType === 'CONTACT';
                           const meta = !isContact ? getAuditActionMeta(t_item.action) : null;
-                          const IconComp = isContact ? (t_item.type === 'WHATSAPP' ? MessageCircle : t_item.type === 'EMAIL' ? Mail : PhoneCall) : meta!.icon;
+                          const IconComp = isContact ? (t_item.type === 'WHATSAPP' ? MessageCircle : t_item.type === 'EMAIL' ? Mail : Phone) : meta!.icon;
                           const colorClass = isContact 
                             ? (t_item.type === 'WHATSAPP' ? "text-green-600 bg-green-500/20" : t_item.type === 'EMAIL' ? "text-purple-600 bg-purple-500/20" : "text-blue-600 bg-blue-500/20")
                             : meta!.containerClassName + " " + meta!.iconClassName;
