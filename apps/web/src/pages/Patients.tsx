@@ -30,9 +30,7 @@ import {
   GET_PATIENT,
   UPDATE_PATIENT,
   CREATE_DOCUMENT,
-  UPDATE_DOCUMENT_STATUS,
   CREATE_POST_OP,
-  UPDATE_POST_OP_STATUS,
 } from "@/lib/queries";
 import {
   Dialog,
@@ -184,9 +182,7 @@ const Patients = () => {
 
   const [updatePatient, { loading: updatingPatient }] = useMutation(UPDATE_PATIENT);
   const [createDocument, { loading: creatingDoc }] = useMutation(CREATE_DOCUMENT);
-  const [updateDocumentStatus] = useMutation(UPDATE_DOCUMENT_STATUS);
   const [createPostOp, { loading: creatingPostOp }] = useMutation(CREATE_POST_OP);
-  const [updatePostOpStatus] = useMutation(UPDATE_POST_OP_STATUS);
 
   const [editPatientDialogOpen, setEditPatientDialogOpen] = useState(false);
   const [editPatientForm, setEditPatientForm] = useState({
@@ -283,15 +279,6 @@ const Patients = () => {
       case 'FAILED':
       case 'MISSED': return <X className="h-3 w-3 text-red-500" />;
       default: return <Clock className="h-3 w-3 text-muted-foreground" />;
-    }
-  };
-
-  const ContactIconComponent = ({ type }: { type: string }) => {
-    switch (type) {
-      case 'WHATSAPP': return <MessageCircle className="h-4 w-4 text-green-500" />;
-      case 'CALL': return <Phone className="h-4 w-4 text-blue-500" />;
-      case 'EMAIL': return <Mail className="h-4 w-4 text-purple-500" />;
-      default: return null;
     }
   };
 
