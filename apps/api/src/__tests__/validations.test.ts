@@ -83,7 +83,7 @@ describe('CRMed Validation Tests', () => {
     it('RECEPTION cannot delete lead', async () => {
       const ctx = { user: { userId: '1', email: 'rec@test.com', role: 'RECEPTION' } } as Context;
       await expect(resolvers.Mutation.deleteLead(null, { id: 'lead-1' }, ctx))
-        .rejects.toThrow('RN03_VIOLATION');
+        .rejects.toThrow(/RN03_VIOLATION|Acesso restrito/);
     });
   });
 

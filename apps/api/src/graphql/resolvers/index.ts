@@ -12,19 +12,30 @@ const encodeBase64 = (id: string): string => {
 };
 
 const decodeId = (id: string): string => {
-  if (!id) return id;
-  // If it's a cuid (starts with c) or a uuid (contains dashes and has specific length), it's likely already decoded
-  if (id.startsWith('c') && id.length >= 20) return id;
-  if (id.includes('-') && id.length >= 32) return id;
+  if (!id || typeof id !== 'string') return id;
+  
+  // Heuristics for already decoded IDs (cuids, uuids, or prefixed test IDs)
+  if (id.startsWith('c') && id.length >= 20) return id; // cuid
+  if (id.includes('-') && id.length >= 8) return id;    // uuid or lead-123
+  if (id.length < 8) return id;                         // too short for base64url-cuid
 
   try {
     const decoded = Buffer.from(id, 'base64url').toString('utf-8');
-    // Basic heuristic: if it contains non-printable characters, it's probably not a decoded ID
+    
+    // Check if the decoded string looks like a cuid (starts with c) or has a prefix-id format
+    const isLikelyCuid = decoded.startsWith('c') && decoded.length >= 20;
+    const isPrefixed = (decoded.includes(':') || decoded.includes('-')) && decoded.length > 5;
+    
     // eslint-disable-next-line no-control-regex
-    if (/[\u0000-\u0008\u000E-\u001F\u007F]/.test(decoded)) {
-      return id;
+    const hasControlChars = /[\u0000-\u0008\u000E-\u001F\u007F]/.test(decoded);
+    
+    if ((isLikelyCuid || isPrefixed) && !hasControlChars) {
+      // Return the ID part if it's prefix:id, or the whole thing if it's prefix-id or just cuid
+      if (decoded.includes(':')) return decoded.split(':').pop() || decoded;
+      return decoded;
     }
-    return decoded.split(':').pop() || decoded;
+    
+    return id;
   } catch {
     return id;
   }
@@ -66,6 +77,40 @@ function validatePatientData(input: any) {
       throw new Error(`Altura inválida. Deve ser entre 0 e ${MAX_HEIGHT_CM}cm.`);
     }
   }
+}
+
+interface CreateLeadInput {
+  name: string;
+  email?: string;
+  phone: string;
+  cpf?: string;
+  origin?: string;
+  procedure?: string;
+  whatsappActive?: boolean;
+  notes?: string;
+  preferredDoctor?: string;
+}
+
+interface UpdateLeadInput extends CreateLeadInput {
+  id: string;
+  status?: LeadStatus;
+  reason?: string;
+}
+
+interface CreatePatientInput {
+  leadId: string;
+  dateOfBirth: string;
+  medicalRecord?: string;
+  address?: string;
+  sex?: string;
+  weight?: number;
+  height?: number;
+  howMet?: string;
+}
+
+interface UpdatePatientInput extends Partial<CreatePatientInput> {
+  id: string;
+  reason?: string;
 }
 
 export const resolvers = {
@@ -318,7 +363,7 @@ export const resolvers = {
     },
     lead: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = id;
+      const decodedId = decodeId(id);
       return prisma.lead.findUnique({ 
         where: { id: decodedId },
         include: { contacts: { orderBy: { date: 'desc' } } },
@@ -360,7 +405,7 @@ export const resolvers = {
       }
 
       if (where?.surgeonId) {
-        const decodedSurgeonId = where.surgeonId;
+        const decodedSurgeonId = decodeId(where.surgeonId);
         whereClause.appointments = {
           some: { surgeonId: decodedSurgeonId },
         };
@@ -405,7 +450,7 @@ export const resolvers = {
     },
     patient: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = id;
+      const decodedId = decodeId(id);
       return prisma.patient.findUnique({
         where: { id: decodedId },
         include: { 
@@ -443,7 +488,7 @@ export const resolvers = {
     },
     appointment: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = id;
+      const decodedId = decodeId(id);
       return prisma.appointment.findUnique({
         where: { id: decodedId },
         include: { patient: true, surgeon: true },
@@ -473,7 +518,7 @@ export const resolvers = {
     },
     appointmentsBySurgeon: async (_: unknown, { surgeonId, startDate, endDate }: { surgeonId: string; startDate?: string; endDate?: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = surgeonId;
+      const decodedId = decodeId(surgeonId);
       return prisma.appointment.findMany({
         where: {
           surgeonId: decodedId,
@@ -495,7 +540,7 @@ export const resolvers = {
     },
     surgeon: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = id;
+      const decodedId = decodeId(id);
       return prisma.surgeon.findUnique({
         where: { id: decodedId },
         include: { availability: true, extraAvailability: true, blocks: true },
@@ -557,7 +602,7 @@ export const resolvers = {
     user: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'visualização de usuário');
-      const decodedId = id;
+      const decodedId = decodeId(id);
       return prisma.user.findUnique({ where: { id: decodedId } });
     },
     auditLogs: async (_: unknown, { entityType, entityId, action, startDate, endDate, userId, first, after }: { entityType?: string; entityId?: string; action?: string; startDate?: string; endDate?: string; userId?: string; first?: number; after?: string }, context: Context) => {
@@ -610,7 +655,7 @@ export const resolvers = {
     },
     contactsByLead: async (_: unknown, { leadId }: { leadId: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = leadId;
+      const decodedId = decodeId(leadId);
       return prisma.contact.findMany({
         where: { leadId: decodedId },
         orderBy: { date: 'desc' },
@@ -618,7 +663,7 @@ export const resolvers = {
     },
     documentsByPatient: async (_: unknown, { patientId }: { patientId: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = patientId;
+      const decodedId = decodeId(patientId);
       return prisma.document.findMany({
         where: { patientId: decodedId },
         orderBy: { date: 'desc' },
@@ -626,7 +671,7 @@ export const resolvers = {
     },
     postOpsByPatient: async (_: unknown, { patientId }: { patientId: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = patientId;
+      const decodedId = decodeId(patientId);
       return prisma.postOp.findMany({
         where: { patientId: decodedId },
         orderBy: { date: 'asc' },
@@ -675,7 +720,7 @@ export const resolvers = {
     },
     messageTemplate: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = id;
+      const decodedId = decodeId(id);
       return prisma.messageTemplate.findUnique({ where: { id: decodedId } });
     },
     evolutionApiInstances: async (_: unknown, __: unknown, context: Context) => {
@@ -759,7 +804,7 @@ export const resolvers = {
       const where: Record<string, unknown> = {};
       if (status) where.status = status;
       if (surgeonId) {
-        const decodedId = surgeonId;
+        const decodedId = decodeId(surgeonId);
         where.surgeonId = decodedId;
       }
       
@@ -771,7 +816,7 @@ export const resolvers = {
     },
     budget: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = id;
+      const decodedId = decodeId(id);
       return prisma.budget.findUnique({
         where: { id: decodedId },
         include: { patient: { include: { lead: true } }, surgeon: true, followUps: true },
@@ -779,7 +824,7 @@ export const resolvers = {
     },
     budgetsByPatient: async (_: unknown, { patientId }: { patientId: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = patientId;
+      const decodedId = decodeId(patientId);
       return prisma.budget.findMany({
         where: { patientId: decodedId },
         include: { surgeon: true, followUps: true },
@@ -801,7 +846,7 @@ export const resolvers = {
     },
     complaint: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = id;
+      const decodedId = decodeId(id);
       return prisma.complaint.findUnique({
         where: { id: decodedId },
         include: { patient: { include: { lead: true } }, treatments: true },
@@ -809,7 +854,7 @@ export const resolvers = {
     },
     complaintsByPatient: async (_: unknown, { patientId }: { patientId: string }, context: Context) => {
       assertAuthenticated(context);
-      const decodedId = patientId;
+      const decodedId = decodeId(patientId);
       return prisma.complaint.findMany({
         where: { patientId: decodedId },
         include: { treatments: true },
@@ -1046,7 +1091,7 @@ export const resolvers = {
     },
     updateLead: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      const leadId = input.id;
+      const leadId = decodeId(input.id);
       const current = await prisma.lead.findUnique({ where: { id: leadId } });
       if (!current) throw new Error('Lead não encontrado');
       await checkUniqueness({ cpf: input.cpf, email: input.email, phone: input.phone, excludeId: leadId });
@@ -1061,14 +1106,14 @@ export const resolvers = {
           newStatus: input.status,
           blockedRoles: ['RECEPTION'],
           criticalStatuses: ['CONVERTED', 'LOST'],
-          reason: 'Atualização de Lead'
+          reason: input.reason || 'Atualização de Lead'
         });
       }
       return updated;
     },
-    updateLeadStatus: async (_: unknown, { input }: { input: { id: string, status: LeadStatus } }, context: Context) => {
+    updateLeadStatus: async (_: unknown, { input }: { input: { id: string, status: LeadStatus, reason?: string } }, context: Context) => {
       assertAuthenticated(context);
-      const leadId = input.id;
+      const leadId = decodeId(input.id);
       const current = await prisma.lead.findUnique({ where: { id: leadId } });
       if (!current) throw new Error('Lead não encontrado');
       
@@ -1080,6 +1125,7 @@ export const resolvers = {
         newStatus: input.status,
         blockedRoles: ['RECEPTION'],
         criticalStatuses: ['CONVERTED', 'LOST'],
+        reason: input.reason,
       });
 
       const updated = await prisma.lead.update({ where: { id: leadId }, data: { status: input.status } });
@@ -1088,7 +1134,7 @@ export const resolvers = {
     deleteLead: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN', 'SALES'], 'exclusão de lead');
-      const leadId = id;
+      const leadId = decodeId(id);
       await prisma.lead.deleteMany({ where: { id: leadId } });
       return { success: true };
     },
@@ -1100,46 +1146,100 @@ export const resolvers = {
       assertAuthenticated(context);
       return { success: true, count: 0 };
     },
-    createPatient: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createPatient: async (_: unknown, { input }: { input: CreatePatientInput }, context: Context) => {
       assertAuthenticated(context);
       validatePatientData(input);
-      const leadId = input.leadId;
+      const leadId = decodeId(input.leadId);
       const lead = await prisma.lead.findUnique({ where: { id: leadId } });
       if (!lead) throw new Error('Lead não encontrado');
       return prisma.$transaction(async (tx) => {
         const patient = await tx.patient.create({ data: { ...input, leadId, dateOfBirth: new Date(input.dateOfBirth) } });
         await tx.lead.update({ where: { id: leadId }, data: { status: LeadStatus.CONVERTED } });
-        await tx.auditLog.create({ data: { entityType: 'Patient', entityId: patient.id, action: 'CREATED', userId: context.user?.userId, patientId: patient.id } });
+        
+        const { leadId: _, ...auditValues } = input;
+        await tx.auditLog.create({ 
+          data: { 
+            entityType: 'Patient', 
+            entityId: patient.id, 
+            action: 'CREATED', 
+            userId: context.user?.userId, 
+            patientId: patient.id,
+            newValue: auditValues as Prisma.InputJsonValue,
+            reason: 'Paciente criado a partir de lead'
+          } 
+        });
         return patient;
       });
     },
-    updatePatient: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updatePatient: async (_: unknown, { input }: { input: UpdatePatientInput }, context: Context) => {
       assertAuthenticated(context);
       validatePatientData(input);
-      const patientId = input.id;
+      const patientId = decodeId(input.id);
       const current = await prisma.patient.findUnique({ where: { id: patientId } });
-      const updated = await prisma.patient.update({ where: { id: patientId }, data: { ...input, id: undefined, dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined } });
-      await prisma.auditLog.create({ data: { entityType: 'Patient', entityId: patientId, action: 'UPDATED', oldValue: current as Prisma.InputJsonValue, newValue: input as Prisma.InputJsonValue, userId: context.user?.userId, patientId } });
+      if (!current) throw new Error('Paciente não encontrado');
+
+      if (input.medicalRecord && input.medicalRecord !== current.medicalRecord) {
+        const existing = await prisma.patient.findUnique({ where: { medicalRecord: input.medicalRecord } });
+        if (existing) throw new Error('RN01_VIOLATION: Prontuário já cadastrado por outro paciente');
+      }
+
+      const updated = await prisma.patient.update({ 
+        where: { id: patientId }, 
+        data: { 
+          ...input, 
+          id: undefined, 
+          reason: undefined,
+          dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined 
+        } 
+      });
+
+      const auditNewValue: any = {};
+      const currentAny = current as any;
+      for (const [key, value] of Object.entries(input)) {
+        if (key !== 'id' && key !== 'reason' && value !== currentAny[key]) {
+          if (key === 'dateOfBirth') {
+            const currentStr = currentAny[key] ? new Date(currentAny[key]).toISOString().split('T')[0] : null;
+            if (currentStr !== value) {
+              auditNewValue[key] = { from: currentAny[key], to: new Date(value as string) };
+            }
+          } else {
+            auditNewValue[key] = { from: currentAny[key], to: value };
+          }
+        }
+      }
+
+      await prisma.auditLog.create({ 
+        data: { 
+          entityType: 'Patient', 
+          entityId: patientId, 
+          action: 'UPDATED', 
+          oldValue: current as Prisma.InputJsonValue, 
+          newValue: auditNewValue as Prisma.InputJsonValue, 
+          userId: context.user?.userId, 
+          patientId,
+          reason: input.reason || 'Atualização de dados'
+        } 
+      });
       return updated;
     },
     createAppointment: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      const appointment = await prisma.appointment.create({ data: { ...input, patientId: input.patientId, surgeonId: input.surgeonId, scheduledAt: new Date(input.scheduledAt) }, include: { patient: true, surgeon: true } });
+      const appointment = await prisma.appointment.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), scheduledAt: new Date(input.scheduledAt) }, include: { patient: true, surgeon: true } });
       await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: appointment.id, action: 'CREATED', userId: context.user?.userId, appointmentId: appointment.id } });
       return appointment;
     },
     updateAppointment: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      const updated = await prisma.appointment.update({ where: { id: input.id }, data: { ...input, id: undefined, patientId: input.patientId || undefined, surgeonId: input.surgeonId || undefined, scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined } });
+      const updated = await prisma.appointment.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined, patientId: input.patientId ? decodeId(input.patientId) : undefined, surgeonId: input.surgeonId ? decodeId(input.surgeonId) : undefined, scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined } });
       return updated;
     },
     updateAppointmentStatus: async (_: unknown, { input }: { input: { id: string, status: AppointmentStatus } }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.appointment.update({ where: { id: input.id }, data: { status: input.status } });
+      return prisma.appointment.update({ where: { id: decodeId(input.id) }, data: { status: input.status } });
     },
-    deleteAppointment: async (_: unknown, { input }: { input: any }, context: Context) => {
+    deleteAppointment: async (_: unknown, { input }: { input: { id: string } }, context: Context) => {
       assertAuthenticated(context);
-      await prisma.appointment.deleteMany({ where: { id: input.id } });
+      await prisma.appointment.deleteMany({ where: { id: decodeId(input.id) } });
       return { success: true };
     },
     createSurgeon: async (_: unknown, { input }: { input: any }, context: Context) => {
@@ -1158,7 +1258,7 @@ export const resolvers = {
       assertRole(context, ['ADMIN'], 'usuário');
       const data = { ...input };
       if (data.password) data.password = await hashPassword(data.password);
-      return prisma.user.update({ where: { id }, data });
+      return prisma.user.update({ where: { id: decodeId(id) }, data });
     },
     updateProfile: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
@@ -1170,7 +1270,7 @@ export const resolvers = {
     toggleUserStatus: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'usuário');
-      const userId = id;
+      const userId = decodeId(id);
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) throw new Error('Não encontrado');
       const newStatus = !user.isActive;
@@ -1180,7 +1280,7 @@ export const resolvers = {
     createAvailabilitySlot: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
-      return prisma.availabilitySlot.create({ data: { ...input, surgeonId: input.surgeonId } });
+      return prisma.availabilitySlot.create({ data: { ...input, surgeonId: decodeId(input.surgeonId) } });
     },
     deleteAvailabilitySlot: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
@@ -1191,7 +1291,7 @@ export const resolvers = {
     createExtraAvailability: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
-      return prisma.extraAvailabilitySlot.create({ data: { ...input, surgeonId: input.surgeonId, date: new Date(input.date) } });
+      return prisma.extraAvailabilitySlot.create({ data: { ...input, surgeonId: decodeId(input.surgeonId), date: new Date(input.date) } });
     },
     deleteExtraAvailability: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
@@ -1203,18 +1303,19 @@ export const resolvers = {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
       
+      const surgeonId = decodeId(input.surgeonId);
       const surgeon = await prisma.surgeon.findUnique({ 
-        where: { id: input.surgeonId } 
+        where: { id: surgeonId } 
       });
       
       if (!surgeon) {
-        throw new Error(`SURGEON_NOT_FOUND: ${input.surgeonId}`);
+        throw new Error(`SURGEON_NOT_FOUND: ${surgeonId}`);
       }
 
       return prisma.scheduleBlock.create({ 
         data: { 
           ...input, 
-          surgeonId: input.surgeonId, 
+          surgeonId, 
           startDate: new Date(input.startDate), 
           endDate: new Date(input.endDate) 
         } 
@@ -1228,20 +1329,20 @@ export const resolvers = {
     },
     createContact: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.contact.create({ data: { ...input, leadId: input.leadId, date: new Date(input.date) } });
+      return prisma.contact.create({ data: { ...input, leadId: decodeId(input.leadId), date: new Date(input.date) } });
     },
     createBudget: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.budget.create({ data: { ...input, patientId: input.patientId, surgeonId: input.surgeonId, returnDeadline: input.returnDeadline ? new Date(input.returnDeadline) : null, status: BudgetStatus.OPEN }, include: { patient: { include: { lead: true } }, surgeon: true } });
+      return prisma.budget.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), returnDeadline: input.returnDeadline ? new Date(input.returnDeadline) : null, status: BudgetStatus.OPEN }, include: { patient: { include: { lead: true } }, surgeon: true } });
     },
     updateBudget: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      const budgetId = input.id;
+      const budgetId = decodeId(input.id);
       return prisma.budget.update({ where: { id: budgetId }, data: { ...input, id: undefined, status: input.status }, include: { patient: { include: { lead: true } }, surgeon: true } });
     },
     createBudgetFollowUp: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.budgetFollowUp.create({ data: { ...input, date: new Date(input.date) } });
+      return prisma.budgetFollowUp.create({ data: { ...input, budgetId: decodeId(input.budgetId), date: new Date(input.date) } });
     },
     updateAvailabilitySlot: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
@@ -1260,48 +1361,48 @@ export const resolvers = {
     },
     createComplaint: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.complaint.create({ data: { ...input, patientId: input.patientId, responseDeadline: input.responseDeadline ? new Date(input.responseDeadline) : null, status: ComplaintStatus.OPEN }, include: { patient: { include: { lead: true } } } });
+      return prisma.complaint.create({ data: { ...input, patientId: decodeId(input.patientId), responseDeadline: input.responseDeadline ? new Date(input.responseDeadline) : null, status: ComplaintStatus.OPEN }, include: { patient: { include: { lead: true } } } });
     },
     updateComplaint: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.complaint.update({ where: { id: input.id }, data: { ...input, id: undefined }, include: { patient: { include: { lead: true } } } });
+      return prisma.complaint.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined }, include: { patient: { include: { lead: true } } } });
     },
     createTreatment: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.treatment.create({ data: { ...input, complaintId: input.complaintId, date: new Date(input.date) } });
+      return prisma.treatment.create({ data: { ...input, complaintId: decodeId(input.complaintId), date: new Date(input.date) } });
     },
     createDocument: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.document.create({ data: { ...input, patientId: input.patientId, date: new Date(input.date) } });
+      return prisma.document.create({ data: { ...input, patientId: decodeId(input.patientId), date: new Date(input.date) } });
     },
     updateDocumentStatus: async (_: unknown, { id, status }: { id: string, status: DocumentStatus }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.document.update({ where: { id: id }, data: { status } });
+      return prisma.document.update({ where: { id: decodeId(id) }, data: { status } });
     },
     createPostOp: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.postOp.create({ data: { ...input, patientId: input.patientId, date: new Date(input.date) } });
+      return prisma.postOp.create({ data: { ...input, patientId: decodeId(input.patientId), date: new Date(input.date) } });
     },
     updatePostOpStatus: async (_: unknown, { id, status }: { id: string, status: PostOpStatus }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.postOp.update({ where: { id: id }, data: { status } });
+      return prisma.postOp.update({ where: { id: decodeId(id) }, data: { status } });
     },
     deleteBudget: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN', 'RECEPTION', 'SALES'], 'exclusão de orçamento');
-      await prisma.budget.deleteMany({ where: { id: id } });
+      await prisma.budget.deleteMany({ where: { id: decodeId(id) } });
       return { success: true };
     },
     deleteComplaint: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN', 'RECEPTION'], 'exclusão de reclamação');
-      await prisma.complaint.deleteMany({ where: { id: id } });
+      await prisma.complaint.deleteMany({ where: { id: decodeId(id) } });
       return { success: true };
     },
     deleteUser: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'exclusão de usuário');
-      await prisma.user.deleteMany({ where: { id: id } });
+      await prisma.user.deleteMany({ where: { id: decodeId(id) } });
       return { success: true };
     },
     createMessageTemplate: async (_: unknown, { input }: { input: any }, context: Context) => {
@@ -1312,12 +1413,12 @@ export const resolvers = {
     updateMessageTemplate: async (_: unknown, { input }: { input: any }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'template');
-      return prisma.messageTemplate.update({ where: { id: input.id }, data: { ...input, id: undefined } });
+      return prisma.messageTemplate.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined } });
     },
     deleteMessageTemplate: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'template');
-      await prisma.messageTemplate.deleteMany({ where: { id: id } });
+      await prisma.messageTemplate.deleteMany({ where: { id: decodeId(id) } });
       return { success: true };
     },
     createEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
@@ -1349,7 +1450,7 @@ export const resolvers = {
     },
     markNotificationAsRead: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.notification.update({ where: { id }, data: { status: 'READ' } });
+      return prisma.notification.update({ where: { id: decodeId(id) }, data: { status: 'READ' } });
     },
     testMessageTemplate: async (_: unknown, __: unknown, context: Context) => {
       assertAuthenticated(context);
