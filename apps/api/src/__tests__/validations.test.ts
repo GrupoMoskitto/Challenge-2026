@@ -109,7 +109,7 @@ describe('CRMed Validation Tests', () => {
 
     it('deleteAppointment requires auth', async () => {
       await expect(resolvers.Mutation.deleteAppointment(null, {
-        input: { id: 'apt-1', confirmed: true }
+        input: { id: 'apt-1' }
       }, {} as Context)).rejects.toThrow('Usuário não autenticado');
     });
 

@@ -1183,12 +1183,11 @@ export const resolvers = {
         if (existing) throw new Error('RN01_VIOLATION: Prontuário já cadastrado por outro paciente');
       }
 
+      const { id: _unusedId, reason, ...data } = input;
       const updated = await prisma.patient.update({ 
         where: { id: patientId }, 
         data: { 
-          ...input, 
-          id: undefined, 
-          reason: undefined,
+          ...data, 
           dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined 
         } 
       });
