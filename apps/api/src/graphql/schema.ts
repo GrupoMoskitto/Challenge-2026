@@ -3,6 +3,7 @@ import gql from 'graphql-tag';
 export const typeDefs = gql`
   scalar DateTime
   scalar ID
+  scalar JSON
 
   enum LeadStatus {
     NEW
@@ -184,6 +185,7 @@ export const typeDefs = gql`
     patient: Patient
     appointments: [Appointment!]!
     contacts: [Contact!]!
+    auditLogs: [AuditLog!]!
   }
 
   type Patient {
@@ -201,6 +203,7 @@ export const typeDefs = gql`
     email: String
     phone: String
     lead: Lead!
+    appointments: [Appointment!]!
     contacts: [Contact!]!
     documents: [Document!]!
     postOps: [PostOp!]!
@@ -284,11 +287,12 @@ export const typeDefs = gql`
     entityType: String!
     entityId: String!
     action: String!
-    oldValue: String
-    newValue: String
+    oldValue: JSON
+    newValue: JSON
     reason: String
     userId: String
     appointmentId: String
+    user: User
     createdAt: DateTime!
   }
 
@@ -464,6 +468,23 @@ export const typeDefs = gql`
     qrCode: String
     pairingCode: String
     connected: Boolean!
+  }
+
+  type EvolutionPingResult {
+    connected: Boolean!
+    state: String
+    latencyMs: Int
+  }
+
+  type AuditLogEdge {
+    node: AuditLog!
+    cursor: String!
+  }
+
+  type AuditLogConnection {
+    edges: [AuditLogEdge!]!
+    pageInfo: PageInfo!
+    totalCount: Int!
   }
 
   type RefreshPayload {
@@ -672,6 +693,22 @@ export const typeDefs = gql`
     solution: String
   }
 
+  input CreateAvailabilitySlotInput {
+    surgeonId: ID!
+    dayOfWeek: Int!
+    startTime: String!
+    endTime: String!
+    isActive: Boolean
+  }
+
+  input UpdateAvailabilitySlotInput {
+    id: ID!
+    dayOfWeek: Int
+    startTime: String
+    endTime: String
+    isActive: Boolean
+  }
+
   input CreateExtraAvailabilityInput {
     surgeonId: ID!
     date: DateTime!
@@ -774,7 +811,11 @@ export const typeDefs = gql`
     deleteComplaint(id: ID!): DeleteResult!
     createTreatment(input: CreateTreatmentInput!): Treatment!
 
-    # Extra Availability & Schedule Blocks
+    # Availability & Schedule Blocks
+    createAvailabilitySlot(input: CreateAvailabilitySlotInput!): AvailabilitySlot!
+    updateAvailabilitySlot(input: UpdateAvailabilitySlotInput!): AvailabilitySlot!
+    deleteAvailabilitySlot(id: ID!): DeleteResult!
+    
     createExtraAvailability(input: CreateExtraAvailabilityInput!): ExtraAvailabilitySlot!
     updateExtraAvailability(input: UpdateExtraAvailabilityInput!): ExtraAvailabilitySlot!
     deleteExtraAvailability(id: ID!): DeleteResult!
@@ -830,7 +871,7 @@ export const typeDefs = gql`
     user(id: ID!): User
 
     # Audit Logs
-    auditLogs(entityType: String, entityId: String): [AuditLog!]!
+    auditLogs(entityType: String, entityId: String, action: String, startDate: DateTime, endDate: DateTime, userId: String, first: Int, after: String): AuditLogConnection!
 
     # Contacts
     contactsByLead(leadId: ID!): [Contact!]!
@@ -866,6 +907,7 @@ export const typeDefs = gql`
 
     # Integration Status
     evolutionApiInstances: [EvolutionApiInstance!]!
+    pingEvolutionInstance(name: String!): EvolutionPingResult!
     
     # Test Configuration
     testPhoneLastDigits: String

@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { useQuery, useMutation } from "@apollo/client";
+import { useQuery, useMutation, useLazyQuery } from "@apollo/client";
 import {
   GET_MESSAGE_TEMPLATES,
   CREATE_MESSAGE_TEMPLATE,
@@ -28,6 +28,15 @@ import {
   CREATE_EVOLUTION_INSTANCE,
   DELETE_EVOLUTION_INSTANCE,
   CONNECT_EVOLUTION_INSTANCE,
+  GET_AUDIT_LOGS,
+  PING_EVOLUTION_INSTANCE,
+  GET_SURGEONS_SCHEDULE,
+  CREATE_AVAILABILITY_SLOT,
+  DELETE_AVAILABILITY_SLOT,
+  CREATE_EXTRA_AVAILABILITY,
+  DELETE_EXTRA_AVAILABILITY,
+  CREATE_SCHEDULE_BLOCK,
+  DELETE_SCHEDULE_BLOCK,
 } from "@/lib/queries";
 import {
   Dialog,
@@ -49,7 +58,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, History as HistoryIcon, Wifi, WifiOff, ChevronRight, Shield, Calendar as CalendarIcon, Clock, AlertTriangle, XCircle } from "lucide-react";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { DateRange } from "react-day-picker";
+import { AuditDiff } from "@/components/AuditDiff";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrador",
@@ -65,10 +91,49 @@ const channelLabels: Record<string, string> = {
   EMAIL: "E-mail",
 };
 
+const generateTimeSlots = () => {
+  const slots: string[] = [];
+  for (let hour = 8; hour <= 18; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+    }
+  }
+  return slots;
+};
+const timeSlots = generateTimeSlots();
+
 const channelColors: Record<string, string> = {
   WHATSAPP: "bg-green-500/10 text-green-600 border-green-200",
   SMS: "bg-blue-500/10 text-blue-600 border-blue-200",
   EMAIL: "bg-purple-500/10 text-purple-600 border-purple-200",
+};
+
+const auditActionLabels: Record<string, string> = {
+  CREATED: "criado",
+  UPDATED: "modificado",
+  STATUS_CHANGE: "modificado",
+  DELETED: "removido",
+};
+
+const actionLabels: Record<string, string> = {
+  CREATED: "Criação",
+  UPDATED: "Atualização",
+  STATUS_CHANGE: "Status",
+  DELETED: "Exclusão",
+  LOGIN: "Login",
+};
+
+const getAuditActionMeta = (action?: string) => {
+  switch (action) {
+    case "CREATED":
+      return { icon: Plus, iconClassName: "text-green-500", containerClassName: "bg-green-500/20" };
+    case "DELETED":
+      return { icon: Trash2, iconClassName: "text-red-500", containerClassName: "bg-red-500/20" };
+    case "LOGIN":
+      return { icon: User, iconClassName: "text-purple-500", containerClassName: "bg-purple-500/20" };
+    default:
+      return { icon: HistoryIcon, iconClassName: "text-blue-500", containerClassName: "bg-blue-500/20" };
+  }
 };
 
 interface MessageTemplate {
@@ -119,7 +184,7 @@ const Settings = () => {
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
-  const availableTabs = React.useMemo(() => ["profile", ...(isAdmin ? ["integrations", "users", "templates"] : [])], [isAdmin]);
+  const availableTabs = React.useMemo(() => ["profile", ...(isAdmin ? ["integrations", "users", "templates", "audit", "schedule"] : [])], [isAdmin]);
   const defaultTab = "profile";
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || defaultTab);
 
@@ -172,6 +237,55 @@ const Settings = () => {
   const { data: evoData, loading: evoLoading, refetch: refetchEvo, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
   const { data: testPhoneData } = useQuery(GET_TEST_PHONE_LAST_DIGITS, { skip: !isAdmin });
 
+  // Audit Logs
+  const [auditEntityFilter, setAuditEntityFilter] = useState<string>("");
+  const [auditActionFilter, setAuditActionFilter] = useState<string>("");
+  const [auditDateRange, setAuditDateRange] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 7),
+    to: new Date()
+  });
+  
+  const { data: auditData, loading: auditLoading, fetchMore: fetchMoreAudit, refetch: refetchAudit } = useQuery(GET_AUDIT_LOGS, {
+    variables: { 
+      first: 50, 
+      ...(auditEntityFilter ? { entityType: auditEntityFilter } : {}),
+      ...(auditActionFilter ? { action: auditActionFilter } : {}),
+      ...(searchParams.get("auditUser") ? { userId: searchParams.get("auditUser") } : {}),
+      ...(auditDateRange?.from ? { startDate: startOfDay(auditDateRange.from).toISOString() } : {}),
+      ...(auditDateRange?.to ? { endDate: endOfDay(auditDateRange.to).toISOString() } : {})
+    },
+    skip: !isAdmin || activeTab !== 'audit',
+    fetchPolicy: 'cache-and-network',
+  });
+  const auditLogs = auditData?.auditLogs?.edges?.map((e: any) => e.node) || [];
+  const auditPageInfo = auditData?.auditLogs?.pageInfo;
+  const auditTotalCount = auditData?.auditLogs?.totalCount ?? 0;
+
+  // Ping (lazy query)
+  const [pingInstance, { loading: pinging }] = useLazyQuery(PING_EVOLUTION_INSTANCE, {
+    fetchPolicy: 'network-only',
+  });
+  const [pingingInstanceName, setPingingInstanceName] = useState<string | null>(null);
+
+  // Schedule
+  const [selectedSurgeonId, setSelectedSurgeonId] = useState<string>("");
+  const { data: scheduleData, loading: scheduleLoading, refetch: refetchSchedule } = useQuery(GET_SURGEONS_SCHEDULE, {
+    skip: !isAdmin || activeTab !== 'schedule',
+  });
+  const surgeonsSchedule = scheduleData?.surgeons || [];
+  const selectedSurgeon = surgeonsSchedule.find((s: any) => s.id === selectedSurgeonId);
+
+  const [createAvailSlot] = useMutation(CREATE_AVAILABILITY_SLOT, { onCompleted: () => refetchSchedule() });
+  const [deleteAvailSlot] = useMutation(DELETE_AVAILABILITY_SLOT, { onCompleted: () => refetchSchedule() });
+  const [createExtraAvail] = useMutation(CREATE_EXTRA_AVAILABILITY, { onCompleted: () => refetchSchedule() });
+  const [deleteExtraAvail] = useMutation(DELETE_EXTRA_AVAILABILITY, { onCompleted: () => refetchSchedule() });
+  const [createBlock] = useMutation(CREATE_SCHEDULE_BLOCK, { onCompleted: () => refetchSchedule() });
+  const [deleteBlock] = useMutation(DELETE_SCHEDULE_BLOCK, { onCompleted: () => refetchSchedule() });
+
+  const [availForm, setAvailForm] = useState({ dayOfWeek: "1", startTime: "08:00", endTime: "18:00" });
+  const [extraAvailForm, setExtraAvailForm] = useState<{ date: Date | undefined, startTime: string, endTime: string }>({ date: undefined, startTime: "08:00", endTime: "18:00" });
+  const [blockForm, setBlockForm] = useState<{ startDate: Date | undefined, startTime: string, endDate: Date | undefined, endTime: string, reason: string }>({ startDate: undefined, startTime: "08:00", endDate: undefined, endTime: "18:00", reason: "" });
+
   useEffect(() => {
     if (templatesError) toast.error("Erro ao carregar templates: " + templatesError.message);
   }, [templatesError]);
@@ -193,7 +307,7 @@ const Settings = () => {
   const [toggleUserStatus] = useMutation(TOGGLE_USER_STATUS);
   const [updateUser, { loading: updatingUser }] = useMutation(UPDATE_USER);
   const [updateProfile, { loading: updatingProfile }] = useMutation(UPDATE_PROFILE);
-  const [createEvolutionInstance] = useMutation(CREATE_EVOLUTION_INSTANCE, {
+  const [createEvolutionInstance, { loading: creatingInstance }] = useMutation(CREATE_EVOLUTION_INSTANCE, {
     onCompleted: () => {
       setTimeout(() => refetchEvo(), 1000);
     },
@@ -214,7 +328,7 @@ const Settings = () => {
     }
   });
 
-  const [deleteEvolutionInstance] = useMutation(DELETE_EVOLUTION_INSTANCE, {
+  const [deleteEvolutionInstance, { loading: deletingInstance }] = useMutation(DELETE_EVOLUTION_INSTANCE, {
     onCompleted: () => {
       setTimeout(() => refetchEvo(), 1000);
     },
@@ -347,6 +461,111 @@ const Settings = () => {
     } catch (err: any) {
       toast.error(err.message || "Erro ao gerar QR Code");
     }
+  };
+
+  const handlePingInstance = async (name: string) => {
+    setPingingInstanceName(name);
+    try {
+      const { data } = await pingInstance({ variables: { name } });
+      const result = data?.pingEvolutionInstance;
+      if (result?.connected) {
+        toast.success(`WhatsApp Conectado — Latência: ${result.latencyMs}ms`);
+      } else {
+        const stateMsg = result?.state && result.state !== 'unknown' ? result.state : 'Desconectado';
+        const latencyMsg = result?.latencyMs !== undefined && result.latencyMs !== null ? ` — Latência: ${result.latencyMs}ms` : ' — Latência: Indisponível';
+        toast.warning(`Instância WhatsApp Offline — Status: ${stateMsg}${latencyMsg}`);
+      }
+    } catch (err: any) {
+      toast.error("Servidor Evolution API inacessível ou erro na requisição.");
+    } finally {
+      setPingingInstanceName(null);
+    }
+  };
+
+  // Schedule Handlers
+  const handleCreateAvail = async () => {
+    if (!selectedSurgeonId) {
+      toast.error("Selecione um médico primeiro");
+      return;
+    }
+    try {
+      await createAvailSlot({ variables: { input: { surgeonId: selectedSurgeonId, dayOfWeek: parseInt(availForm.dayOfWeek), startTime: availForm.startTime, endTime: availForm.endTime } } });
+      toast.success("Horário adicionado");
+    } catch (err: any) { toast.error(err.message); }
+  };
+  const handleDeleteAvail = async (id: string) => {
+    try {
+      await deleteAvailSlot({ variables: { id } });
+      toast.success("Horário removido");
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleCreateExtraAvail = async () => {
+    if (!selectedSurgeonId) {
+      toast.error("Selecione um médico primeiro");
+      return;
+    }
+    if (!extraAvailForm.date) {
+      toast.error("Selecione a data do plantão");
+      return;
+    }
+    try {
+      await createExtraAvail({ variables: { input: { surgeonId: selectedSurgeonId, date: extraAvailForm.date.toISOString(), startTime: extraAvailForm.startTime, endTime: extraAvailForm.endTime } } });
+      toast.success("Plantão extra adicionado");
+      setExtraAvailForm({ ...extraAvailForm, date: undefined });
+    } catch (err: any) { toast.error(err.message); }
+  };
+  const handleDeleteExtraAvail = async (id: string) => {
+    try {
+      await deleteExtraAvail({ variables: { id } });
+      toast.success("Plantão removido");
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleCreateBlock = async () => {
+    if (!selectedSurgeonId) {
+      toast.error("Selecione um médico primeiro");
+      return;
+    }
+    if (!blockForm.startDate || !blockForm.endDate) {
+      toast.error("Selecione as datas de início e fim");
+      return;
+    }
+    try {
+      const startDateTime = new Date(blockForm.startDate);
+      const [sh, sm] = blockForm.startTime.split(':');
+      startDateTime.setHours(parseInt(sh), parseInt(sm), 0, 0);
+
+      const endDateTime = new Date(blockForm.endDate);
+      const [eh, em] = blockForm.endTime.split(':');
+      endDateTime.setHours(parseInt(eh), parseInt(em), 0, 0);
+
+      if (endDateTime <= startDateTime) {
+        toast.error("A data final deve ser posterior à data inicial");
+        return;
+      }
+
+      await createBlock({ 
+        variables: { 
+          input: { 
+            surgeonId: selectedSurgeonId, 
+            startDate: startDateTime.toISOString(), 
+            endDate: endDateTime.toISOString(), 
+            reason: blockForm.reason 
+          } 
+        } 
+      });
+      toast.success("Bloqueio de agenda criado!");
+      setBlockForm({ startDate: undefined, startTime: "08:00", endDate: undefined, endTime: "18:00", reason: "" });
+    } catch (err: any) { 
+      toast.error(err.message || "Erro ao criar bloqueio"); 
+    }
+  };
+  const handleDeleteBlock = async (id: string) => {
+    try {
+      await deleteBlock({ variables: { id } });
+      toast.success("Bloqueio removido");
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const validateForm = (form: TemplateForm): boolean => {
@@ -570,6 +789,18 @@ const Settings = () => {
               Templates
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="audit" className="flex-1">
+              <Shield className="h-4 w-4 mr-2" />
+              Auditoria
+            </TabsTrigger>
+          )}
+          {isAdmin && (
+            <TabsTrigger value="schedule" className="flex-1">
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              Agenda
+            </TabsTrigger>
+          )}
         </TabsList>
 
           <TabsContent value="profile">
@@ -661,27 +892,49 @@ const Settings = () => {
                             </p>
                           </div>
                         </div>
-                        <div>
+                        <div className="flex items-center gap-2">
                           {inst.connected ? (
                             <Badge className="bg-green-500">Conectado</Badge>
                           ) : (
-                            <div className="flex items-center gap-2">
+                            <>
                               <Badge variant="destructive">Desconectado</Badge>
                               <Button variant="outline" size="sm" onClick={() => handleConnectInstance(inst.instanceName)}>
                                 Conectar
                               </Button>
-                            </div>
+                            </>
                           )}
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handlePingInstance(inst.instanceName)}
+                                  disabled={pinging && pingingInstanceName === inst.instanceName}
+                                >
+                                  {pinging && pingingInstanceName === inst.instanceName ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Wifi className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Testar Conexão (Ping)</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => confirmDeleteInstance(inst.instanceName)}
+                            disabled={deletingInstance}
+                            title="Excluir instância"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="ml-4 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => confirmDeleteInstance(inst.instanceName)}
-                          title="Excluir instância"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))
                   )}
@@ -880,6 +1133,527 @@ const Settings = () => {
                       </div>
                     )}
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="audit">
+              <Card>
+                <CardHeader className="flex flex-row items-start justify-between">
+                  <div>
+                    <CardTitle>Logs de Auditoria</CardTitle>
+                    <CardDescription>
+                      Registro de todas as ações realizadas no sistema ({auditTotalCount} registros)
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                            <HistoryIcon className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[300px] p-3">
+                          <p className="font-semibold mb-1 text-sm">O que é Auditoria?</p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Registra todas as alterações críticas feitas por usuários, como criações, 
+                            atualizações e mudanças de status, garantindo segurança e transparência.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "w-[240px] justify-start text-left font-normal",
+                            !auditDateRange && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {auditDateRange?.from ? (
+                            auditDateRange.to ? (
+                              <>
+                                {format(auditDateRange.from, "dd/MM/yy")} -{" "}
+                                {format(auditDateRange.to, "dd/MM/yy")}
+                              </>
+                            ) : (
+                              format(auditDateRange.from, "dd/MM/yy")
+                            )
+                          ) : (
+                            <span>Período</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <CalendarComponent
+                          initialFocus
+                          mode="range"
+                          defaultMonth={auditDateRange?.from}
+                          selected={auditDateRange}
+                          onSelect={setAuditDateRange}
+                          numberOfMonths={2}
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+
+                    <Select value={auditEntityFilter || "ALL"} onValueChange={(v) => { setAuditEntityFilter(v === "ALL" ? "" : v); }}>
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Tipo de Entidade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">Todas Entidades</SelectItem>
+                        <SelectItem value="Lead">Lead</SelectItem>
+                        <SelectItem value="Patient">Paciente</SelectItem>
+                        <SelectItem value="Appointment">Consulta</SelectItem>
+                        <SelectItem value="Budget">Orçamento</SelectItem>
+                        <SelectItem value="User">Usuário</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={auditActionFilter || "ALL"} onValueChange={(val) => setAuditActionFilter(val === "ALL" ? "" : val)}>
+                      <SelectTrigger className="w-[140px]" title="Filtrar por tipo de ação">
+                        <SelectValue placeholder="Ação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">Todas Ações</SelectItem>
+                        <SelectItem value="CREATED">Criação</SelectItem>
+                        <SelectItem value="UPDATED">Atualização</SelectItem>
+                        <SelectItem value="STATUS_CHANGE">Status</SelectItem>
+                        <SelectItem value="DELETED">Exclusão</SelectItem>
+                        <SelectItem value="LOGIN">Login</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    <Select 
+                      value={searchParams.get("auditUser") || "ALL"} 
+                      onValueChange={(val) => {
+                        const newParams = new URLSearchParams(searchParams);
+                        if (val === "ALL") newParams.delete("auditUser");
+                        else newParams.set("auditUser", val);
+                        setSearchParams(newParams);
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Usuário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">Todos Usuários</SelectItem>
+                        {usersData?.users?.edges?.map(({ node: u }: any) => (
+                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => refetchAudit()} 
+                      disabled={auditLoading}
+                      title="Atualizar lista de auditoria"
+                    >
+                      {auditLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Atualizar"}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {auditLoading && auditLogs.length === 0 ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  ) : auditLogs.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border rounded-lg border-dashed">
+                      <HistoryIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>Nenhum registro de auditoria encontrado.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {auditLogs.map((log: any) => {
+                        const actionMeta = getAuditActionMeta(log.action);
+                        const ActionIcon = actionMeta.icon;
+                        return (
+                          <div key={log.id} className="relative flex items-start gap-4">
+                            <div className={cn(
+                              "h-10 w-10 rounded-full flex items-center justify-center shrink-0 border-4 border-background shadow-sm z-10",
+                              actionMeta.containerClassName,
+                              actionMeta.iconClassName
+                            )}>
+                              <ActionIcon className="h-4 w-4" />
+                            </div>
+                            
+                            <div className="flex-1 bg-card p-4 rounded-lg border shadow-sm transition-all hover:shadow-md min-w-0">
+                              <div className="flex items-start sm:items-center justify-between gap-2 mb-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 border-current bg-background", actionMeta.iconClassName)}>
+                                    {log.entityType} • {log.action === 'STATUS_CHANGE' ? 'Status' : actionLabels[log.action] || log.action}
+                                  </Badge>
+                                  {log.user && (
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                                      por {log.user.name}
+                                    </span>
+                                  )}
+                                </div>
+                                <time className="text-[10px] sm:text-xs text-muted-foreground font-medium whitespace-nowrap shrink-0 mt-0.5 sm:mt-0">
+                                  <Clock className="h-3 w-3 inline mr-1" />
+                                  {format(new Date(log.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                                </time>
+                              </div>
+                              
+                              <p className="text-sm text-foreground/80 font-medium mb-1">
+                                {log.reason || "Registro de sistema"}
+                              </p>
+                              
+                              <AuditDiff oldValue={log.oldValue} newValue={log.newValue} className="mt-3 bg-muted/20" />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {auditPageInfo?.hasNextPage && (
+                        <div className="flex justify-center pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={auditLoading}
+                            onClick={() => {
+                              fetchMoreAudit({
+                                variables: { after: auditPageInfo.endCursor },
+                                updateQuery: (prev, { fetchMoreResult }) => {
+                                  if (!fetchMoreResult?.auditLogs?.edges?.length) return prev;
+                                  return {
+                                    ...fetchMoreResult,
+                                    auditLogs: {
+                                      ...fetchMoreResult.auditLogs,
+                                      edges: [...(prev?.auditLogs?.edges || []), ...fetchMoreResult.auditLogs.edges],
+                                    },
+                                  };
+                                },
+                              });
+                            }}
+                          >
+                            {auditLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ChevronRight className="h-4 w-4 mr-2" />}
+                            Carregar mais
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="schedule">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Gerenciamento de Agenda</CardTitle>
+                  <CardDescription>
+                    Configure horários de atendimento, plantões extras e bloqueios para os médicos.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Seleção do Médico */}
+                  <div>
+                    <Label>Selecione o Médico</Label>
+                    {scheduleLoading ? (
+                      <Skeleton className="h-10 w-full md:w-[300px]" />
+                    ) : (
+                      <Select value={selectedSurgeonId} onValueChange={setSelectedSurgeonId}>
+                        <SelectTrigger className="w-full md:w-[300px]">
+                          <SelectValue placeholder="Selecione um médico..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {surgeonsSchedule.map((s: any) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name} ({s.specialty})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  {selectedSurgeon && (
+                    <div className="grid gap-6">
+                      {/* Grade Fixa */}
+                      <div className="border rounded-lg p-4">
+                        <h3 className="font-semibold text-lg flex items-center mb-4"><Clock className="h-5 w-5 mr-2 text-primary" /> Grade Semanal Fixa</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-end mb-4">
+                          <div className="grid gap-2">
+                            <Label>Dia da Semana</Label>
+                            <Select value={availForm.dayOfWeek} onValueChange={(v) => setAvailForm({ ...availForm, dayOfWeek: v })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">Segunda-feira</SelectItem>
+                                <SelectItem value="2">Terça-feira</SelectItem>
+                                <SelectItem value="3">Quarta-feira</SelectItem>
+                                <SelectItem value="4">Quinta-feira</SelectItem>
+                                <SelectItem value="5">Sexta-feira</SelectItem>
+                                <SelectItem value="6">Sábado</SelectItem>
+                                <SelectItem value="0">Domingo</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label>Início</Label>
+                            <Select value={availForm.startTime} onValueChange={(v) => setAvailForm({ ...availForm, startTime: v })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label>Fim</Label>
+                            <Select value={availForm.endTime} onValueChange={(v) => setAvailForm({ ...availForm, endTime: v })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button onClick={handleCreateAvail}>Adicionar</Button>
+                        </div>
+                        <div className="space-y-2">
+                          {selectedSurgeon.availability?.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">Nenhum horário fixo configurado.</p>
+                          ) : (
+                            selectedSurgeon.availability?.map((slot: any) => (
+                              <div key={slot.id} className="flex items-center justify-between bg-muted/30 p-2 rounded">
+                                <span className="text-sm font-medium">
+                                  {["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][slot.dayOfWeek]} — {slot.startTime} às {slot.endTime}
+                                </span>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteAvail(slot.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Plantões Extras */}
+                      <div className="border rounded-lg p-4">
+                        <h3 className="font-semibold text-lg flex items-center mb-4"><CalendarIcon className="h-5 w-5 mr-2 text-green-500" /> Plantões e Dias Extras</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-end mb-4">
+                          <div className="grid gap-2">
+                            <Label>Data</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn("justify-start text-left font-normal", !extraAvailForm.date && "text-muted-foreground")}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {extraAvailForm.date ? format(extraAvailForm.date, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione uma data</span>}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={extraAvailForm.date}
+                                  onSelect={(d) => setExtraAvailForm({ ...extraAvailForm, date: d })}
+                                  locale={ptBR}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label>Início</Label>
+                            <Select value={extraAvailForm.startTime} onValueChange={(v) => setExtraAvailForm({ ...extraAvailForm, startTime: v })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label>Fim</Label>
+                            <Select value={extraAvailForm.endTime} onValueChange={(v) => setExtraAvailForm({ ...extraAvailForm, endTime: v })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button onClick={handleCreateExtraAvail}>Adicionar</Button>
+                        </div>
+                        <div className="space-y-2">
+                          {selectedSurgeon.extraAvailability?.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">Nenhum plantão extra configurado.</p>
+                          ) : (
+                            selectedSurgeon.extraAvailability?.map((slot: any) => (
+                              <div key={slot.id} className="flex items-center justify-between bg-green-500/10 p-2 rounded">
+                                <span className="text-sm font-medium">
+                                  {format(new Date(slot.date), "dd/MM/yyyy")} — {slot.startTime} às {slot.endTime}
+                                </span>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteExtraAvail(slot.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bloqueios */}
+                      <div className="border rounded-xl p-6 bg-muted/30">
+                        <div className="flex items-center justify-between mb-6">
+                          <div>
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                              <AlertTriangle className="h-5 w-5 text-destructive" /> 
+                              Bloqueios de Agenda
+                            </h3>
+                            <p className="text-sm text-muted-foreground">Impedir agendamentos em períodos específicos (férias, congressos, etc.)</p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end bg-card p-4 rounded-lg border shadow-sm mb-6">
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Data Início</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn("w-full justify-start text-left font-normal h-10", !blockForm.startDate && "text-muted-foreground")}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                                  {blockForm.startDate ? format(blockForm.startDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione...</span>}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={blockForm.startDate}
+                                  onSelect={(d) => setBlockForm({ ...blockForm, startDate: d })}
+                                  locale={ptBR}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Hora Início</Label>
+                            <Select value={blockForm.startTime} onValueChange={(v) => setBlockForm({ ...blockForm, startTime: v })}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Data Fim</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn("w-full justify-start text-left font-normal h-10", !blockForm.endDate && "text-muted-foreground")}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                                  {blockForm.endDate ? format(blockForm.endDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione...</span>}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={blockForm.endDate}
+                                  onSelect={(d) => setBlockForm({ ...blockForm, endDate: d })}
+                                  locale={ptBR}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Hora Fim</Label>
+                            <Select value={blockForm.endTime} onValueChange={(v) => setBlockForm({ ...blockForm, endTime: v })}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2 lg:col-span-1">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Motivo</Label>
+                            <Input 
+                              className="h-10"
+                              type="text" 
+                              placeholder="Ex: Férias" 
+                              value={blockForm.reason} 
+                              onChange={(e) => setBlockForm({ ...blockForm, reason: e.target.value })} 
+                            />
+                          </div>
+                          
+                          <div className="lg:col-span-5 flex justify-end">
+                            <Button 
+                              onClick={handleCreateBlock} 
+                              variant="destructive"
+                              className="w-full md:w-auto px-8"
+                            >
+                              Adicionar Bloqueio
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-2">Bloqueios Ativos</h4>
+                          {selectedSurgeon.blocks?.length === 0 ? (
+                            <div className="text-center py-8 border-2 border-dashed rounded-lg bg-card/50">
+                              <CalendarIcon className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                              <p className="text-sm text-muted-foreground font-medium">Nenhum bloqueio registrado para este médico.</p>
+                            </div>
+                          ) : (
+                            <div className="grid gap-2">
+                              {selectedSurgeon.blocks?.map((block: any) => (
+                                <div key={block.id} className="flex items-center justify-between bg-card border p-3 rounded-lg hover:shadow-sm transition-shadow">
+                                  <div className="flex items-center gap-3">
+                                    <div className="bg-red-500/10 p-2 rounded-full">
+                                      <Clock className="h-4 w-4 text-red-500" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-semibold">
+                                        {format(new Date(block.startDate), "dd/MM 'às' HH:mm")} — {format(new Date(block.endDate), "dd/MM 'às' HH:mm")}
+                                      </p>
+                                      {block.reason && <p className="text-xs text-muted-foreground">{block.reason}</p>}
+                                    </div>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteBlock(block.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1165,7 +1939,9 @@ const Settings = () => {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCreateInstanceDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateInstance}>Criar Instância</Button>
+            <Button onClick={handleCreateInstance} disabled={creatingInstance} className="min-w-[160px]">
+              {creatingInstance ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Criando...</> : "Criar Instância"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1216,7 +1992,9 @@ const Settings = () => {
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="outline" onClick={() => setDeleteInstanceDialogOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={handleDeleteInstance}>Excluir Instância</Button>
+            <Button variant="destructive" onClick={handleDeleteInstance} disabled={deletingInstance} className="min-w-[160px]">
+              {deletingInstance ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Excluindo...</> : "Excluir Instância"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

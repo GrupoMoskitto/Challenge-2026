@@ -58,11 +58,12 @@ export const validatePassword = (password: string): { valid: boolean; errors: st
   };
 };
 
-export const sanitizeInput = (input: string): string => {
+export const sanitizeInput = (input: string | null | undefined): string => {
+  if (!input) return "";
   return input
-    .replace(/[<>]/g, '')
-    .replace(/javascript:/gi, '')
-    .replace(/on\w+=/gi, '')
+    .replace(/[<>]/g, "")
+    .replace(/javascript:/gi, "")
+    .replace(/on\w+=/gi, "")
     .trim();
 };
 

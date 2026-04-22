@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
+import { usePatientModal } from "./PatientModalContext";
 import { serverLogout } from "@/lib/apollo";
 import { useQuery, useMutation, gql } from "@apollo/client";
 import { MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_READ } from "@/lib/queries";
@@ -67,6 +68,7 @@ const NOTIFICATIONS_QUERY = gql`
 
 export function TopBar({ title }: TopBarProps) {
   const { user } = useAuth();
+  const { openCreatePatientModal } = usePatientModal();
   const navigate = useNavigate();
 
   const { data: notifData, refetch: refetchNotifs } = useQuery(NOTIFICATIONS_QUERY, {
@@ -176,7 +178,7 @@ export function TopBar({ title }: TopBarProps) {
         <div className="flex items-center gap-4">
           {/* New Patient Button (Primary Action) */}
           <button 
-            onClick={() => navigate('/patients?create=true')}
+            onClick={() => openCreatePatientModal()}
             className="hidden md:flex bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium items-center gap-1.5 px-4 py-2 text-sm whitespace-nowrap transition-colors flex-shrink-0"
           >
             <Plus className="h-4 w-4" />

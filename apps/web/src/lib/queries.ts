@@ -254,16 +254,30 @@ export const GET_PATIENT = gql`
 `;
 
 export const GET_AUDIT_LOGS = gql`
-  query GetAuditLogs($entityType: String, $entityId: String) {
-    auditLogs(entityType: $entityType, entityId: $entityId) {
-      id
-      entityType
-      entityId
-      action
-      oldValue
-      newValue
-      reason
-      createdAt
+  query GetAuditLogs($entityType: String, $entityId: String, $action: String, $startDate: DateTime, $endDate: DateTime, $userId: String, $first: Int, $after: String) {
+    auditLogs(entityType: $entityType, entityId: $entityId, action: $action, startDate: $startDate, endDate: $endDate, userId: $userId, first: $first, after: $after) {
+      edges {
+        node {
+          id
+          entityType
+          entityId
+          action
+          oldValue
+          newValue
+          reason
+          userId
+          user {
+            id
+            name
+          }
+          createdAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
     }
   }
 `;
@@ -277,6 +291,22 @@ export const GET_LEAD_CONTACTS = gql`
       direction
       status
       message
+    }
+    lead(id: $leadId) {
+      id
+      name
+      auditLogs {
+        id
+        action
+        oldValue
+        newValue
+        reason
+        createdAt
+        user {
+          id
+          name
+        }
+      }
     }
   }
 `;
@@ -360,6 +390,7 @@ export const CREATE_LEAD = gql`
       notes
       status
       createdAt
+      updatedAt
     }
   }
 `;
@@ -404,6 +435,7 @@ export const UPDATE_LEAD = gql`
       notes
       status
       createdAt
+      updatedAt
     }
   }
 `;
@@ -701,6 +733,143 @@ export const CONNECT_EVOLUTION_INSTANCE = gql`
       qrCode
       pairingCode
       connected
+    }
+  }
+`;
+
+export const PING_EVOLUTION_INSTANCE = gql`
+  query PingEvolutionInstance($name: String!) {
+    pingEvolutionInstance(name: $name) {
+      connected
+      state
+      latencyMs
+    }
+  }
+`;
+
+export const GET_SURGEONS_SCHEDULE = gql`
+  query GetSurgeonsSchedule {
+    surgeons {
+      id
+      name
+      specialty
+      availability {
+        id
+        dayOfWeek
+        startTime
+        endTime
+        isActive
+      }
+      extraAvailability {
+        id
+        date
+        startTime
+        endTime
+        isActive
+      }
+      blocks {
+        id
+        startDate
+        endDate
+        reason
+      }
+    }
+  }
+`;
+
+export const CREATE_AVAILABILITY_SLOT = gql`
+  mutation CreateAvailabilitySlot($input: CreateAvailabilitySlotInput!) {
+    createAvailabilitySlot(input: $input) {
+      id
+      dayOfWeek
+      startTime
+      endTime
+      isActive
+    }
+  }
+`;
+
+export const UPDATE_AVAILABILITY_SLOT = gql`
+  mutation UpdateAvailabilitySlot($input: UpdateAvailabilitySlotInput!) {
+    updateAvailabilitySlot(input: $input) {
+      id
+      dayOfWeek
+      startTime
+      endTime
+      isActive
+    }
+  }
+`;
+
+export const DELETE_AVAILABILITY_SLOT = gql`
+  mutation DeleteAvailabilitySlot($id: ID!) {
+    deleteAvailabilitySlot(id: $id) {
+      success
+      message
+    }
+  }
+`;
+
+export const CREATE_EXTRA_AVAILABILITY = gql`
+  mutation CreateExtraAvailability($input: CreateExtraAvailabilityInput!) {
+    createExtraAvailability(input: $input) {
+      id
+      date
+      startTime
+      endTime
+      isActive
+    }
+  }
+`;
+
+export const UPDATE_EXTRA_AVAILABILITY = gql`
+  mutation UpdateExtraAvailability($input: UpdateExtraAvailabilityInput!) {
+    updateExtraAvailability(input: $input) {
+      id
+      date
+      startTime
+      endTime
+      isActive
+    }
+  }
+`;
+
+export const DELETE_EXTRA_AVAILABILITY = gql`
+  mutation DeleteExtraAvailability($id: ID!) {
+    deleteExtraAvailability(id: $id) {
+      success
+      message
+    }
+  }
+`;
+
+export const CREATE_SCHEDULE_BLOCK = gql`
+  mutation CreateScheduleBlock($input: CreateScheduleBlockInput!) {
+    createScheduleBlock(input: $input) {
+      id
+      startDate
+      endDate
+      reason
+    }
+  }
+`;
+
+export const UPDATE_SCHEDULE_BLOCK = gql`
+  mutation UpdateScheduleBlock($input: UpdateScheduleBlockInput!) {
+    updateScheduleBlock(input: $input) {
+      id
+      startDate
+      endDate
+      reason
+    }
+  }
+`;
+
+export const DELETE_SCHEDULE_BLOCK = gql`
+  mutation DeleteScheduleBlock($id: ID!) {
+    deleteScheduleBlock(id: $id) {
+      success
+      message
     }
   }
 `;
