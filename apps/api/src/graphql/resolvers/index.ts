@@ -1,10 +1,10 @@
-import { prisma, checkUniqueness, Prisma } from '@crmed/database';
-import { LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel, BudgetStatus, ComplaintStatus } from '@prisma/client';
+import { prisma, checkUniqueness } from '@crmed/database';
+import { LeadStatus, AppointmentStatus, DocumentStatus, PostOpStatus, BudgetStatus, ComplaintStatus, Prisma } from '@prisma/client';
 import { format, subDays } from 'date-fns';
 import { DateTimeScalar, IDScalar, JSONScalar } from '../scalars';
 import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit, COOKIE_OPTIONS, isTokenRevoked, revokeUserTokens, clearTokenRevocation } from '../../auth';
-import { dispatchLeadWelcome, dispatchLeadFollowup } from '../../services/whatsappQueue';
-import { assertAuthenticated, assertRole, enforceStatusChange, validateEnum } from '../../config/rbac';
+import { dispatchLeadWelcome } from '../../services/whatsappQueue';
+import { assertAuthenticated, assertRole, enforceStatusChange } from '../../config/rbac';
 import { logger } from '../../config/logger';
 
 const encodeBase64 = (id: string): string => {
@@ -20,7 +20,8 @@ const decodeId = (id: string): string => {
   try {
     const decoded = Buffer.from(id, 'base64url').toString('utf-8');
     // Basic heuristic: if it contains non-printable characters, it's probably not a decoded ID
-    if (/[\x00-\x08\x0E-\x1F\x7F]/.test(decoded)) {
+    // eslint-disable-next-line no-control-regex
+    if (/[\u0000-\u0008\u000E-\u001F\u007F]/.test(decoded)) {
       return id;
     }
     return decoded.split(':').pop() || decoded;
@@ -705,7 +706,7 @@ export const resolvers = {
           };
         });
       } catch (error) {
-        logger.error('EvolutionAPI:fetchInstances', error as Error);
+        logger.error('EvolutionAPI:fetchInstances', (error as Error).message, error);
         return [];
       }
     },
@@ -738,7 +739,7 @@ export const resolvers = {
         };
       } catch (error) {
         const latencyMs = Date.now() - start;
-        logger.error('EvolutionAPI:ping', error as Error);
+        logger.error('EvolutionAPI:ping', (error as Error).message, error);
         return { connected: false, state: 'unreachable', latencyMs };
       }
     },
