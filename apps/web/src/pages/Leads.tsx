@@ -1,17 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { showUndoableToast } from "@/hooks/useUndoableToast";
 import { 
   Search, 
   MessageCircle, 
-  MessageSquare, 
   Plus, 
   MoreVertical, 
   Pencil, 
@@ -32,8 +30,7 @@ import {
   History as HistoryIcon, 
   XCircle, 
   Check, 
-  X,
-  ChevronRight
+  X
 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { 
@@ -46,7 +43,7 @@ import {
   EXPORT_LEADS, 
   IMPORT_LEADS 
 } from "@/lib/queries";
-import { validateCPF, validatePhone, validateEmail, sanitizeInput } from "@/lib/validation";
+import { sanitizeInput } from "@/lib/validation";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import {
@@ -74,8 +71,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { usePatientModal } from "@/components/PatientModalContext";
 import { AuditDiff } from "@/components/AuditDiff";
-
-const LEAD_MOVED_ANIMATION_DURATION_MS = 3000;
 
 const statusLabels: Record<string, string> = {
   NEW: 'Novo',
@@ -222,7 +217,7 @@ const Leads = () => {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const { data, loading, refetch } = useQuery(GET_LEADS, {
+  const { data, refetch } = useQuery(GET_LEADS, {
     variables: { first: 100, search: debouncedSearch || undefined },
     fetchPolicy: 'cache-and-network',
   });

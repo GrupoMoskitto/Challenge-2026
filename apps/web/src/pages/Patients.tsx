@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,11 +19,9 @@ import {
   User, 
   Pencil, 
   Plus, 
-  ChevronRight, 
   Filter, 
   History as HistoryIcon, 
   Loader2, 
-  AlertTriangle,
   Trash2
 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
@@ -41,7 +39,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
