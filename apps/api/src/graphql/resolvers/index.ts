@@ -1,4 +1,4 @@
-import { prisma, checkUniqueness } from '@crmed/database';
+import { prisma, checkUniqueness, Prisma } from '@crmed/database';
 import { LeadStatus, AppointmentStatus, UserRole, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel, BudgetStatus, ComplaintStatus } from '@prisma/client';
 import { format, subDays } from 'date-fns';
 import { DateTimeScalar, IDScalar, JSONScalar } from '../scalars';
@@ -705,7 +705,7 @@ export const resolvers = {
           };
         });
       } catch (error) {
-        logger.error('EvolutionAPI:fetchInstances', error);
+        logger.error('EvolutionAPI:fetchInstances', error as Error);
         return [];
       }
     },
@@ -738,7 +738,7 @@ export const resolvers = {
         };
       } catch (error) {
         const latencyMs = Date.now() - start;
-        logger.error('EvolutionAPI:ping', error);
+        logger.error('EvolutionAPI:ping', error as Error);
         return { connected: false, state: 'unreachable', latencyMs };
       }
     },
@@ -1118,7 +1118,7 @@ export const resolvers = {
       const patientId = input.id;
       const current = await prisma.patient.findUnique({ where: { id: patientId } });
       const updated = await prisma.patient.update({ where: { id: patientId }, data: { ...input, id: undefined, dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined } });
-      await prisma.auditLog.create({ data: { entityType: 'Patient', entityId: patientId, action: 'UPDATED', oldValue: current, newValue: input, userId: context.user?.userId, patientId } });
+      await prisma.auditLog.create({ data: { entityType: 'Patient', entityId: patientId, action: 'UPDATED', oldValue: current as Prisma.InputJsonValue, newValue: input as Prisma.InputJsonValue, userId: context.user?.userId, patientId } });
       return updated;
     },
     createAppointment: async (_: unknown, { input }: { input: any }, context: Context) => {
