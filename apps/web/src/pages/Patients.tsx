@@ -22,7 +22,8 @@ import {
   Filter, 
   History as HistoryIcon, 
   Loader2, 
-  Trash2
+  Trash2,
+  Info
 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import {
@@ -75,11 +76,11 @@ const auditActionLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-  NEW: 'bg-gray-500',
-  CONTACTED: 'bg-blue-500',
-  QUALIFIED: 'bg-yellow-500',
-  CONVERTED: 'bg-green-500',
-  LOST: 'bg-red-500',
+  NEW: 'bg-slate-500 text-white',
+  CONTACTED: 'bg-blue-600 text-white',
+  QUALIFIED: 'bg-amber-500 text-white',
+  CONVERTED: 'bg-emerald-600 text-white',
+  LOST: 'bg-rose-600 text-white',
 };
 
 const statusLabels: Record<string, string> = {
@@ -88,6 +89,17 @@ const statusLabels: Record<string, string> = {
   QUALIFIED: 'Qualificado',
   CONVERTED: 'Convertido',
   LOST: 'Perdido',
+};
+
+const StatusIconComponent = ({ status }: { status: string }) => {
+  switch (status) {
+    case 'READ':
+    case 'ANSWERED':
+    case 'SIGNED': return <Check className="h-3 w-3 text-green-500" />;
+    case 'FAILED':
+    case 'MISSED': return <X className="h-3 w-3 text-red-500" />;
+    default: return <Clock className="h-3 w-3 text-muted-foreground" />;
+  }
 };
 
 const getAuditActionMeta = (action?: string) => {
@@ -101,12 +113,104 @@ const getAuditActionMeta = (action?: string) => {
   }
 };
 
-const getAuditMessage = (action: string, leadName?: string | null) => {
-  if (action === 'STATUS_CHANGE') return 'Alteração de status';
+const getAuditMessage = (item: any, leadName?: string | null) => {
+  if (item.action === 'STATUS_CHANGE') {
+    return `Status alterado de ${item.oldValue} para ${item.newValue}`;
+  }
   const safeName = leadName || "cliente";
-  const actionLabel = auditActionLabels[action] || "modificado";
-  return `Paciente ${safeName} ${actionLabel}!`;
+  const actionLabel = auditActionLabels[item.action] || "modificado";
+  
+  const entityLabel = item.entityType === 'Patient' ? 'Paciente' : 'Lead';
+  return `${entityLabel} ${safeName} ${actionLabel}!`;
 };
+
+function PatientTimeline({ patient }: { patient: any }) {
+  const contacts = patient?.lead?.contacts || [];
+  const rawAuditLogs = patient?.auditLogs || [];
+
+  // Process logs: Deduplicate and normalize dates
+  const processedLogs = rawAuditLogs.reduce((acc: any[], log: any) => {
+    // Deduplication logic: avoid showing multiple 'CREATED' logs for the same thing/time
+    const isDuplicate = acc.some(existing => 
+      existing.action === log.action && 
+      existing.entityType === log.entityType && 
+      Math.abs(new Date(existing.createdAt).getTime() - new Date(log.createdAt).getTime()) < 1000
+    );
+
+    if (!isDuplicate) {
+      acc.push({ ...log, itemType: 'AUDIT', timestamp: new Date(log.createdAt) });
+    }
+    return acc;
+  }, []);
+
+  const timelineItems = [
+    ...contacts.map((c: any) => ({ ...c, itemType: 'CONTACT', timestamp: new Date(c.date) })),
+    ...processedLogs
+  ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+  if (timelineItems.length === 0) {
+    return (
+      <div className="text-center py-20 bg-background/50 m-6 rounded-xl border border-dashed">
+        <Info className="h-8 w-8 mx-auto mb-3 opacity-20" />
+        <p className="text-sm text-muted-foreground">Nenhum evento registrado na linha do tempo.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 py-8 relative min-h-full">
+      <div className="absolute top-8 bottom-8 left-[34px] w-px bg-border/60 z-0"></div>
+      <div className="space-y-8 relative z-10">
+        {timelineItems.map((item: any) => {
+          const isContact = item.itemType === 'CONTACT';
+          const meta = !isContact ? getAuditActionMeta(item.action) : null;
+          const IconComp = isContact ? (item.type === 'WHATSAPP' ? MessageCircle : item.type === 'EMAIL' ? Mail : Phone) : meta!.icon;
+          const colorClass = isContact 
+            ? (item.type === 'WHATSAPP' ? "text-green-600 border-green-500/20 bg-background" : item.type === 'EMAIL' ? "text-purple-600 border-purple-500/20 bg-background" : "text-blue-600 border-blue-500/20 bg-background")
+            : meta!.containerClassName + " " + meta!.iconClassName.replace('text-', 'border-') + " border border-primary/10 bg-background";
+
+          return (
+            <div key={item.id} className="relative flex items-start gap-5 group">
+              <div className={cn("relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 bg-background shrink-0 shadow-sm transition-transform group-hover:scale-105", colorClass)}>
+                <IconComp className="h-4 w-4" />
+              </div>
+              <div className="flex-1 bg-background p-4 rounded-xl border shadow-sm transition-all hover:shadow-md hover:border-primary/20 min-w-0">
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={isContact ? (item.direction === 'OUTBOUND' ? 'default' : 'secondary') : 'outline'} className="text-[10px] px-2 py-0">
+                      {isContact ? (item.direction === 'OUTBOUND' ? 'Mensagem Enviada' : 'Mensagem Recebida') : (item.action === 'CREATED' ? 'Criação' : item.action === 'STATUS_CHANGE' ? 'Status Alterado' : 'Registro Alterado')}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isContact && <StatusIconComponent status={item.status} />}
+                    <time className="text-[11px] text-muted-foreground font-medium bg-muted/40 px-2 py-1 rounded-md">{format(item.timestamp, "dd/MM/yyyy 'às' HH:mm")}</time>
+                  </div>
+                </div>
+                
+                <p className="text-sm text-foreground/90 leading-relaxed font-medium mt-1 whitespace-pre-wrap break-words">
+                  {isContact ? item.message : getAuditMessage(item, patient?.lead?.name)}
+                </p>
+                
+                {!isContact && item.oldValue && item.newValue && (
+                  <div className="mt-3">
+                    <AuditDiff oldValue={item.oldValue} newValue={item.newValue} className="bg-muted/30 border border-border/50 p-3 rounded-lg text-xs" />
+                  </div>
+                )}
+                
+                {item.user && (
+                  <div className="mt-3 pt-3 border-t border-border/40 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <User className="h-3 w-3 opacity-60" />
+                    <span>Registrado por <strong className="font-semibold uppercase tracking-wider">{item.user.name}</strong></span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const MAX_WEIGHT_KG = 400;
 const MAX_HEIGHT_CM = 300;
@@ -164,7 +268,7 @@ const Patients = () => {
   }, [searchParams, openCreatePatientModal, setSearchParams]);
 
   const { data: patientsData, previousData: prevPatientData, loading: loadingPatients, fetchMore } = useQuery(GET_PATIENTS, {
-    variables: { first: PAGE_SIZE, search: debouncedSearch || undefined, status: statusFilter || undefined },
+    variables: { first: PAGE_SIZE, where: { search: debouncedSearch || undefined, status: statusFilter || undefined } },
     notifyOnNetworkStatusChange: true,
     fetchPolicy: 'cache-and-network',
   });
@@ -269,17 +373,6 @@ const Patients = () => {
       setNewPostOpForm({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
       refetchPatient();
     } catch (e: any) { toast.error(e.message); }
-  };
-
-  const StatusIconComponent = ({ status }: { status: string }) => {
-    switch (status) {
-      case 'READ':
-      case 'ANSWERED':
-      case 'SIGNED': return <Check className="h-3 w-3 text-green-500" />;
-      case 'FAILED':
-      case 'MISSED': return <X className="h-3 w-3 text-red-500" />;
-      default: return <Clock className="h-3 w-3 text-muted-foreground" />;
-    }
   };
 
   if (loadingPatients && !patientsData) {
@@ -388,6 +481,7 @@ const Patients = () => {
                     <div><span className="text-muted-foreground">Sexo</span><p>{patient.sex || '-'}</p></div>
                     <div><span className="text-muted-foreground">Peso (kg)</span><p>{patient.weight || '-'}</p></div>
                     <div><span className="text-muted-foreground">Altura (cm)</span><p>{patient.height || '-'}</p></div>
+                    <div><span className="text-muted-foreground">IMC</span><p className={cn("font-bold", (patient.bmi > 25 || patient.bmi < 18.5) ? "text-amber-600" : "text-emerald-600")}>{patient.bmi || '-'}</p></div>
                     <div><span className="text-muted-foreground">Como nos conheceu</span><p>{patient.howMet || '-'}</p></div>
                   </div>
                 </CardContent>
@@ -400,71 +494,61 @@ const Patients = () => {
                   <TabsTrigger value="postop" className="flex-1">Pós-Operatório</TabsTrigger>
                 </TabsList>
                 <TabsContent value="timeline" className="mt-6">
-                  {(() => {
-                    const contacts = patient.lead?.contacts || [];
-                    const auditLogs = patient.auditLogs || [];
-                    const timelineItems = [
-                      ...contacts.map((c: any) => ({ ...c, itemType: 'CONTACT', timestamp: new Date(c.date) })),
-                      ...auditLogs.map((l: any) => ({ ...l, itemType: 'AUDIT', timestamp: new Date(l.createdAt) }))
-                    ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-
-                    if (timelineItems.length === 0) return <div className="py-20 text-center text-sm text-muted-foreground">Nenhuma atividade.</div>;
-                    return (
-                      <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
-                        {timelineItems.map((t_item: any) => {
-                          const isContact = t_item.itemType === 'CONTACT';
-                          const meta = !isContact ? getAuditActionMeta(t_item.action) : null;
-                          const IconComp = isContact ? (t_item.type === 'WHATSAPP' ? MessageCircle : t_item.type === 'EMAIL' ? Mail : Phone) : meta!.icon;
-                          const colorClass = isContact 
-                            ? (t_item.type === 'WHATSAPP' ? "text-green-600 bg-green-500/20" : t_item.type === 'EMAIL' ? "text-purple-600 bg-purple-500/20" : "text-blue-600 bg-blue-500/20")
-                            : meta!.containerClassName + " " + meta!.iconClassName;
-
-                          return (
-                            <div key={t_item.id} className="relative flex items-start gap-4">
-                              <div className={cn("flex items-center justify-center w-10 h-10 rounded-full border-4 border-background shrink-0 shadow-sm z-10", colorClass)}>
-                                <IconComp className="h-4 w-4" />
-                              </div>
-                              <div className="flex-1 bg-card p-4 rounded-lg border shadow-sm transition-all hover:shadow-md min-w-0">
-                                <div className="flex items-start sm:items-center justify-between gap-2 mb-2">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant={isContact ? (t_item.direction === 'OUTBOUND' ? 'default' : 'secondary') : 'outline'} className="text-[10px] px-1.5 py-0">
-                                      {isContact ? (t_item.direction === 'OUTBOUND' ? 'Enviado' : 'Recebido') : (t_item.action === 'CREATED' ? 'Criação' : t_item.action === 'STATUS_CHANGE' ? 'Status' : 'Alteração')}
-                                    </Badge>
-                                    {isContact && <span className="text-[10px] font-bold uppercase text-muted-foreground/70">{t_item.type}</span>}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {isContact && <StatusIconComponent status={t_item.status} />}
-                                    <time className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{format(t_item.timestamp, "dd/MM/yyyy HH:mm")}</time>
-                                  </div>
-                                </div>
-                                <p className="text-sm text-foreground/90 leading-relaxed">{isContact ? t_item.message : getAuditMessage(t_item.action, patient.lead?.name)}</p>
-                                {!isContact && <AuditDiff oldValue={t_item.oldValue} newValue={t_item.newValue} className="mt-3 bg-muted/20" />}
-                                {t_item.user && <p className="text-[10px] text-muted-foreground mt-3 pt-2 border-t flex items-center"><User className="h-3 w-3 mr-1 opacity-50" /> <span className="font-semibold">{t_item.user.name}</span></p>}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+                  <PatientTimeline patient={patient} />
                 </TabsContent>
                 <TabsContent value="documents" className="mt-4 space-y-4">
                   <div className="flex justify-end"><Button size="sm" onClick={() => setNewDocDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Novo</Button></div>
-                  {patient.documents?.map((doc: any) => (
-                    <Card key={doc.id}><CardContent className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3"><FileText className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm font-medium">{doc.name}</p><p className="text-xs text-muted-foreground">{documentTypeLabels[doc.type]} • {format(new Date(doc.date), 'dd/MM/yyyy')}</p></div></div>
-                      <Badge variant={doc.status === 'SIGNED' ? 'default' : 'outline'}>{documentStatusLabels[doc.status]}</Badge>
-                    </CardContent></Card>
-                  ))}
+                  {patient.documents?.length === 0 ? <div className="py-20 text-center text-sm text-muted-foreground">Nenhum documento registrado.</div> : (
+                    patient.documents?.map((doc: any) => (
+                      <Card key={doc.id}>
+                        <CardContent className="p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <FileText className="h-5 w-5 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-medium">{doc.name}</p>
+                              <p className="text-xs text-muted-foreground">{documentTypeLabels[doc.type]} • {format(new Date(doc.date), 'dd/MM/yyyy')}</p>
+                            </div>
+                          </div>
+                          <Badge 
+                            variant={doc.status === 'SIGNED' ? 'default' : 'outline'}
+                            className={cn(doc.status === 'SIGNED' && "bg-emerald-600 text-white border-none")}
+                          >
+                            {documentStatusLabels[doc.status]}
+                          </Badge>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </TabsContent>
                 <TabsContent value="postop" className="mt-4 space-y-4">
                   <div className="flex justify-end"><Button size="sm" onClick={() => setNewPostOpDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Agendar</Button></div>
-                  {patient.postOps?.map((po: any) => (
-                    <Card key={po.id}><CardContent className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3"><CalendarIcon className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm font-medium">{po.description}</p><p className="text-xs text-muted-foreground">{format(new Date(po.date), 'dd/MM/yyyy')}</p></div></div>
-                      <Badge variant={po.status === 'COMPLETED' ? 'default' : 'outline'}>{po.status === 'COMPLETED' ? 'Concluído' : 'Agendado'}</Badge>
-                    </CardContent></Card>
-                  ))}
+                  {patient.postOps?.length === 0 ? <div className="py-20 text-center text-sm text-muted-foreground">Nenhum registro de pós-operatório.</div> : (
+                    patient.postOps?.map((po: any) => (
+                      <Card key={po.id}>
+                        <CardContent className="p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-medium">{po.description}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs text-muted-foreground">{format(new Date(po.date), 'dd/MM/yyyy')}</span>
+                                <span className="text-[10px] font-bold uppercase text-muted-foreground/50 bg-muted px-1 rounded">{po.type === 'RETURN' ? 'Retorno' : po.type === 'REPAIR' ? 'Reparo' : po.type}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <Badge 
+                            className={cn(
+                              po.status === 'COMPLETED' ? "bg-emerald-500 hover:bg-emerald-600" : 
+                              po.status === 'SCHEDULED' ? "bg-blue-500 hover:bg-blue-600" : "bg-amber-500 hover:bg-amber-600",
+                              "text-white border-none"
+                            )}
+                          >
+                            {po.status === 'COMPLETED' ? 'Concluído' : po.status === 'SCHEDULED' ? 'Agendado' : 'Pendente'}
+                          </Badge>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </TabsContent>
               </Tabs>
             </div>
@@ -481,13 +565,15 @@ const Patients = () => {
               <div className="space-y-2"><Label>Prontuário</Label><Input value={editPatientForm.medicalRecord} onChange={e => setEditPatientForm(f => ({...f, medicalRecord: e.target.value}))} /></div>
             </div>
             <div className="space-y-2"><Label>Endereço</Label><Input value={editPatientForm.address} onChange={e => setEditPatientForm(f => ({...f, address: e.target.value}))} /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2"><Label>Sexo</Label><Select value={editPatientForm.sex} onValueChange={v => setEditPatientForm(f => ({...f, sex: v}))}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent><SelectItem value="Masculino">Masculino</SelectItem><SelectItem value="Feminino">Feminino</SelectItem></SelectContent></Select></div>
               <div className="space-y-2"><Label>Peso (kg)</Label><Input type="number" step="0.1" value={editPatientForm.weight} onChange={e => setEditPatientForm(f => ({...f, weight: e.target.value}))} /></div>
+              <div className="space-y-2"><Label>Altura (cm)</Label><Input type="number" step="1" value={editPatientForm.height} onChange={e => setEditPatientForm(f => ({...f, height: e.target.value}))} /></div>
             </div>
-            <div className="space-y-2"><Label>Motivo</Label><Input value={editPatientForm.reason} onChange={e => setEditPatientForm(f => ({...f, reason: e.target.value}))} /></div>
+            <div className="space-y-2"><Label>Como nos conheceu</Label><Input value={editPatientForm.howMet} onChange={e => setEditPatientForm(f => ({...f, howMet: e.target.value}))} /></div>
+            <div className="space-y-2"><Label className="text-primary font-bold">Motivo da Alteração *</Label><Input placeholder="Obrigatório para o histórico" value={editPatientForm.reason} onChange={e => setEditPatientForm(f => ({...f, reason: e.target.value}))} /></div>
           </div>
-          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditPatientDialogOpen(false)}>Cancelar</Button><Button onClick={handleUpdatePatient} disabled={updatingPatient}>Salvar</Button></div>
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditPatientDialogOpen(false)}>Cancelar</Button><Button onClick={handleUpdatePatient} disabled={updatingPatient || !editPatientForm.reason}>Salvar</Button></div>
         </DialogContent>
       </Dialog>
 

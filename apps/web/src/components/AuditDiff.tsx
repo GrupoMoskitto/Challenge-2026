@@ -8,6 +8,21 @@ interface AuditDiffProps {
   className?: string;
 }
 
+const fieldLabels: Record<string, string> = {
+  dateOfBirth: "Nascimento",
+  medicalRecord: "Prontuário",
+  address: "Endereço",
+  sex: "Sexo",
+  weight: "Peso",
+  height: "Altura",
+  howMet: "Como conheceu",
+  status: "Status",
+  name: "Nome",
+  email: "E-mail",
+  phone: "Telefone",
+  cpf: "CPF",
+};
+
 export const AuditDiff: React.FC<AuditDiffProps> = ({ oldValue, newValue, className }) => {
   if (!newValue || typeof newValue !== 'object' || Object.keys(newValue).length === 0) {
     return null;
@@ -39,8 +54,10 @@ export const AuditDiff: React.FC<AuditDiffProps> = ({ oldValue, newValue, classN
       </div>
       <div className="grid grid-cols-1 gap-1">
         {diffItems.map((item: any) => (
-          <div key={item.key} className="text-[10px] grid grid-cols-[70px_1fr] items-start gap-2 py-0.5 border-b border-border/10 last:border-0">
-            <span className="font-semibold text-muted-foreground/80 truncate">{item.key}</span>
+          <div key={item.key} className="text-[10px] grid grid-cols-[80px_1fr] items-start gap-2 py-0.5 border-b border-border/10 last:border-0">
+            <span className="font-semibold text-muted-foreground/80 truncate">
+              {fieldLabels[item.key] || item.key}
+            </span>
             <div className="flex flex-wrap items-center gap-1.5">
               {item.fromValue !== undefined && (
                 <>
