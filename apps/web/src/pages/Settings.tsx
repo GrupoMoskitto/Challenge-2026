@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQuery, useMutation } from "@apollo/client";
 import {
@@ -28,11 +29,20 @@ import {
   CREATE_EVOLUTION_INSTANCE,
   DELETE_EVOLUTION_INSTANCE,
   CONNECT_EVOLUTION_INSTANCE,
+  GET_SURGEONS_SCHEDULE,
+  CREATE_AVAILABILITY_SLOT,
+  UPDATE_AVAILABILITY_SLOT,
+  DELETE_AVAILABILITY_SLOT,
+  CREATE_EXTRA_AVAILABILITY,
+  DELETE_EXTRA_AVAILABILITY,
+  CREATE_SCHEDULE_BLOCK,
+  DELETE_SCHEDULE_BLOCK,
 } from "@/lib/queries";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -49,7 +59,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, Calendar as CalendarIcon, Clock, AlertTriangle } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrador",
@@ -119,7 +137,7 @@ const Settings = () => {
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
-  const availableTabs = React.useMemo(() => ["profile", ...(isAdmin ? ["integrations", "users", "templates"] : [])], [isAdmin]);
+  const availableTabs = React.useMemo(() => ["profile", ...(isAdmin ? ["integrations", "users", "templates", "schedule"] : [])], [isAdmin]);
   const defaultTab = "profile";
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || defaultTab);
 
@@ -166,11 +184,18 @@ const Settings = () => {
 
   const [selectedInstance, setSelectedInstance] = useState<string>("");
 
+  // Schedule management state
+  const [selectedSurgeonId, setSelectedSurgeonId] = useState<string | null>(null);
+  const [availForm, setAvailForm] = useState({ dayOfWeek: 1, startTime: "08:00", endTime: "18:00" });
+  const [extraAvailForm, setExtraAvailForm] = useState<{ date: Date | undefined; startTime: string; endTime: string }>({ date: undefined, startTime: "08:00", endTime: "18:00" });
+  const [blockForm, setBlockForm] = useState<{ startDate: Date | undefined; startTime: string; endDate: Date | undefined; endTime: string; reason: string }>({ startDate: undefined, startTime: "08:00", endDate: undefined, endTime: "18:00", reason: "" });
+
   // GraphQL
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
   const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS, { skip: !isAdmin });
   const { data: evoData, loading: evoLoading, refetch: refetchEvo, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
   const { data: testPhoneData } = useQuery(GET_TEST_PHONE_LAST_DIGITS, { skip: !isAdmin });
+  const { data: scheduleData, refetch: refetchSchedule } = useQuery(GET_SURGEONS_SCHEDULE, { skip: !isAdmin });
 
   useEffect(() => {
     if (templatesError) toast.error("Erro ao carregar templates: " + templatesError.message);
@@ -231,9 +256,84 @@ const Settings = () => {
   });
   const [connectEvolutionInstance] = useMutation(CONNECT_EVOLUTION_INSTANCE);
 
+  // Schedule mutations
+  const [createAvail] = useMutation(CREATE_AVAILABILITY_SLOT);
+  const [deleteAvail] = useMutation(DELETE_AVAILABILITY_SLOT);
+  const [createExtra] = useMutation(CREATE_EXTRA_AVAILABILITY);
+  const [deleteExtra] = useMutation(DELETE_EXTRA_AVAILABILITY);
+  const [createBlock] = useMutation(CREATE_SCHEDULE_BLOCK);
+  const [deleteBlock] = useMutation(DELETE_SCHEDULE_BLOCK);
+
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
   const systemUsers = usersData?.users?.edges?.map((e: any) => e.node) || [];
   const evolutionInstances: any[] = evoData?.evolutionApiInstances || [];
+  const surgeons = scheduleData?.surgeons || [];
+  const selectedSurgeon = surgeons.find((s: any) => s.id === selectedSurgeonId);
+
+  const timeSlots = Array.from({ length: 24 * 4 }, (_, i) => {
+    const h = Math.floor(i / 4).toString().padStart(2, '0');
+    const m = ((i % 4) * 15).toString().padStart(2, '0');
+    return `${h}:${m}`;
+  });
+
+  const handleCreateAvail = async () => {
+    if (!selectedSurgeonId) return;
+    try {
+      await createAvail({ variables: { input: { surgeonId: selectedSurgeonId, ...availForm } } });
+      toast.success("Horário adicionado");
+      refetchSchedule();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleDeleteAvail = async (id: string) => {
+    try {
+      await deleteAvail({ variables: { id } });
+      toast.success("Horário removido");
+      refetchSchedule();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleCreateExtraAvail = async () => {
+    if (!selectedSurgeonId || !extraAvailForm.date) return;
+    try {
+      await createExtra({ variables: { input: { surgeonId: selectedSurgeonId, ...extraAvailForm, date: extraAvailForm.date.toISOString().split('T')[0] } } });
+      toast.success("Dia extra adicionado");
+      refetchSchedule();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleDeleteExtraAvail = async (id: string) => {
+    try {
+      await deleteExtra({ variables: { id } });
+      toast.success("Removido");
+      refetchSchedule();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleCreateBlock = async () => {
+    if (!selectedSurgeonId || !blockForm.startDate || !blockForm.endDate) return;
+    try {
+      const start = new Date(blockForm.startDate);
+      const [sh, sm] = blockForm.startTime.split(':');
+      start.setHours(parseInt(sh), parseInt(sm), 0, 0);
+
+      const end = new Date(blockForm.endDate);
+      const [eh, em] = blockForm.endTime.split(':');
+      end.setHours(parseInt(eh), parseInt(em), 0, 0);
+
+      await createBlock({ variables: { input: { surgeonId: selectedSurgeonId, startDate: start.toISOString(), endDate: end.toISOString(), reason: blockForm.reason } } });
+      toast.success("Bloqueio criado");
+      refetchSchedule();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleDeleteBlock = async (id: string) => {
+    try {
+      await deleteBlock({ variables: { id } });
+      toast.success("Bloqueio removido");
+      refetchSchedule();
+    } catch (err: any) { toast.error(err.message); }
+  };
 
   const handleUpdateProfile = async () => {
     try {
@@ -570,6 +670,12 @@ const Settings = () => {
               Templates
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="schedule" className="flex-1">
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              Agenda
+            </TabsTrigger>
+          )}
         </TabsList>
 
           <TabsContent value="profile">
@@ -880,6 +986,346 @@ const Settings = () => {
                       </div>
                     )}
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="schedule">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Gerenciamento de Agenda</CardTitle>
+                  <CardDescription>
+                    Configure os horários de atendimento, plantões extras e bloqueios dos cirurgiões
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                  <div className="space-y-2 max-w-sm">
+                    <Label>Selecione o Cirurgião</Label>
+                    <Select value={selectedSurgeonId || ""} onValueChange={setSelectedSurgeonId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um médico..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {surgeons.map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedSurgeon && (
+                    <div className="grid gap-8 pt-4">
+                      {/* Horários Fixos */}
+                      <div className="border rounded-xl p-6 bg-muted/30">
+                        <div className="flex items-center justify-between mb-6">
+                          <div>
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                              <Clock className="h-5 w-5 text-primary" /> 
+                              Horários de Atendimento (Fixos)
+                            </h3>
+                            <p className="text-sm text-muted-foreground">Define os dias e horários padrão de atendimento semanal</p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-card p-4 rounded-lg border shadow-sm mb-6">
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Dia da Semana</Label>
+                            <Select value={availForm.dayOfWeek.toString()} onValueChange={(v) => setAvailForm({ ...availForm, dayOfWeek: parseInt(v) })}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"].map((day, i) => (
+                                  <SelectItem key={i} value={i.toString()}>{day}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Início</Label>
+                            <Select value={availForm.startTime} onValueChange={(v) => setAvailForm({ ...availForm, startTime: v })}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Fim</Label>
+                            <Select value={availForm.endTime} onValueChange={(v) => setAvailForm({ ...availForm, endTime: v })}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button onClick={handleCreateAvail} className="h-10 shadow-lg">Adicionar Horário</Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-2">Configurações Atuais</h4>
+                          {selectedSurgeon.availability?.length === 0 ? (
+                            <div className="text-center py-8 border-2 border-dashed rounded-lg bg-card/50">
+                              <p className="text-sm text-muted-foreground font-medium">Nenhum horário fixo configurado.</p>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {selectedSurgeon.availability?.map((slot: any) => (
+                                <div key={slot.id} className="flex items-center justify-between bg-card border p-3 rounded-lg hover:shadow-sm transition-shadow">
+                                  <div className="flex items-center gap-3">
+                                    <div className="bg-primary/10 p-2 rounded-full">
+                                      <CalendarIcon className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-semibold">{["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][slot.dayOfWeek]}</p>
+                                      <p className="text-xs text-muted-foreground">{slot.startTime} às {slot.endTime}</p>
+                                    </div>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteAvail(slot.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Plantões Extras */}
+                      <div className="border rounded-xl p-6 bg-muted/30">
+                        <div className="flex items-center justify-between mb-6">
+                          <div>
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                              <Plus className="h-5 w-5 text-green-500" /> 
+                              Plantões e Dias Extras
+                            </h3>
+                            <p className="text-sm text-muted-foreground">Adicionar disponibilidade para datas específicas fora do horário fixo</p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-card p-4 rounded-lg border shadow-sm mb-6">
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Data do Plantão</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn("w-full justify-start text-left font-normal h-10", !extraAvailForm.date && "text-muted-foreground")}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                                  {extraAvailForm.date ? format(extraAvailForm.date, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione...</span>}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={extraAvailForm.date}
+                                  onSelect={(d) => setExtraAvailForm({ ...extraAvailForm, date: d })}
+                                  locale={ptBR}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Início</Label>
+                            <Select value={extraAvailForm.startTime} onValueChange={(v) => setExtraAvailForm({ ...extraAvailForm, startTime: v })}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Fim</Label>
+                            <Select value={extraAvailForm.endTime} onValueChange={(v) => setExtraAvailForm({ ...extraAvailForm, endTime: v })}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button onClick={handleCreateExtraAvail} variant="outline" className="h-10 border-green-500/50 text-green-600 hover:bg-green-50">Adicionar Plantão</Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-2">Plantões Agendados</h4>
+                          {selectedSurgeon.extraAvailability?.length === 0 ? (
+                            <div className="text-center py-8 border-2 border-dashed rounded-lg bg-card/50">
+                              <p className="text-sm text-muted-foreground font-medium">Nenhum plantão extra configurado.</p>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {selectedSurgeon.extraAvailability?.map((slot: any) => (
+                                <div key={slot.id} className="flex items-center justify-between bg-green-500/5 border border-green-500/10 p-3 rounded-lg hover:shadow-sm transition-shadow">
+                                  <div className="flex items-center gap-3">
+                                    <div className="bg-green-500/20 p-2 rounded-full">
+                                      <CalendarIcon className="h-4 w-4 text-green-600" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-semibold">{format(new Date(slot.date), "dd/MM/yyyy")}</p>
+                                      <p className="text-xs text-green-700">{slot.startTime} às {slot.endTime}</p>
+                                    </div>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteExtraAvail(slot.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bloqueios */}
+                      <div className="border rounded-xl p-6 bg-muted/30">
+                        <div className="flex items-center justify-between mb-6">
+                          <div>
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                              <AlertTriangle className="h-5 w-5 text-destructive" /> 
+                              Bloqueios de Agenda
+                            </h3>
+                            <p className="text-sm text-muted-foreground">Impedir agendamentos em períodos específicos (férias, congressos, etc.)</p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end bg-card p-4 rounded-lg border shadow-sm mb-6">
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Data Início</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn("w-full justify-start text-left font-normal h-10", !blockForm.startDate && "text-muted-foreground")}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                                  {blockForm.startDate ? format(blockForm.startDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione...</span>}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={blockForm.startDate}
+                                  onSelect={(d) => setBlockForm({ ...blockForm, startDate: d })}
+                                  locale={ptBR}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Hora Início</Label>
+                            <Select value={blockForm.startTime} onValueChange={(v) => setBlockForm({ ...blockForm, startTime: v })}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Data Fim</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn("w-full justify-start text-left font-normal h-10", !blockForm.endDate && "text-muted-foreground")}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                                  {blockForm.endDate ? format(blockForm.endDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione...</span>}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={blockForm.endDate}
+                                  onSelect={(d) => setBlockForm({ ...blockForm, endDate: d })}
+                                  locale={ptBR}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Hora Fim</Label>
+                            <Select value={blockForm.endTime} onValueChange={(v) => setBlockForm({ ...blockForm, endTime: v })}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2 lg:col-span-1">
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Motivo</Label>
+                            <Input 
+                              className="h-10"
+                              type="text" 
+                              placeholder="Ex: Férias" 
+                              value={blockForm.reason} 
+                              onChange={(e) => setBlockForm({ ...blockForm, reason: e.target.value })} 
+                            />
+                          </div>
+                          
+                          <div className="lg:col-span-5 flex justify-end">
+                            <Button 
+                              onClick={handleCreateBlock} 
+                              variant="destructive"
+                              className="w-full md:w-auto px-8 shadow-lg"
+                            >
+                              Adicionar Bloqueio
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-2">Bloqueios Ativos</h4>
+                          {selectedSurgeon.blocks?.length === 0 ? (
+                            <div className="text-center py-8 border-2 border-dashed rounded-lg bg-card/50">
+                              <CalendarIcon className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                              <p className="text-sm text-muted-foreground font-medium">Nenhum bloqueio registrado para este médico.</p>
+                            </div>
+                          ) : (
+                            <div className="grid gap-2">
+                              {selectedSurgeon.blocks?.map((block: any) => (
+                                <div key={block.id} className="flex items-center justify-between bg-card border p-3 rounded-lg hover:shadow-sm transition-shadow">
+                                  <div className="flex items-center gap-3">
+                                    <div className="bg-red-500/10 p-2 rounded-full">
+                                      <Clock className="h-4 w-4 text-red-500" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-semibold">
+                                        {format(new Date(block.startDate), "dd/MM 'às' HH:mm")} — {format(new Date(block.endDate), "dd/MM 'às' HH:mm")}
+                                      </p>
+                                      {block.reason && <p className="text-xs text-muted-foreground">{block.reason}</p>}
+                                    </div>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteBlock(block.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

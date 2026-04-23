@@ -28,8 +28,11 @@ import {
   Clock, 
   History as HistoryIcon, 
   Check, 
-  X
-  } from "lucide-react";import { useQuery, useMutation } from "@apollo/client";
+  X,
+  XCircle
+  } from "lucide-react";
+
+import { useQuery, useMutation } from "@apollo/client";
 import { 
   GET_LEADS, 
   UPDATE_LEAD_STATUS, 
@@ -120,7 +123,10 @@ const getAuditMessage = (item: any, leadName?: string | null) => {
   }
   const safeName = leadName || "cliente";
   const actionLabel = auditActionLabels[item.action] || "modificado";
-  return `Lead ${safeName} ${actionLabel}!`;
+  
+  // Use entityType to be more specific
+  const entityLabel = item.entityType === 'Patient' ? 'Paciente' : 'Lead';
+  return `${entityLabel} ${safeName} ${actionLabel}!`;
 };
 
 const StatusIconComponent = ({ status }: { status: string }) => {
@@ -280,6 +286,12 @@ const Leads = () => {
     e.preventDefault();
     setDragOverColumn(null);
     if (!draggedLead || draggedLead.status === status) { setDraggedLead(null); return; }
+    
+    // Prevent drop if any modal is open
+    if (deleteDialogOpen || editDialogOpen || importDialogOpen) {
+      setDraggedLead(null);
+      return;
+    }
 
     if (user?.role === 'RECEPTION' && (status === 'CONVERTED' || status === 'LOST')) {
       toast.error(`Permissão negada.`);
@@ -578,7 +590,7 @@ const Leads = () => {
       {/* Modals and Dialogs */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-[750px] p-0 flex flex-col h-[85vh] shadow-2xl border-primary/10 overflow-hidden">
-          <div className="px-10 py-8 border-b bg-gradient-to-b from-muted/20 to-transparent shrink-0">
+          <div className="px-8 py-6 border-b bg-gradient-to-b from-muted/20 to-transparent shrink-0">
             <DialogHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -605,12 +617,14 @@ const Leads = () => {
             </DialogHeader>
           </div>
           <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="px-10 border-b justify-start h-auto p-0 bg-transparent gap-8 shrink-0">
-              <TabsTrigger value="details" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 py-4 font-bold text-sm transition-all hover:text-primary">Informações Gerais</TabsTrigger>
-              <TabsTrigger value="timeline" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 py-4 font-bold text-sm transition-all hover:text-primary">Linha do Tempo</TabsTrigger>
-            </TabsList>
-            <TabsContent value="details" className="p-10 overflow-y-auto flex-1 no-scrollbar bg-muted/5">
-              <div className="space-y-8 max-w-[650px] mx-auto">
+            <div className="px-8 border-b bg-transparent shrink-0 w-full">
+              <TabsList className="justify-start h-auto p-0 bg-transparent gap-8 w-full flex">
+                <TabsTrigger value="details" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 py-4 font-bold text-sm transition-all hover:text-primary">Informações Gerais</TabsTrigger>
+                <TabsTrigger value="timeline" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 py-4 font-bold text-sm transition-all hover:text-primary">Linha do Tempo</TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="details" className="mt-0 p-0 overflow-y-auto flex-1 no-scrollbar bg-muted/5">
+              <div className="px-8 py-8 space-y-8 w-full mx-auto">
                 <div className="grid gap-3">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">Identificação</Label>
                   <div className="grid gap-2"><Label className="text-[11px] font-semibold">Nome Completo *</Label><Input value={editLead.name} onChange={e => setEditLead({...editLead, name: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" /></div>
@@ -619,8 +633,26 @@ const Leads = () => {
                 <div className="grid gap-3">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">Contatos</Label>
                   <div className="grid grid-cols-2 gap-6">
-                     <div className="grid gap-2"><Label className="text-[11px] font-semibold">E-mail</Label><Input value={editLead.email} onChange={e => setEditLead({...editLead, email: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" /></div>
-                     <div className="grid gap-2"><Label className="text-[11px] font-semibold">Telefone *</Label><Input value={editLead.phone} onChange={e => setEditLead({...editLead, phone: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" /></div>
+                    <div className="grid gap-2">
+                      <Label className="text-[11px] font-semibold">E-mail</Label>
+                      <Input value={editLead.email} onChange={e => setEditLead({...editLead, email: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-[11px] font-semibold">Telefone *</Label>
+                      <div className="space-y-3">
+                        <Input value={editLead.phone} onChange={e => setEditLead({...editLead, phone: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" />
+                        <div className="flex items-center space-x-2 px-1">
+                          <input 
+                            type="checkbox" 
+                            id="whatsappActive" 
+                            checked={editLead.whatsappActive} 
+                            onChange={e => setEditLead({...editLead, whatsappActive: e.target.checked})} 
+                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer" 
+                          />
+                          <Label htmlFor="whatsappActive" className="text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">WhatsApp validado</Label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -637,28 +669,26 @@ const Leads = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="grid gap-2"><Label className="text-[11px] font-semibold">Origem</Label>
-                    <Select value={editLead.origin} onValueChange={v => setEditLead({...editLead, origin: v})}>
-                      <SelectTrigger className="h-11 bg-background shadow-sm border-muted-foreground/20"><SelectValue placeholder="Selecione a origem" /></SelectTrigger>
-                      <SelectContent>{origins.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center space-x-2 pt-8">
-                    <input type="checkbox" id="whatsappActive" checked={editLead.whatsappActive} onChange={e => setEditLead({...editLead, whatsappActive: e.target.checked})} className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary" />
-                    <Label htmlFor="whatsappActive" className="text-sm font-medium cursor-pointer">WhatsApp validado</Label>
+                <div className="grid gap-3">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">Origem e Referência</Label>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="grid gap-2"><Label className="text-[11px] font-semibold">Origem</Label>
+                      <Select value={editLead.origin} onValueChange={v => setEditLead({...editLead, origin: v})}>
+                        <SelectTrigger className="h-11 bg-background shadow-sm border-muted-foreground/20"><SelectValue placeholder="Selecione a origem" /></SelectTrigger>
+                        <SelectContent>{origins.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
-
                 <div className="grid gap-2"><Label className="text-[11px] font-semibold">Observações Internas</Label>
-                  <textarea value={editLead.notes} onChange={e => setEditLead({...editLead, notes: e.target.value})} className="min-h-[140px] w-full rounded-md border border-muted-foreground/20 bg-background px-4 py-3 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" placeholder="Anotações cruciais sobre a jornada do lead..." />
+                  <textarea value={editLead.notes} onChange={e => setEditLead({...editLead, notes: e.target.value})} className="min-h-[140px] w-full rounded-md border border-muted-foreground/20 bg-background px-4 py-3 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y" placeholder="Anotações cruciais sobre a jornada do lead..." />
                 </div>
               </div>
             </TabsContent>
             <TabsContent value="timeline" className="p-0 overflow-y-auto flex-1 no-scrollbar bg-muted/5">
               <LeadTimeline leadId={editingLead?.id} />
             </TabsContent>
-            <div className="p-4 border-t bg-background flex justify-between items-center shrink-0">
+            <div className="px-8 py-4 border-t bg-background flex justify-between items-center shrink-0">
                <p className="text-xs text-muted-foreground italic">Campos com * são obrigatórios.</p>
                <div className="flex gap-2">
                  <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="h-10 px-6">Cancelar</Button>
@@ -745,29 +775,66 @@ function LeadTimeline({ leadId }: { leadId?: string }) {
   if (contactsLoading) return <div className="space-y-4 p-8"><Skeleton className="h-24 w-full rounded-xl" /><Skeleton className="h-24 w-full rounded-xl" /></div>;
 
   const contacts = contactsData?.contactsByLead || [];
-  const auditLogs = contactsData?.lead?.auditLogs || [];
+  const rawAuditLogs = contactsData?.lead?.auditLogs || [];
+  const leadCreatedAt = contactsData?.lead?.createdAt;
+
+  // Process logs: Deduplicate and normalize dates
+  const processedLogs = rawAuditLogs.reduce((acc: any[], log: any) => {
+    let timestamp = new Date(log.createdAt);
+    
+    // RN Fix: Ensure CREATED log matches Lead entry date
+    if (log.action === 'CREATED' && log.entityType === 'Lead' && leadCreatedAt) {
+      timestamp = new Date(leadCreatedAt);
+    }
+
+    // Deduplication logic: avoid showing multiple 'CREATED' logs for the same thing/time
+    const isDuplicate = acc.some(existing => 
+      existing.action === log.action && 
+      existing.entityType === log.entityType && 
+      Math.abs(new Date(existing.createdAt).getTime() - new Date(log.createdAt).getTime()) < 1000
+    );
+
+    if (!isDuplicate) {
+      acc.push({ ...log, itemType: 'AUDIT', timestamp });
+    }
+    return acc;
+  }, []);
+
+  // Virtually ensure a 'CREATED' log for the lead exists if none found
+  const hasLeadCreatedLog = processedLogs.some(l => l.action === 'CREATED' && l.entityType === 'Lead');
+  if (!hasLeadCreatedLog && leadCreatedAt) {
+    processedLogs.push({
+      id: `virtual-creation-${leadId}`,
+      action: 'CREATED',
+      entityType: 'Lead',
+      timestamp: new Date(leadCreatedAt),
+      itemType: 'AUDIT',
+      createdAt: leadCreatedAt
+    });
+  }
+
   const timelineItems = [
     ...contacts.map((c: any) => ({ ...c, itemType: 'CONTACT', timestamp: new Date(c.date) })),
-    ...auditLogs.map((l: any) => ({ ...l, itemType: 'AUDIT', timestamp: new Date(l.createdAt) }))
+    ...processedLogs
   ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
   if (timelineItems.length === 0) return <div className="text-center py-20 bg-background/50 m-6 rounded-xl border border-dashed"><Info className="h-8 w-8 mx-auto mb-3 opacity-20" /><p className="text-sm text-muted-foreground">Nenhum evento registrado na linha do tempo.</p></div>;
 
   return (
-    <div className="p-6 relative min-h-full">
-      <div className="absolute top-6 bottom-6 left-[43px] w-px bg-border/60 z-0"></div>
+    <div className="px-8 py-8 relative min-h-full">
+      <div className="absolute top-8 bottom-8 left-[52px] w-px bg-border/60 z-0"></div>
       <div className="space-y-8 relative z-10">
         {timelineItems.map((item: any) => {
           const isContact = item.itemType === 'CONTACT';
           const meta = !isContact ? getAuditActionMeta(item.action) : null;
           const IconComp = isContact ? (item.type === 'WHATSAPP' ? MessageCircle : item.type === 'EMAIL' ? Mail : Phone) : meta!.icon;
           const colorClass = isContact 
-            ? (item.type === 'WHATSAPP' ? "text-green-600 bg-green-500/10 border-green-500/20" : item.type === 'EMAIL' ? "text-purple-600 bg-purple-500/10 border-purple-500/20" : "text-blue-600 bg-blue-500/10 border-blue-500/20")
+            ? (item.type === 'WHATSAPP' ? "text-green-600 border-green-500/20 bg-background" : item.type === 'EMAIL' ? "text-purple-600 border-purple-500/20 bg-background" : "text-blue-600 border-blue-500/20 bg-background")
             : meta!.containerClassName + " " + meta!.iconClassName.replace('text-', 'border-') + " border border-primary/10 bg-background";
 
           return (
             <div key={item.id} className="relative flex items-start gap-5 group">
-              <div className={cn("flex items-center justify-center w-10 h-10 rounded-full border-2 bg-background shrink-0 shadow-sm transition-transform group-hover:scale-105", colorClass)}>
+              <div className={cn("relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 bg-background shrink-0 shadow-sm transition-transform group-hover:scale-105", colorClass)}>
                 <IconComp className="h-4 w-4" />
               </div>
               <div className="flex-1 bg-background p-4 rounded-xl border shadow-sm transition-all hover:shadow-md hover:border-primary/20 min-w-0">
@@ -783,7 +850,7 @@ function LeadTimeline({ leadId }: { leadId?: string }) {
                   </div>
                 </div>
                 
-                <p className="text-sm text-foreground/90 leading-relaxed font-medium mt-1">
+                <p className="text-sm text-foreground/90 leading-relaxed font-medium mt-1 whitespace-pre-wrap break-words">
                   {isContact ? item.message : getAuditMessage(item, contactsData?.lead?.name)}
                 </p>
                 

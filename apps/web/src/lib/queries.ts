@@ -295,9 +295,11 @@ export const GET_LEAD_CONTACTS = gql`
     lead(id: $leadId) {
       id
       name
+      createdAt
       auditLogs {
         id
         action
+        entityType
         oldValue
         newValue
         reason
