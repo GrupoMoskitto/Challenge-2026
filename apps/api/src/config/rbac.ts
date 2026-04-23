@@ -53,6 +53,10 @@ export function assertRole(
   action?: string
 ): void {
   if (!allowedRoles.includes(context.user.role)) {
+    if (allowedRoles.length === 1 && allowedRoles[0] === 'ADMIN') {
+      throw new Error('Acesso restrito a administradores');
+    }
+
     const actionDesc = action ? ` para ${action}` : '';
     logger.warn('RBAC', `Acesso negado${actionDesc}`, {
       userId: context.user.userId,

@@ -85,7 +85,7 @@ const Agenda = () => {
   });
 
   const { data: patientsData } = useQuery(GET_PATIENTS, {
-    variables: { first: 100 },
+    variables: { first: 100, where: {} },
     fetchPolicy: 'cache-first',
   });
 
@@ -224,6 +224,7 @@ const Agenda = () => {
           },
         });
       }
+      await refetchAppointments();
       showUndoableToast(
         "Agendamento salvo!",
         async () => {
@@ -349,6 +350,7 @@ const Agenda = () => {
               <Card>
                 <CardHeader className="p-3">
                   <CardTitle className="text-sm">Horário</CardTitle>
+                  <p className="text-xs">&nbsp;</p>
                 </CardHeader>
               </Card>
             </div>

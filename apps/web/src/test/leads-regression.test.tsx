@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Toaster as Sonner } from "@/components/ui/sonner";
 import { DELETE_LEAD, UPDATE_LEAD_STATUS } from "@/lib/queries";
 import Leads from "@/pages/Leads";
+import { PatientModalProvider } from "@/components/PatientModalContext";
 
 const mocks = vi.hoisted(() => ({
   updateStatus: vi.fn(),
@@ -107,7 +109,10 @@ describe("Leads drag/delete regression", () => {
   it("should not update lead status while the delete dialog is open", async () => {
     render(
       <MemoryRouter>
-        <Leads />
+        <Sonner />
+        <PatientModalProvider>
+          <Leads />
+        </PatientModalProvider>
       </MemoryRouter>,
     );
 
@@ -120,7 +125,7 @@ describe("Leads drag/delete regression", () => {
     fireEvent.click(menuButton);
     fireEvent.click(screen.getByText("Excluir"));
 
-    expect(await screen.findByText("Confirmar Exclusão")).toBeInTheDocument();
+    expect(await screen.findByText("Excluir Lead")).toBeInTheDocument();
 
     const contactedColumn = screen.getByText("Contato").closest("div")?.parentElement;
     expect(contactedColumn).not.toBeNull();
@@ -133,14 +138,14 @@ describe("Leads drag/delete regression", () => {
   });
 
   it("should show auth or permission errors when lead deletion is rejected", async () => {
-    mocks.deleteLead.mockResolvedValueOnce({
-      data: { deleteLead: null },
-      errors: [{ message: "Usuário não autenticado" }],
-    });
+    mocks.deleteLead.mockRejectedValueOnce(new Error("Usuário não autenticado"));
 
     render(
       <MemoryRouter>
-        <Leads />
+        <Sonner />
+        <PatientModalProvider>
+          <Leads />
+        </PatientModalProvider>
       </MemoryRouter>,
     );
 

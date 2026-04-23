@@ -7,6 +7,7 @@ describe('Role Permissions & Access Control', () => {
   let findUniqueLeadSpy: any;
   let findManyUserSpy: any;
   let findManyAuditSpy: any;
+  let countAuditSpy: any;
   let updateLeadSpy: any;
   let createAuditLogSpy: any;
 
@@ -15,6 +16,7 @@ describe('Role Permissions & Access Control', () => {
     vi.spyOn(prisma.user, 'findUnique');
     findManyUserSpy = vi.spyOn(prisma.user, 'findMany');
     findManyAuditSpy = vi.spyOn(prisma.auditLog, 'findMany');
+    countAuditSpy = vi.spyOn(prisma.auditLog, 'count');
     updateLeadSpy = vi.spyOn(prisma.lead, 'update');
     createAuditLogSpy = vi.spyOn(prisma.auditLog, 'create');
   });
@@ -45,6 +47,7 @@ describe('Role Permissions & Access Control', () => {
     it('should allow ADMIN to access auditLogs query', async () => {
       const context: Context = { user: { userId: '1', email: 'admin@test.com', role: 'ADMIN' } };
       findManyAuditSpy.mockResolvedValue([]);
+      countAuditSpy.mockResolvedValue(0);
       const result = await resolvers.Query.auditLogs(null, {}, context);
       expect(result).toBeDefined();
     });
