@@ -36,6 +36,7 @@ import {
   CREATE_EXTRA_AVAILABILITY,
   DELETE_EXTRA_AVAILABILITY,
   CREATE_SCHEDULE_BLOCK,
+  UPDATE_SCHEDULE_BLOCK,
   DELETE_SCHEDULE_BLOCK,
 } from "@/lib/queries";
 import {
@@ -186,9 +187,14 @@ const Settings = () => {
 
   // Schedule management state
   const [selectedSurgeonId, setSelectedSurgeonId] = useState<string | null>(null);
+  const [editingAvailId, setEditingAvailId] = useState<string | null>(null);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [availForm, setAvailForm] = useState({ dayOfWeek: 1, startTime: "08:00", endTime: "18:00" });
   const [extraAvailForm, setExtraAvailForm] = useState<{ date: Date | undefined; startTime: string; endTime: string }>({ date: undefined, startTime: "08:00", endTime: "18:00" });
   const [blockForm, setBlockForm] = useState<{ startDate: Date | undefined; startTime: string; endDate: Date | undefined; endTime: string; reason: string }>({ startDate: undefined, startTime: "08:00", endDate: undefined, endTime: "18:00", reason: "" });
+
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrData, setQrData] = useState<{ qrCode: string | null, pairingCode: string | null, instanceName: string } | null>(null);
 
   // GraphQL
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
@@ -258,10 +264,12 @@ const Settings = () => {
 
   // Schedule mutations
   const [createAvail] = useMutation(CREATE_AVAILABILITY_SLOT);
+  const [updateAvail] = useMutation(UPDATE_AVAILABILITY_SLOT);
   const [deleteAvail] = useMutation(DELETE_AVAILABILITY_SLOT);
   const [createExtra] = useMutation(CREATE_EXTRA_AVAILABILITY);
   const [deleteExtra] = useMutation(DELETE_EXTRA_AVAILABILITY);
   const [createBlock] = useMutation(CREATE_SCHEDULE_BLOCK);
+  const [updateBlock] = useMutation(UPDATE_SCHEDULE_BLOCK);
   const [deleteBlock] = useMutation(DELETE_SCHEDULE_BLOCK);
 
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
@@ -279,10 +287,22 @@ const Settings = () => {
   const handleCreateAvail = async () => {
     if (!selectedSurgeonId) return;
     try {
-      await createAvail({ variables: { input: { surgeonId: selectedSurgeonId, ...availForm } } });
-      toast.success("Horário adicionado");
+      if (editingAvailId) {
+        await updateAvail({ variables: { input: { id: editingAvailId, ...availForm } } });
+        toast.success("Horário atualizado");
+        setEditingAvailId(null);
+      } else {
+        await createAvail({ variables: { input: { surgeonId: selectedSurgeonId, ...availForm } } });
+        toast.success("Horário adicionado");
+      }
+      setAvailForm({ dayOfWeek: 1, startTime: "08:00", endTime: "18:00" });
       refetchSchedule();
     } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleEditAvail = (slot: any) => {
+    setEditingAvailId(slot.id);
+    setAvailForm({ dayOfWeek: slot.dayOfWeek, startTime: slot.startTime, endTime: slot.endTime });
   };
 
   const handleDeleteAvail = async (id: string) => {
@@ -298,6 +318,7 @@ const Settings = () => {
     try {
       await createExtra({ variables: { input: { surgeonId: selectedSurgeonId, ...extraAvailForm, date: extraAvailForm.date.toISOString().split('T')[0] } } });
       toast.success("Dia extra adicionado");
+      setExtraAvailForm({ date: undefined, startTime: "08:00", endTime: "18:00" });
       refetchSchedule();
     } catch (err: any) { toast.error(err.message); }
   };
@@ -321,10 +342,30 @@ const Settings = () => {
       const [eh, em] = blockForm.endTime.split(':');
       end.setHours(parseInt(eh), parseInt(em), 0, 0);
 
-      await createBlock({ variables: { input: { surgeonId: selectedSurgeonId, startDate: start.toISOString(), endDate: end.toISOString(), reason: blockForm.reason } } });
-      toast.success("Bloqueio criado");
+      if (editingBlockId) {
+        await updateBlock({ variables: { input: { id: editingBlockId, startDate: start.toISOString(), endDate: end.toISOString(), reason: blockForm.reason } } });
+        toast.success("Bloqueio atualizado");
+        setEditingBlockId(null);
+      } else {
+        await createBlock({ variables: { input: { surgeonId: selectedSurgeonId, startDate: start.toISOString(), endDate: end.toISOString(), reason: blockForm.reason } } });
+        toast.success("Bloqueio criado");
+      }
+      setBlockForm({ startDate: undefined, startTime: "08:00", endDate: undefined, endTime: "18:00", reason: "" });
       refetchSchedule();
     } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleEditBlock = (block: any) => {
+    setEditingBlockId(block.id);
+    const start = new Date(block.startDate);
+    const end = new Date(block.endDate);
+    setBlockForm({
+      startDate: start,
+      startTime: format(start, "HH:mm"),
+      endDate: end,
+      endTime: format(end, "HH:mm"),
+      reason: block.reason || ""
+    });
   };
 
   const handleDeleteBlock = async (id: string) => {
@@ -1064,11 +1105,20 @@ const Settings = () => {
                               </SelectContent>
                             </Select>
                           </div>
-                          <Button onClick={handleCreateAvail} className="h-10 shadow-lg">Adicionar Horário</Button>
+                          <Button onClick={handleCreateAvail} className="h-10 shadow-lg">
+                            {editingAvailId ? "Atualizar Horário" : "Adicionar Horário"}
+                          </Button>
                         </div>
 
                         <div className="space-y-3">
-                          <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-2">Configurações Atuais</h4>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Configurações Atuais</h4>
+                            {editingAvailId && (
+                              <Button variant="link" size="sm" className="text-xs h-6" onClick={() => { setEditingAvailId(null); setAvailForm({ dayOfWeek: 1, startTime: "08:00", endTime: "18:00" }); }}>
+                                Cancelar Edição
+                              </Button>
+                            )}
+                          </div>
                           {selectedSurgeon.availability?.length === 0 ? (
                             <div className="text-center py-8 border-2 border-dashed rounded-lg bg-card/50">
                               <p className="text-sm text-muted-foreground font-medium">Nenhum horário fixo configurado.</p>
@@ -1076,7 +1126,7 @@ const Settings = () => {
                           ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                               {selectedSurgeon.availability?.map((slot: any) => (
-                                <div key={slot.id} className="flex items-center justify-between bg-card border p-3 rounded-lg hover:shadow-sm transition-shadow">
+                                <div key={slot.id} className={cn("flex items-center justify-between bg-card border p-3 rounded-lg hover:shadow-sm transition-all", editingAvailId === slot.id && "ring-2 ring-primary border-primary/50 bg-primary/5")}>
                                   <div className="flex items-center gap-3">
                                     <div className="bg-primary/10 p-2 rounded-full">
                                       <CalendarIcon className="h-4 w-4 text-primary" />
@@ -1086,9 +1136,14 @@ const Settings = () => {
                                       <p className="text-xs text-muted-foreground">{slot.startTime} às {slot.endTime}</p>
                                     </div>
                                   </div>
-                                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteAvail(slot.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => handleEditAvail(slot)}>
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteAvail(slot.id)}>
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -1282,13 +1337,18 @@ const Settings = () => {
                             />
                           </div>
                           
-                          <div className="lg:col-span-5 flex justify-end">
+                          <div className="lg:col-span-5 flex justify-end gap-2">
+                            {editingBlockId && (
+                              <Button variant="outline" className="h-10 px-8" onClick={() => { setEditingBlockId(null); setBlockForm({ startDate: undefined, startTime: "08:00", endDate: undefined, endTime: "18:00", reason: "" }); }}>
+                                Cancelar
+                              </Button>
+                            )}
                             <Button 
                               onClick={handleCreateBlock} 
                               variant="destructive"
                               className="w-full md:w-auto px-8 shadow-lg"
                             >
-                              Adicionar Bloqueio
+                              {editingBlockId ? "Atualizar Bloqueio" : "Adicionar Bloqueio"}
                             </Button>
                           </div>
                         </div>
@@ -1303,7 +1363,7 @@ const Settings = () => {
                           ) : (
                             <div className="grid gap-2">
                               {selectedSurgeon.blocks?.map((block: any) => (
-                                <div key={block.id} className="flex items-center justify-between bg-card border p-3 rounded-lg hover:shadow-sm transition-shadow">
+                                <div key={block.id} className={cn("flex items-center justify-between bg-card border p-3 rounded-lg hover:shadow-sm transition-all", editingBlockId === block.id && "ring-2 ring-destructive border-destructive/50 bg-destructive/5")}>
                                   <div className="flex items-center gap-3">
                                     <div className="bg-red-500/10 p-2 rounded-full">
                                       <Clock className="h-4 w-4 text-red-500" />
@@ -1315,9 +1375,14 @@ const Settings = () => {
                                       {block.reason && <p className="text-xs text-muted-foreground">{block.reason}</p>}
                                     </div>
                                   </div>
-                                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteBlock(block.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => handleEditBlock(block)}>
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteBlock(block.id)}>
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
                                 </div>
                               ))}
                             </div>

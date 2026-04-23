@@ -85,7 +85,7 @@ const Agenda = () => {
   });
 
   const { data: patientsData } = useQuery(GET_PATIENTS, {
-    variables: { first: 100 },
+    variables: { first: 100, where: {} },
     fetchPolicy: 'cache-first',
   });
 

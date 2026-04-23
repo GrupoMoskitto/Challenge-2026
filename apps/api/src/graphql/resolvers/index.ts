@@ -913,6 +913,14 @@ export const resolvers = {
       
       const convertedLeads = leadsByStatus.find(l => l.status === LeadStatus.CONVERTED)?._count || 0;
       const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;
+
+      const leadsWithContact = new Set<string>();
+      const contacts = await prisma.contact.findMany({
+        where: { createdAt: { gte: start, lte: end } },
+        select: { leadId: true }
+      });
+      contacts.forEach(c => leadsWithContact.add(c.leadId));
+      const responseRate = totalLeads > 0 ? (leadsWithContact.size / totalLeads) * 100 : 0;
       
       const surgeonMap = new Map<string, { name: string; total: number; converted: number }>();
       for (const appt of appointments) {
@@ -941,6 +949,7 @@ export const resolvers = {
         leadsBySource: leadsBySourceList,
         leadsByStatus: leadsByStatusList,
         surgeonConversion,
+        responseRate,
       };
     },
     performanceMetrics: async (_: unknown, { startDate, endDate }: { startDate?: string; endDate?: string }, context: Context) => {
