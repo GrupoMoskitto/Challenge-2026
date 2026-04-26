@@ -19,7 +19,7 @@
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "eslint": "^9.14.0",
-    "prisma": "^5",
+    "prisma": "^7",
     "tsx": "^4"
   }
 }
