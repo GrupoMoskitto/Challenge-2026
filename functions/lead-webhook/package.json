@@ -12,7 +12,7 @@
   },
   "devDependencies": {
     "@types/aws-lambda": "^8",
-    "@types/node": "^20",
+    "@types/node": "^25",
     "tsx": "^4",
     "typescript": "^5"
   }
