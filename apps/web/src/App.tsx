@@ -42,10 +42,8 @@ function LoginRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   
-  // Don't redirect while auth is still loading
   if (loading) return null;
   
-  // Only redirect if React auth state confirms user is logged in
   if (user) {
     const from = (location.state as any)?.from?.pathname || '/';
     return <Navigate to={from} replace />;
