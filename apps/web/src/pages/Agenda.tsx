@@ -387,7 +387,7 @@ const Agenda = () => {
                     >
                       {appointment ? (
                         <div className="h-full flex flex-col justify-center gap-1">
-                          <p className="text-sm font-semibold truncate text-foreground">{appointment.patient?.name}</p>
+                          <p className="text-sm font-semibold truncate text-foreground">{appointment.patient?.lead?.name || appointment.patient?.name || 'Paciente'}</p>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs text-muted-foreground truncate font-medium">{appointment.procedure}</span>
                             <Badge className={cn("h-4 text-[9px] px-1.5", statusColors[appointment.status])}>
