@@ -117,14 +117,15 @@ const getAuditActionMeta = (action?: string) => {
   }
 };
 
+const translateStatus = (raw: string) => statusLabels[raw] || raw;
+
 const getAuditMessage = (item: any, leadName?: string | null) => {
   if (item.action === 'STATUS_CHANGE') {
-    return `Status alterado de ${item.oldValue} para ${item.newValue}`;
+    return `Status alterado de ${translateStatus(item.oldValue)} para ${translateStatus(item.newValue)}`;
   }
   const safeName = leadName || "cliente";
   const actionLabel = auditActionLabels[item.action] || "modificado";
   
-  // Use entityType to be more specific
   const entityLabel = item.entityType === 'Patient' ? 'Paciente' : 'Lead';
   return `${entityLabel} ${safeName} ${actionLabel}!`;
 };
@@ -499,11 +500,11 @@ const Leads = () => {
 
         {/* Kanban Board Container */}
         <div className="overflow-x-auto no-scrollbar pb-6">
-          <div className="flex gap-4 min-w-max items-start">
+          <div className="flex gap-4 min-w-max items-start justify-center">
             {statusColumns.map(({ status, label, color }) => (
               <div
                 key={status}
-                className={cn("flex flex-col w-[300px] bg-muted/30 rounded-xl border border-border/50 transition-all min-h-[200px]", dragOverColumn === status && "ring-2 ring-primary bg-primary/5 shadow-inner")}
+                className={cn("flex flex-col w-[300px] bg-muted/30 rounded-xl border border-border/50 transition-all min-h-[60vh]", dragOverColumn === status && "ring-2 ring-primary bg-primary/5 shadow-inner")}
                 onDragOver={e => { e.preventDefault(); setDragOverColumn(status); }}
                 onDragLeave={() => setDragOverColumn(null)}
                 onDrop={e => handleDrop(e, status)}
@@ -520,7 +521,7 @@ const Leads = () => {
                       id={`lead-card-${l.id}`}
                       className={cn(
                         "p-4 cursor-move border-l-4 transition-all hover:shadow-lg group relative",
-                        lastMovedLeadId === l.id && "bg-primary/10 ring-2 ring-primary animate-pulse",
+                        lastMovedLeadId === l.id && "animate-highlight-fade",
                         status === 'NEW' && "border-l-slate-400",
                         status === 'CONTACTED' && "border-l-blue-400",
                         status === 'QUALIFIED' && "border-l-yellow-400",
@@ -632,7 +633,7 @@ const Leads = () => {
 
                 <div className="grid gap-3">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">Contatos</Label>
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-2 gap-6 items-start">
                     <div className="grid gap-2">
                       <Label className="text-[11px] font-semibold">E-mail</Label>
                       <Input value={editLead.email} onChange={e => setEditLead({...editLead, email: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" />
@@ -819,12 +820,11 @@ function LeadTimeline({ leadId }: { leadId?: string }) {
   ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
   if (timelineItems.length === 0) return <div className="text-center py-20 bg-background/50 m-6 rounded-xl border border-dashed"><Info className="h-8 w-8 mx-auto mb-3 opacity-20" /><p className="text-sm text-muted-foreground">Nenhum evento registrado na linha do tempo.</p></div>;
-
   return (
     <div className="px-8 py-8 relative min-h-full">
-      <div className="absolute top-8 bottom-8 left-[52px] w-px bg-border/60 z-0"></div>
-      <div className="space-y-8 relative z-10">
-        {timelineItems.map((item: any) => {
+      <div className="space-y-6 relative z-10">
+        {timelineItems.map((item: any, index: number) => {
+          const isLast = index === timelineItems.length - 1;
           const isContact = item.itemType === 'CONTACT';
           const meta = !isContact ? getAuditActionMeta(item.action) : null;
           const IconComp = isContact ? (item.type === 'WHATSAPP' ? MessageCircle : item.type === 'EMAIL' ? Mail : Phone) : meta!.icon;
@@ -834,6 +834,9 @@ function LeadTimeline({ leadId }: { leadId?: string }) {
 
           return (
             <div key={item.id} className="relative flex items-start gap-5 group">
+              {!isLast && (
+                <div className="absolute left-[19px] w-px bg-border/60 z-0" style={{ top: '2.5rem', bottom: '-1.5rem' }} />
+              )}
               <div className={cn("relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 bg-background shrink-0 shadow-sm transition-transform group-hover:scale-105", colorClass)}>
                 <IconComp className="h-4 w-4" />
               </div>

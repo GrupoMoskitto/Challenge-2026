@@ -1,11 +1,26 @@
 import { prisma, checkUniqueness } from '@crmed/database';
-import { LeadStatus, AppointmentStatus, DocumentStatus, PostOpStatus, BudgetStatus, ComplaintStatus, Prisma } from '@prisma/client';
+import { LeadStatus, AppointmentStatus, DocumentStatus, PostOpStatus, BudgetStatus, ComplaintStatus, UserRole, Prisma } from '@prisma/client';
 import { format, subDays } from 'date-fns';
 import { DateTimeScalar, IDScalar, JSONScalar } from '../scalars';
 import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit, COOKIE_OPTIONS, isTokenRevoked, revokeUserTokens, clearTokenRevocation } from '../../auth';
 import { dispatchLeadWelcome } from '../../services/whatsappQueue';
-import { assertAuthenticated, assertRole, enforceStatusChange } from '../../config/rbac';
+import { assertAuthenticated, assertRole, enforceStatusChange, validateEnum } from '../../config/rbac';
 import { logger } from '../../config/logger';
+
+interface SafeUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function sanitizeUser(user: Record<string, unknown>): SafeUser {
+  const { password: _pw, ...safe } = user;
+  return safe as unknown as SafeUser;
+}
 
 const encodeBase64 = (id: string): string => {
   return Buffer.from(id).toString('base64url');
@@ -64,7 +79,7 @@ function setSurgeonInContext(context: Context, surgeonId: string | null): void {
 const MAX_WEIGHT_KG = 400;
 const MAX_HEIGHT_CM = 300;
 
-function validatePatientData(input: any) {
+function validatePatientData(input: { weight?: number | string | null; height?: number | string | null }) {
   if (input.weight !== undefined && input.weight !== null) {
     const w = typeof input.weight === 'string' ? parseFloat(input.weight.replace(',', '.')) : input.weight;
     if (isNaN(w) || w <= 0 || w > MAX_WEIGHT_KG) {
@@ -111,6 +126,203 @@ interface CreatePatientInput {
 interface UpdatePatientInput extends Partial<CreatePatientInput> {
   id: string;
   reason?: string;
+}
+
+interface CreateAppointmentInput {
+  patientId: string;
+  surgeonId: string;
+  procedure: string;
+  scheduledAt: string;
+  notes?: string;
+}
+
+interface UpdateAppointmentInput {
+  id: string;
+  patientId?: string;
+  surgeonId?: string;
+  procedure?: string;
+  scheduledAt?: string;
+  notes?: string;
+}
+
+interface CreateSurgeonInput {
+  name: string;
+  specialty: string;
+  crm: string;
+  email: string;
+  phone: string;
+}
+
+interface CreateUserInput {
+  email: string;
+  name: string;
+  role: string;
+  password: string;
+}
+
+interface UpdateUserInput {
+  role?: string;
+  isActive?: boolean;
+}
+
+interface UpdateProfileInput {
+  name?: string;
+  password?: string;
+}
+
+interface CreateContactInput {
+  leadId: string;
+  date: string;
+  type: string;
+  direction: string;
+  status: string;
+  message: string;
+}
+
+interface CreateBudgetInput {
+  patientId: string;
+  surgeonId: string;
+  procedure: string;
+  amount: number;
+  returnDeadline?: string;
+  notes?: string;
+}
+
+interface UpdateBudgetInput {
+  id: string;
+  procedure?: string;
+  amount?: number;
+  returnDeadline?: string;
+  status?: BudgetStatus;
+  notes?: string;
+}
+
+interface CreateBudgetFollowUpInput {
+  budgetId: string;
+  date: string;
+  notes?: string;
+  respondedBy?: string;
+}
+
+interface CreateAvailabilitySlotInput {
+  surgeonId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  isActive?: boolean;
+}
+
+interface UpdateAvailabilitySlotInput {
+  id: string;
+  dayOfWeek?: number;
+  startTime?: string;
+  endTime?: string;
+  isActive?: boolean;
+}
+
+interface CreateExtraAvailabilityInput {
+  surgeonId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+interface UpdateExtraAvailabilityInput {
+  id: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  isActive?: boolean;
+}
+
+interface CreateScheduleBlockInput {
+  surgeonId: string;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}
+
+interface UpdateScheduleBlockInput {
+  id: string;
+  startDate?: string;
+  endDate?: string;
+  reason?: string;
+  isActive?: boolean;
+}
+
+interface CreateComplaintInput {
+  patientId: string;
+  area: string;
+  description: string;
+  responseDeadline?: string;
+}
+
+interface UpdateComplaintInput {
+  id: string;
+  status?: ComplaintStatus;
+  resolution?: string;
+}
+
+interface CreateTreatmentInput {
+  complaintId: string;
+  date: string;
+  sector: string;
+  description: string;
+  solution?: string;
+}
+
+interface CreateDocumentInput {
+  patientId: string;
+  name: string;
+  type: string;
+  date: string;
+  status?: string;
+}
+
+interface CreatePostOpInput {
+  patientId: string;
+  date: string;
+  type: string;
+  description: string;
+  status?: string;
+}
+
+interface CreateMessageTemplateInput {
+  name: string;
+  channel: string;
+  content: string;
+  triggerDays?: number;
+}
+
+interface UpdateMessageTemplateInput {
+  id: string;
+  name?: string;
+  channel?: string;
+  content?: string;
+  triggerDays?: number;
+}
+
+// Evolution API typed responses
+interface EvolutionInstanceResponse {
+  instance?: { state?: string; instanceName?: string };
+  name?: string;
+  instanceName?: string;
+  connectionStatus?: string;
+  status?: string;
+  state?: string;
+}
+
+interface EvolutionConnectionStateResponse {
+  instance?: { state?: string };
+}
+
+interface EvolutionCreateResponse {
+  instance?: { state?: string };
+}
+
+interface EvolutionConnectResponse {
+  base64?: string;
+  pairingCode?: string;
 }
 
 export const resolvers = {
@@ -187,7 +399,8 @@ export const resolvers = {
   AuditLog: {
     user: async (parent: { userId: string | null }) => {
       if (!parent.userId) return null;
-      return prisma.user.findUnique({ where: { id: parent.userId } });
+      const user = await prisma.user.findUnique({ where: { id: parent.userId } });
+      return user ? sanitizeUser(user as unknown as Record<string, unknown>) : null;
     },
   },
   Lead: {
@@ -293,7 +506,8 @@ export const resolvers = {
   Query: {
     me: async (_: unknown, __: unknown, context: Context) => {
       if (!context.user) return null;
-      return prisma.user.findUnique({ where: { id: context.user.userId } });
+      const user = await prisma.user.findUnique({ where: { id: context.user.userId } });
+      return user ? sanitizeUser(user as unknown as Record<string, unknown>) : null;
     },
     leads: async (_: unknown, { status, first, after, search }: { status?: LeadStatus; first?: number; after?: string; search?: string }, context: Context) => {
       assertAuthenticated(context);
@@ -301,7 +515,7 @@ export const resolvers = {
       const limit = first || 20;
       const cursor = after ? decodeId(after) : undefined;
       
-      const whereClause: any = status ? { status } : {};
+      const whereClause: Prisma.LeadWhereInput = status ? { status } : {};
 
       if (search) {
         const sanitizedSearch = search.trim().substring(0, 100);
@@ -389,10 +603,10 @@ export const resolvers = {
       const limit = first || 20;
       const cursor = after ? decodeId(after) : undefined;
 
-      const whereClause: any = {};
+      const whereClause: Prisma.PatientWhereInput = {};
 
       if (where?.status) {
-        whereClause.lead = { ...whereClause.lead, status: where.status };
+        whereClause.lead = { ...(whereClause.lead || {}), status: where.status } as any;
       }
 
       if (where?.search) {
@@ -412,9 +626,10 @@ export const resolvers = {
       }
 
       if (where?.createdFrom || where?.createdTo) {
-        whereClause.createdAt = {} as any;
-        if (where.createdFrom) whereClause.createdAt.gte = new Date(where.createdFrom);
-        if (where.createdTo) whereClause.createdAt.lte = new Date(where.createdTo);
+        const dateFilter: Prisma.DateTimeFilter = {};
+        if (where.createdFrom) dateFilter.gte = new Date(where.createdFrom);
+        if (where.createdTo) dateFilter.lte = new Date(where.createdTo);
+        whereClause.createdAt = dateFilter;
       }
 
       const whereFinal = Object.keys(whereClause).length > 0 ? whereClause : undefined;
@@ -462,7 +677,7 @@ export const resolvers = {
     appointments: async (_: unknown, { status }: { status?: AppointmentStatus }, context: Context) => {
       assertAuthenticated(context);
       
-      const whereClause: any = status ? { status } : {};
+      const whereClause: Prisma.AppointmentWhereInput = status ? { status } : {};
       
       if (context.user?.role === 'SURGEON') {
         let surgeonId = getSurgeonFromContext(context);
@@ -584,7 +799,7 @@ export const resolvers = {
       
       const hasNextPage = users.length > limit;
       const edges = users.slice(0, limit).map((user) => ({
-        node: user,
+        node: sanitizeUser(user as unknown as Record<string, unknown>),
         cursor: encodeBase64(user.id),
       }));
       
@@ -603,7 +818,8 @@ export const resolvers = {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'visualização de usuário');
       const decodedId = decodeId(id);
-      return prisma.user.findUnique({ where: { id: decodedId } });
+      const user = await prisma.user.findUnique({ where: { id: decodedId } });
+      return user ? sanitizeUser(user as unknown as Record<string, unknown>) : null;
     },
     auditLogs: async (_: unknown, { entityType, entityId, action, startDate, endDate, userId, first, after }: { entityType?: string; entityId?: string; action?: string; startDate?: string; endDate?: string; userId?: string; first?: number; after?: string }, context: Context) => {
       assertAuthenticated(context);
@@ -612,7 +828,7 @@ export const resolvers = {
       const limit = first || 50;
       const cursor = after ? decodeId(after) : undefined;
 
-      const whereClause: any = {};
+      const whereClause: Prisma.AuditLogWhereInput = {};
       if (entityType) whereClause.entityType = entityType;
       if (entityId) whereClause.entityId = decodeId(entityId);
       if (action) whereClause.action = action;
@@ -696,8 +912,8 @@ export const resolvers = {
     },
     notifications: async (_: unknown, { status, first }: { status?: string; first?: number }, context: Context) => {
       assertAuthenticated(context);
-      const whereClause: any = {};
-      if (status) whereClause.status = status;
+      const whereClause: Prisma.NotificationWhereInput = {};
+      if (status) whereClause.status = status as any;
       
       return prisma.notification.findMany({
         where: whereClause,
@@ -738,10 +954,10 @@ export const resolvers = {
         
         if (!response.ok) throw new Error('Failed to fetch from Evolution API');
         
-        const rawData = await response.json() as any;
-        const data = Array.isArray(rawData) ? rawData : (rawData?.instances || []);
+        const rawData = (await response.json()) as EvolutionInstanceResponse[] | { instances?: EvolutionInstanceResponse[] };
+        const data: EvolutionInstanceResponse[] = Array.isArray(rawData) ? rawData : ((rawData as { instances?: EvolutionInstanceResponse[] })?.instances || []);
         
-        return data.map((inst: any) => {
+        return data.map((inst: EvolutionInstanceResponse) => {
           const name = inst.instance?.instanceName || inst.name || inst.instanceName || 'Unknown';
           const state = inst.instance?.state || inst.connectionStatus || inst.status || inst.state || 'disconnected';
           return {
@@ -752,7 +968,7 @@ export const resolvers = {
         });
       } catch (error) {
         logger.error('EvolutionAPI:fetchInstances', (error as Error).message, error);
-        return [];
+        throw new Error('Falha ao buscar instâncias da Evolution API');
       }
     },
     pingEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
@@ -1061,7 +1277,7 @@ export const resolvers = {
   },
   Mutation: {
     login: async (_: unknown, { input }: { input: { email: string; password: string } }, context: Context) => {
-      const clientIp = context.ip || 'default-ip';
+      const clientIp = context.ip || 'unknown';
       if (!checkRateLimit(clientIp)) throw new Error('Muitas tentativas de login.');
       const user = await prisma.user.findUnique({ where: { email: input.email } });
       if (!user || !await comparePassword(input.password, user.password)) throw new Error('Credenciais inválidas');
@@ -1075,7 +1291,7 @@ export const resolvers = {
         context.res.cookie('access_token', token, COOKIE_OPTIONS.ACCESS_TOKEN);
         context.res.cookie('refresh_token', refreshTokenValue, COOKIE_OPTIONS.REFRESH_TOKEN);
       }
-      return { token, refreshToken: refreshTokenValue, user };
+      return { token: '', refreshToken: '', user: sanitizeUser(user as unknown as Record<string, unknown>) };
     },
     refreshToken: async (_: unknown, { token }: { token: string }, context: Context) => {
       const decoded = verifyRefreshToken(token);
@@ -1091,22 +1307,22 @@ export const resolvers = {
       }
       return { token: newToken, refreshToken: newRefreshToken };
     },
-    createLead: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createLead: async (_: unknown, { input }: { input: CreateLeadInput }, context: Context) => {
       assertAuthenticated(context);
       await checkUniqueness({ cpf: input.cpf, email: input.email, phone: input.phone });
-      const newLead = await prisma.lead.create({ data: { ...input, preferredDoctor: input.preferredDoctor ? decodeId(input.preferredDoctor) : undefined, status: LeadStatus.NEW } });
+      const newLead = await prisma.lead.create({ data: { ...input, email: input.email || `no-email-${Date.now()}@crmed.com`, cpf: input.cpf || `00000000000-${Date.now()}`, source: input.origin || 'Desconhecida', preferredDoctor: input.preferredDoctor ? decodeId(input.preferredDoctor) : undefined, status: LeadStatus.NEW } });
       await dispatchLeadWelcome(newLead.id, newLead.name, newLead.phone, newLead.procedure || undefined);
       return newLead;
     },
-    updateLead: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updateLead: async (_: unknown, { input }: { input: UpdateLeadInput }, context: Context) => {
       assertAuthenticated(context);
       const leadId = decodeId(input.id);
       const current = await prisma.lead.findUnique({ where: { id: leadId } });
       if (!current) throw new Error('Lead não encontrado');
       await checkUniqueness({ cpf: input.cpf, email: input.email, phone: input.phone, excludeId: leadId });
-      const updated = await prisma.lead.update({ where: { id: leadId }, data: { ...input, id: undefined, preferredDoctor: input.preferredDoctor ? decodeId(input.preferredDoctor) : undefined } });
-      
+
       if (input.status && input.status !== current.status) {
+        validateEnum(input.status, LeadStatus, 'LeadStatus');
         await enforceStatusChange({
           context,
           entityType: 'Lead',
@@ -1118,6 +1334,8 @@ export const resolvers = {
           reason: input.reason || 'Atualização de Lead'
         });
       }
+
+      const updated = await prisma.lead.update({ where: { id: leadId }, data: { ...input, id: undefined, preferredDoctor: input.preferredDoctor ? decodeId(input.preferredDoctor) : undefined } });
       return updated;
     },
     updateLeadStatus: async (_: unknown, { input }: { input: { id: string, status: LeadStatus, reason?: string } }, context: Context) => {
@@ -1126,6 +1344,8 @@ export const resolvers = {
       const current = await prisma.lead.findUnique({ where: { id: leadId } });
       if (!current) throw new Error('Lead não encontrado');
       
+      validateEnum(input.status, LeadStatus, 'LeadStatus');
+
       await enforceStatusChange({
         context,
         entityType: 'Lead',
@@ -1157,10 +1377,23 @@ export const resolvers = {
     },
     createPatient: async (_: unknown, { input }: { input: CreatePatientInput }, context: Context) => {
       assertAuthenticated(context);
+      assertRole(context, ['ADMIN', 'SALES', 'CALL_CENTER', 'SURGEON'], 'conversão de lead');
       validatePatientData(input);
       const leadId = decodeId(input.leadId);
       const lead = await prisma.lead.findUnique({ where: { id: leadId } });
       if (!lead) throw new Error('Lead não encontrado');
+
+      await enforceStatusChange({
+        context,
+        entityType: 'Lead',
+        entityId: leadId,
+        oldStatus: lead.status,
+        newStatus: LeadStatus.CONVERTED,
+        blockedRoles: ['RECEPTION'],
+        criticalStatuses: ['CONVERTED', 'LOST'],
+        reason: 'Paciente criado a partir de lead',
+      });
+
       return prisma.$transaction(async (tx) => {
         const patient = await tx.patient.create({ data: { ...input, leadId, dateOfBirth: new Date(input.dateOfBirth) } });
         await tx.lead.update({ where: { id: leadId }, data: { status: LeadStatus.CONVERTED } });
@@ -1201,17 +1434,17 @@ export const resolvers = {
         } 
       });
 
-      const auditNewValue: any = {};
-      const currentAny = current as any;
+      const auditNewValue: Record<string, unknown> = {};
+      const currentRecord = current as unknown as Record<string, unknown>;
       for (const [key, value] of Object.entries(input)) {
-        if (key !== 'id' && key !== 'reason' && value !== currentAny[key]) {
+        if (key !== 'id' && key !== 'reason' && value !== currentRecord[key]) {
           if (key === 'dateOfBirth') {
-            const currentStr = currentAny[key] ? new Date(currentAny[key]).toISOString().split('T')[0] : null;
+            const currentStr = currentRecord[key] ? new Date(currentRecord[key] as string).toISOString().split('T')[0] : null;
             if (currentStr !== value) {
-              auditNewValue[key] = { from: currentAny[key], to: new Date(value as string) };
+              auditNewValue[key] = { from: currentRecord[key], to: new Date(value as string) };
             }
           } else {
-            auditNewValue[key] = { from: currentAny[key], to: value };
+            auditNewValue[key] = { from: currentRecord[key], to: value };
           }
         }
       }
@@ -1230,50 +1463,67 @@ export const resolvers = {
       });
       return updated;
     },
-    createAppointment: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createAppointment: async (_: unknown, { input }: { input: CreateAppointmentInput }, context: Context) => {
       assertAuthenticated(context);
       const appointment = await prisma.appointment.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), scheduledAt: new Date(input.scheduledAt) }, include: { patient: true, surgeon: true } });
       await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: appointment.id, action: 'CREATED', userId: context.user?.userId, appointmentId: appointment.id } });
+      await prisma.notification.create({ data: { appointmentId: appointment.id, type: 'CONFIRMATION', status: 'PENDING' } });
       return appointment;
     },
-    updateAppointment: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updateAppointment: async (_: unknown, { input }: { input: UpdateAppointmentInput }, context: Context) => {
       assertAuthenticated(context);
       const updated = await prisma.appointment.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined, patientId: input.patientId ? decodeId(input.patientId) : undefined, surgeonId: input.surgeonId ? decodeId(input.surgeonId) : undefined, scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined } });
       return updated;
     },
     updateAppointmentStatus: async (_: unknown, { input }: { input: { id: string, status: AppointmentStatus } }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.appointment.update({ where: { id: decodeId(input.id) }, data: { status: input.status } });
+      const apptId = decodeId(input.id);
+      const current = await prisma.appointment.findUnique({ where: { id: apptId } });
+      if (!current) throw new Error('Consulta não encontrada');
+      
+      validateEnum(input.status, AppointmentStatus, 'AppointmentStatus');
+
+      if (current.status !== input.status) {
+        await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: apptId, action: 'STATUS_CHANGE', oldValue: current.status, newValue: input.status, userId: context.user?.userId, appointmentId: apptId } });
+      }
+      return prisma.appointment.update({ where: { id: apptId }, data: { status: input.status } });
     },
     deleteAppointment: async (_: unknown, { input }: { input: { id: string } }, context: Context) => {
       assertAuthenticated(context);
       await prisma.appointment.deleteMany({ where: { id: decodeId(input.id) } });
       return { success: true };
     },
-    createSurgeon: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createSurgeon: async (_: unknown, { input }: { input: CreateSurgeonInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'cirurgião');
+      const existingSurgeon = await prisma.surgeon.findFirst({ where: { OR: [{ crm: input.crm }, { email: input.email }] } });
+      if (existingSurgeon) {
+        const field = existingSurgeon.crm === input.crm ? 'CRM' : 'e-mail';
+        throw new Error(`RN01_VIOLATION: ${field} já cadastrado para outro cirurgião`);
+      }
       return prisma.surgeon.create({ data: { ...input, appointmentDuration: 30 } });
     },
-    createUser: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createUser: async (_: unknown, { input }: { input: CreateUserInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'usuário');
       const hashedPassword = await hashPassword(input.password);
-      return prisma.user.create({ data: { ...input, password: hashedPassword } });
+      const user = await prisma.user.create({ data: { ...input, password: hashedPassword, role: input.role as UserRole } });
+      return sanitizeUser(user as unknown as Record<string, unknown>);
     },
-    updateUser: async (_: unknown, { id, input }: { id: string, input: any }, context: Context) => {
+    updateUser: async (_: unknown, { id, input }: { id: string, input: UpdateUserInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'usuário');
-      const data = { ...input };
-      if (data.password) data.password = await hashPassword(data.password);
-      return prisma.user.update({ where: { id: decodeId(id) }, data });
+      const user = await prisma.user.update({ where: { id: decodeId(id) }, data: { ...input, role: input.role ? (input.role as UserRole) : undefined } });
+      return sanitizeUser(user as unknown as Record<string, unknown>);
     },
-    updateProfile: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updateProfile: async (_: unknown, { input }: { input: UpdateProfileInput }, context: Context) => {
       assertAuthenticated(context);
       const userId = context.user?.userId;
-      const data = { ...input };
-      if (data.password) data.password = await hashPassword(data.password);
-      return prisma.user.update({ where: { id: userId }, data });
+      const data: Record<string, unknown> = {};
+      if (input.name) data.name = input.name;
+      if (input.password) data.password = await hashPassword(input.password);
+      const user = await prisma.user.update({ where: { id: userId }, data });
+      return sanitizeUser(user as unknown as Record<string, unknown>);
     },
     toggleUserStatus: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
@@ -1283,9 +1533,10 @@ export const resolvers = {
       if (!user) throw new Error('Não encontrado');
       const newStatus = !user.isActive;
       if (!newStatus) await revokeUserTokens(userId); else await clearTokenRevocation(userId);
-      return prisma.user.update({ where: { id: userId }, data: { isActive: newStatus } });
+      const updated = await prisma.user.update({ where: { id: userId }, data: { isActive: newStatus } });
+      return sanitizeUser(updated as unknown as Record<string, unknown>);
     },
-    createAvailabilitySlot: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createAvailabilitySlot: async (_: unknown, { input }: { input: CreateAvailabilitySlotInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
       return prisma.availabilitySlot.create({ data: { ...input, surgeonId: decodeId(input.surgeonId) } });
@@ -1296,7 +1547,7 @@ export const resolvers = {
       await prisma.availabilitySlot.deleteMany({ where: { id: decodeId(id) } });
       return { success: true };
     },
-    createExtraAvailability: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createExtraAvailability: async (_: unknown, { input }: { input: CreateExtraAvailabilityInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
       return prisma.extraAvailabilitySlot.create({ data: { ...input, surgeonId: decodeId(input.surgeonId), date: new Date(input.date) } });
@@ -1307,26 +1558,16 @@ export const resolvers = {
       await prisma.extraAvailabilitySlot.deleteMany({ where: { id: decodeId(id) } });
       return { success: true };
     },
-    createScheduleBlock: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createScheduleBlock: async (_: unknown, { input }: { input: CreateScheduleBlockInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
       
       const surgeonId = decodeId(input.surgeonId);
-      const surgeon = await prisma.surgeon.findUnique({ 
-        where: { id: surgeonId } 
-      });
-      
-      if (!surgeon) {
-        throw new Error(`SURGEON_NOT_FOUND: ${surgeonId}`);
-      }
+      const surgeon = await prisma.surgeon.findUnique({ where: { id: surgeonId } });
+      if (!surgeon) throw new Error(`SURGEON_NOT_FOUND: ${surgeonId}`);
 
       return prisma.scheduleBlock.create({ 
-        data: { 
-          ...input, 
-          surgeonId, 
-          startDate: new Date(input.startDate), 
-          endDate: new Date(input.endDate) 
-        } 
+        data: { ...input, surgeonId, startDate: new Date(input.startDate), endDate: new Date(input.endDate) } 
       });
     },
     deleteScheduleBlock: async (_: unknown, { id }: { id: string }, context: Context) => {
@@ -1335,64 +1576,77 @@ export const resolvers = {
       await prisma.scheduleBlock.deleteMany({ where: { id: decodeId(id) } });
       return { success: true };
     },
-    createContact: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createContact: async (_: unknown, { input }: { input: CreateContactInput }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.contact.create({ data: { ...input, leadId: decodeId(input.leadId), date: new Date(input.date) } });
+      return prisma.contact.create({ data: { ...input, type: input.type as any, direction: input.direction as any, status: input.status as any, leadId: decodeId(input.leadId), date: new Date(input.date) } });
     },
-    createBudget: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createBudget: async (_: unknown, { input }: { input: CreateBudgetInput }, context: Context) => {
       assertAuthenticated(context);
       return prisma.budget.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), returnDeadline: input.returnDeadline ? new Date(input.returnDeadline) : null, status: BudgetStatus.OPEN }, include: { patient: { include: { lead: true } }, surgeon: true } });
     },
-    updateBudget: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updateBudget: async (_: unknown, { input }: { input: UpdateBudgetInput }, context: Context) => {
       assertAuthenticated(context);
       const budgetId = decodeId(input.id);
-      return prisma.budget.update({ where: { id: budgetId }, data: { ...input, id: undefined, status: input.status }, include: { patient: { include: { lead: true } }, surgeon: true } });
+      const current = await prisma.budget.findUnique({ where: { id: budgetId } });
+      if (!current) throw new Error('Orçamento não encontrado');
+      if (input.status && input.status !== current.status) {
+        await prisma.auditLog.create({ data: { entityType: 'Budget', entityId: budgetId, action: 'STATUS_CHANGE', oldValue: current.status, newValue: input.status, userId: context.user?.userId } });
+      }
+      return prisma.budget.update({ where: { id: budgetId }, data: { ...input, id: undefined }, include: { patient: { include: { lead: true } }, surgeon: true } });
     },
-    createBudgetFollowUp: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createBudgetFollowUp: async (_: unknown, { input }: { input: CreateBudgetFollowUpInput }, context: Context) => {
       assertAuthenticated(context);
       return prisma.budgetFollowUp.create({ data: { ...input, budgetId: decodeId(input.budgetId), date: new Date(input.date) } });
     },
-    updateAvailabilitySlot: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updateAvailabilitySlot: async (_: unknown, { input }: { input: UpdateAvailabilitySlotInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
       return prisma.availabilitySlot.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined } });
     },
-    updateExtraAvailability: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updateExtraAvailability: async (_: unknown, { input }: { input: UpdateExtraAvailabilityInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
       return prisma.extraAvailabilitySlot.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined, date: input.date ? new Date(input.date) : undefined } });
     },
-    updateScheduleBlock: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updateScheduleBlock: async (_: unknown, { input }: { input: UpdateScheduleBlockInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
       return prisma.scheduleBlock.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined } });
     },
-    createComplaint: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createComplaint: async (_: unknown, { input }: { input: CreateComplaintInput }, context: Context) => {
       assertAuthenticated(context);
       return prisma.complaint.create({ data: { ...input, patientId: decodeId(input.patientId), responseDeadline: input.responseDeadline ? new Date(input.responseDeadline) : null, status: ComplaintStatus.OPEN }, include: { patient: { include: { lead: true } } } });
     },
-    updateComplaint: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updateComplaint: async (_: unknown, { input }: { input: UpdateComplaintInput }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.complaint.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined }, include: { patient: { include: { lead: true } } } });
+      const complaintId = decodeId(input.id);
+      const current = await prisma.complaint.findUnique({ where: { id: complaintId } });
+      if (!current) throw new Error('Reclamação não encontrada');
+      if (input.status && input.status !== current.status) {
+        await prisma.auditLog.create({ data: { entityType: 'Complaint', entityId: complaintId, action: 'STATUS_CHANGE', oldValue: current.status, newValue: input.status, userId: context.user?.userId } });
+      }
+      return prisma.complaint.update({ where: { id: complaintId }, data: { ...input, id: undefined }, include: { patient: { include: { lead: true } } } });
     },
-    createTreatment: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createTreatment: async (_: unknown, { input }: { input: CreateTreatmentInput }, context: Context) => {
       assertAuthenticated(context);
       return prisma.treatment.create({ data: { ...input, complaintId: decodeId(input.complaintId), date: new Date(input.date) } });
     },
-    createDocument: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createDocument: async (_: unknown, { input }: { input: CreateDocumentInput }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.document.create({ data: { ...input, patientId: decodeId(input.patientId), date: new Date(input.date) } });
+      return prisma.document.create({ data: { ...input, type: input.type as any, status: input.status as any, patientId: decodeId(input.patientId), date: new Date(input.date) } });
     },
     updateDocumentStatus: async (_: unknown, { id, status }: { id: string, status: DocumentStatus }, context: Context) => {
       assertAuthenticated(context);
+      validateEnum(status, DocumentStatus, 'DocumentStatus');
       return prisma.document.update({ where: { id: decodeId(id) }, data: { status } });
     },
-    createPostOp: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createPostOp: async (_: unknown, { input }: { input: CreatePostOpInput }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.postOp.create({ data: { ...input, patientId: decodeId(input.patientId), date: new Date(input.date) } });
+      return prisma.postOp.create({ data: { ...input, type: input.type as any, status: input.status as any, patientId: decodeId(input.patientId), date: new Date(input.date) } });
     },
     updatePostOpStatus: async (_: unknown, { id, status }: { id: string, status: PostOpStatus }, context: Context) => {
       assertAuthenticated(context);
+      validateEnum(status, PostOpStatus, 'PostOpStatus');
       return prisma.postOp.update({ where: { id: decodeId(id) }, data: { status } });
     },
     deleteBudget: async (_: unknown, { id }: { id: string }, context: Context) => {
@@ -1413,15 +1667,15 @@ export const resolvers = {
       await prisma.user.deleteMany({ where: { id: decodeId(id) } });
       return { success: true };
     },
-    createMessageTemplate: async (_: unknown, { input }: { input: any }, context: Context) => {
+    createMessageTemplate: async (_: unknown, { input }: { input: CreateMessageTemplateInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'template');
-      return prisma.messageTemplate.create({ data: input });
+      return prisma.messageTemplate.create({ data: { ...input, channel: input.channel as any } });
     },
-    updateMessageTemplate: async (_: unknown, { input }: { input: any }, context: Context) => {
+    updateMessageTemplate: async (_: unknown, { input }: { input: UpdateMessageTemplateInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'template');
-      return prisma.messageTemplate.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined } });
+      return prisma.messageTemplate.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined, channel: input.channel ? (input.channel as any) : undefined } });
     },
     deleteMessageTemplate: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
@@ -1434,9 +1688,10 @@ export const resolvers = {
       assertRole(context, ['ADMIN'], 'evolution');
       const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
       const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-      const response = await fetch(`${EVOLUTION_API_URL}/instance/create`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY! }, body: JSON.stringify({ instanceName: name, token: EVOLUTION_API_KEY, qrcode: true, integration: "WHATSAPP-BAILEYS" }) });
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/create`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY }, body: JSON.stringify({ instanceName: name, token: EVOLUTION_API_KEY, qrcode: true, integration: "WHATSAPP-BAILEYS" }) });
       if (!response.ok) throw new Error('Erro Evolution API');
-      const data = await response.json() as any;
+      const data = (await response.json()) as EvolutionCreateResponse;
       return { connected: false, instanceName: name, state: data?.instance?.state || 'disconnected' };
     },
     deleteEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
@@ -1444,7 +1699,8 @@ export const resolvers = {
       assertRole(context, ['ADMIN'], 'evolution');
       const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
       const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-      await fetch(`${EVOLUTION_API_URL}/instance/delete/${name}`, { method: 'DELETE', headers: { 'apikey': EVOLUTION_API_KEY! } });
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
+      await fetch(`${EVOLUTION_API_URL}/instance/delete/${name}`, { method: 'DELETE', headers: { 'apikey': EVOLUTION_API_KEY } });
       return true;
     },
     connectEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
@@ -1452,8 +1708,9 @@ export const resolvers = {
       assertRole(context, ['ADMIN'], 'evolution');
       const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
       const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-      const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${name}`, { headers: { 'apikey': EVOLUTION_API_KEY! } });
-      const data = await response.json() as any;
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${name}`, { headers: { 'apikey': EVOLUTION_API_KEY } });
+      const data = (await response.json()) as EvolutionConnectResponse;
       return { qrCode: data?.base64 || null, pairingCode: data?.pairingCode || null, connected: false };
     },
     markNotificationAsRead: async (_: unknown, { id }: { id: string }, context: Context) => {

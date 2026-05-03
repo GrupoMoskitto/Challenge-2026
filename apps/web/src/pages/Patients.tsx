@@ -113,9 +113,11 @@ const getAuditActionMeta = (action?: string) => {
   }
 };
 
+const translateStatus = (raw: string) => statusLabels[raw] || raw;
+
 const getAuditMessage = (item: any, leadName?: string | null) => {
   if (item.action === 'STATUS_CHANGE') {
-    return `Status alterado de ${item.oldValue} para ${item.newValue}`;
+    return `Status alterado de ${translateStatus(item.oldValue)} para ${translateStatus(item.newValue)}`;
   }
   const safeName = leadName || "cliente";
   const actionLabel = auditActionLabels[item.action] || "modificado";
@@ -143,6 +145,18 @@ function PatientTimeline({ patient }: { patient: any }) {
     return acc;
   }, []);
 
+  const hasPatientCreatedLog = processedLogs.some((l: any) => l.action === 'CREATED' && (l.entityType === 'Patient' || l.entityType === 'Lead'));
+  if (!hasPatientCreatedLog && patient?.createdAt) {
+    processedLogs.push({
+      id: `virtual-creation-${patient.id}`,
+      action: 'CREATED',
+      entityType: 'Patient',
+      timestamp: new Date(patient.createdAt),
+      itemType: 'AUDIT',
+      createdAt: patient.createdAt
+    });
+  }
+
   const timelineItems = [
     ...contacts.map((c: any) => ({ ...c, itemType: 'CONTACT', timestamp: new Date(c.date) })),
     ...processedLogs
@@ -158,10 +172,10 @@ function PatientTimeline({ patient }: { patient: any }) {
   }
 
   return (
-    <div className="px-4 py-8 relative min-h-full">
-      <div className="absolute top-8 bottom-8 left-[34px] w-px bg-border/60 z-0"></div>
-      <div className="space-y-8 relative z-10">
-        {timelineItems.map((item: any) => {
+    <div className="px-8 py-8 relative min-h-full">
+      <div className="space-y-6 relative z-10">
+        {timelineItems.map((item: any, index: number) => {
+          const isLast = index === timelineItems.length - 1;
           const isContact = item.itemType === 'CONTACT';
           const meta = !isContact ? getAuditActionMeta(item.action) : null;
           const IconComp = isContact ? (item.type === 'WHATSAPP' ? MessageCircle : item.type === 'EMAIL' ? Mail : Phone) : meta!.icon;
@@ -171,6 +185,9 @@ function PatientTimeline({ patient }: { patient: any }) {
 
           return (
             <div key={item.id} className="relative flex items-start gap-5 group">
+              {!isLast && (
+                <div className="absolute left-[19px] w-px bg-border/60 z-0" style={{ top: '2.5rem', bottom: '-1.5rem' }} />
+              )}
               <div className={cn("relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 bg-background shrink-0 shadow-sm transition-transform group-hover:scale-105", colorClass)}>
                 <IconComp className="h-4 w-4" />
               </div>

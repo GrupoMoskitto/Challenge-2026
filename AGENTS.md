@@ -81,6 +81,7 @@ infra/            → Docker, Evolution API
 - Role check: `if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores')`
 - Use cursor-based pagination with `Connection` types (e.g., `UserConnection`, `LeadConnection`)
 - Always create `AuditLog` on status changes (RN06)
+- **Strict Enum Validation**: Use `validateEnum` from `config/rbac` for all GraphQL input strings that map to Prisma enums.
 
 ### GraphQL Pagination
 
