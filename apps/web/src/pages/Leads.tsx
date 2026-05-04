@@ -833,9 +833,9 @@ function LeadTimeline({ leadId }: { leadId?: string }) {
             : meta!.containerClassName + " " + meta!.iconClassName.replace('text-', 'border-') + " border border-primary/10 bg-background";
 
           return (
-            <div key={item.id} className="relative flex items-start gap-5 group">
+            <div key={item.id} className="relative flex items-center gap-5 group">
               {!isLast && (
-                <div className="absolute left-[19px] w-px bg-border/60 z-0" style={{ top: '2.5rem', bottom: '-1.5rem' }} />
+                <div className="absolute left-[19px] w-px bg-border/60 z-0" style={{ top: '50%', bottom: '-50%' }} />
               )}
               <div className={cn("relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 bg-background shrink-0 shadow-sm transition-transform group-hover:scale-105", colorClass)}>
                 <IconComp className="h-4 w-4" />

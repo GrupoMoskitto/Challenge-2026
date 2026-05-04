@@ -5,39 +5,54 @@
 @layer base {
   :root {
     color-scheme: light;
-    --background: 220 14% 96%;
-    --foreground: 224 47% 11%;
+    /* Layer 1: Page canvas */
+    --background: 220 16% 94%;
+    --foreground: 222 47% 11%;
+
+    /* Layer 2: Cards & elevated surfaces — pure white */
     --card: 0 0% 100%;
-    --card-foreground: 224 47% 11%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 47% 11%;
-    --primary: 195 68% 48%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Brand */
+    --primary: 195 80% 38%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 218 16% 90%;
-    --secondary-foreground: 224 47% 11%;
+
+    /* Layer 3: Recessed surfaces — visible gray tones */
+    --secondary: 220 14% 86%;
+    --secondary-foreground: 222 47% 11%;
     --muted: 220 14% 89%;
-    --muted-foreground: 220 9% 43%;
-    --accent: 218 14% 86%;
-    --accent-foreground: 224 47% 11%;
+    --muted-foreground: 220 9% 36%;
+    --accent: 220 14% 90%;
+    --accent-foreground: 222 47% 11%;
+
+    /* Feedback */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 82%;
-    --input: 220 13% 82%;
-    --ring: 195 68% 48%;
+
+    /* Structural grays — clearly visible */
+    --border: 220 13% 78%;
+    --input: 220 13% 80%;
+    --ring: 195 80% 38%;
     --radius: 0.75rem;
-    --sidebar-background: 220 14% 93%;
-    --sidebar-foreground: 224 47% 14%;
-    --sidebar-primary: 195 68% 48%;
+
+    /* Sidebar: darker frame to anchor the layout */
+    --sidebar-background: 220 16% 89%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 195 80% 38%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 218 14% 85%;
-    --sidebar-accent-foreground: 224 47% 11%;
-    --sidebar-border: 220 13% 78%;
-    --sidebar-ring: 195 68% 48%;
+    --sidebar-accent: 220 14% 84%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 220 13% 80%;
+    --sidebar-ring: 195 80% 38%;
+
+    /* Semantic */
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    --info: 195 68% 48%;
+    --info: 195 80% 38%;
     --info-foreground: 0 0% 100%;
   }
 
@@ -87,6 +102,12 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Subtle elevation for cards in light mode */
+  :root:not(.dark) [data-slot="card"],
+  :root:not(.dark) .card {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
   }
 }
 
