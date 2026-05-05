@@ -54,6 +54,11 @@ app.use(cors({
 
 app.use(express.json({ limit: '1mb' })); // Limit payload size
 
+// --- Healthcheck ---
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date() });
+});
+
 // --- Rate Limiting (Redis-backed for distributed deployments) ---
 const createRedisStore = (): RedisStore | undefined => {
   try {
@@ -67,13 +72,31 @@ const createRedisStore = (): RedisStore | undefined => {
   }
 };
 
+const isLocalhost = (req: express.Request) => {
+  const ip = req.ip || req.socket.remoteAddress || '';
+  return ip === '127.0.0.1' || ip === '::1' || ip.includes('127.0.0.1');
+};
+
+const rateLimitHandler = (req: express.Request, res: express.Response, next: express.NextFunction, options: import('express-rate-limit').Options) => {
+  res.status(options.statusCode).json({
+    errors: [
+      {
+        message: options.message,
+        extensions: { code: 'RATE_LIMITED' },
+      },
+    ],
+  });
+};
+
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 200,
+  windowMs: 60 * 1000, // 1 minuto
+  limit: 100, // 100 req/min
   standardHeaders: true,
   legacyHeaders: false,
   store: createRedisStore(),
   message: 'Muitas requisições deste IP, por favor tente novamente mais tarde',
+  handler: rateLimitHandler,
+  skip: (req) => (!isProduction && isLocalhost(req)),
 });
 
 const loginLimiter = rateLimit({
@@ -84,17 +107,21 @@ const loginLimiter = rateLimit({
   store: createRedisStore(),
   message: 'Muitas tentativas de login. Tente novamente em 15 minutos.',
   keyGenerator: (req) => ipKeyGenerator(req.ip || ""),
+  handler: rateLimitHandler,
+  skip: (req) => (!isProduction && isLocalhost(req)),
 });
 
 const mutationLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 50,
+  windowMs: 60 * 1000, // 1 minuto
+  limit: 20, // 20 req/min
   standardHeaders: true,
   legacyHeaders: false,
   store: createRedisStore(),
-  message: 'Limite de mutações excedido. Tente novamente em 15 minutos.',
+  message: 'Limite de mutações excedido. Tente novamente mais tarde.',
   keyGenerator: (req) => `mutation:${ipKeyGenerator(req.ip || '')}`,
+  handler: rateLimitHandler,
   skip: (req) => {
+    if (!isProduction && isLocalhost(req)) return true;
     const body = req.body as Record<string, unknown> | undefined;
     const query = (body?.query as string) || '';
     return !query.trimStart().startsWith('mutation');
