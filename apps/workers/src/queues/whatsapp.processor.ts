@@ -14,10 +14,10 @@ export const whatsappQueue = new Queue(WHATSAPP_QUEUE_NAME, {
     attempts: 5,
     backoff: {
       type: 'exponential',
-      delay: 5000, // 5s → 10s → 20s → 40s → 80s
+      delay: 2000, // 2s, dobra a cada tentativa
     },
-    removeOnComplete: { count: 1000 },
-    removeOnFail: false, // keep for DLQ inspection
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 50 },
   },
 });
 
