@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus } from "lucide-react";
+import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,9 +14,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
+import { usePatientModal } from "@/components/PatientModalContext";
 import { serverLogout } from "@/lib/apollo";
 import { useQuery, useMutation, gql } from "@apollo/client";
-import { MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_READ } from "@/lib/queries";
+import { MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_READ, DELETE_NOTIFICATION, DELETE_ALL_NOTIFICATIONS } from "@/lib/queries";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -68,6 +69,7 @@ const NOTIFICATIONS_QUERY = gql`
 export function TopBar({ title }: TopBarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { openCreatePatientModal } = usePatientModal();
 
   const { data: notifData, refetch: refetchNotifs } = useQuery(NOTIFICATIONS_QUERY, {
     fetchPolicy: 'cache-and-network',
@@ -78,6 +80,12 @@ export function TopBar({ title }: TopBarProps) {
     onCompleted: () => refetchNotifs(),
   });
   const [markAllRead] = useMutation(MARK_ALL_NOTIFICATIONS_READ, {
+    onCompleted: () => refetchNotifs(),
+  });
+  const [deleteNotif] = useMutation(DELETE_NOTIFICATION, {
+    onCompleted: () => refetchNotifs(),
+  });
+  const [deleteAllNotifs] = useMutation(DELETE_ALL_NOTIFICATIONS, {
     onCompleted: () => refetchNotifs(),
   });
 
@@ -169,6 +177,15 @@ export function TopBar({ title }: TopBarProps) {
     markAllRead();
   };
 
+  const handleDeleteNotif = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteNotif({ variables: { id } });
+  };
+
+  const handleDeleteAllNotifs = () => {
+    deleteAllNotifs();
+  };
+
   return (
     <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6 shrink-0">
       <h1 className="text-lg font-semibold text-foreground">{title}</h1>
@@ -176,7 +193,7 @@ export function TopBar({ title }: TopBarProps) {
         <div className="flex items-center gap-4">
           {/* New Patient Button (Primary Action) */}
           <button 
-            onClick={() => navigate('/patients?create=true')}
+            onClick={() => openCreatePatientModal()}
             className="hidden md:flex bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium items-center gap-1.5 px-4 py-2 text-sm whitespace-nowrap transition-colors flex-shrink-0"
           >
             <Plus className="h-4 w-4" />
@@ -261,18 +278,31 @@ export function TopBar({ title }: TopBarProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-96">
             <DropdownMenuLabel className="flex items-center justify-between py-3">
-              <span className="font-semibold">Notificações</span>
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs text-primary hover:text-primary gap-1 -mr-1"
-                  onClick={handleMarkAllRead}
-                >
-                  <CheckCheck className="h-3 w-3" />
-                  Marcar todas como lidas
-                </Button>
-              )}
+              <span className="font-semibold cursor-default select-none">Notificações</span>
+              <div className="flex gap-2">
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-primary hover:text-primary gap-1 px-2"
+                    onClick={handleMarkAllRead}
+                  >
+                    <CheckCheck className="h-3 w-3" />
+                    Marcar lidas
+                  </Button>
+                )}
+                {notifications.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 gap-1 px-2"
+                    onClick={handleDeleteAllNotifs}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Apagar tudo
+                  </Button>
+                )}
+              </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
 
@@ -318,17 +348,28 @@ export function TopBar({ title }: TopBarProps) {
                           {format(new Date(notif.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                         </div>
                       </div>
-                      {!isRead && (
+                      <div className="flex items-center gap-1">
+                        {!isRead && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            title="Marcar como lida"
+                            onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.id); }}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                          title="Marcar como lida"
-                          onClick={() => handleMarkAsRead(notif.id)}
+                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500 hover:bg-red-50"
+                          title="Excluir notificação"
+                          onClick={(e) => handleDeleteNotif(notif.id, e)}
                         >
-                          <Check className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
-                      )}
+                      </div>
                     </div>
                   );
                 })}

@@ -525,6 +525,20 @@ export const MARK_NOTIFICATION_AS_READ = gql`
   }
 `;
 
+export const DELETE_NOTIFICATION = gql`
+  mutation DeleteNotification($id: ID!) {
+    deleteNotification(id: $id) {
+      id
+    }
+  }
+`;
+
+export const DELETE_ALL_NOTIFICATIONS = gql`
+  mutation DeleteAllNotifications {
+    deleteAllNotifications
+  }
+`;
+
 export const MARK_ALL_NOTIFICATIONS_READ = gql`
   mutation MarkAllNotificationsAsRead {
     markAllNotificationsAsRead
