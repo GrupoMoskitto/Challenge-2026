@@ -114,10 +114,18 @@ const Agenda = () => {
     }
   };
 
-  const getAppointment = (surgeonId: string, time: string) =>
-    appointments.find(
-      (a: any) => a.surgeon?.id === surgeonId && format(new Date(a.scheduledAt), 'HH:mm') === time
-    );
+  const getAppointment = (surgeonId: string, time: string) => {
+    const [slotHour, slotMinute] = time.split(':').map(Number);
+    const slotTimeMinutes = slotHour * 60 + slotMinute;
+    
+    return appointments.find((a: any) => {
+      if (a.surgeon?.id !== surgeonId) return false;
+      const aptDate = new Date(a.scheduledAt);
+      const aptTimeMinutes = aptDate.getHours() * 60 + aptDate.getMinutes();
+      // Match if the appointment falls within this 30-minute block
+      return aptTimeMinutes >= slotTimeMinutes && aptTimeMinutes < slotTimeMinutes + 30;
+    });
+  };
 
   const openNewAppointment = (surgeonId: string, time: string, apt?: any) => {
     setSelectedSlot({ doctorId: surgeonId, time, date: currentDate });
@@ -171,6 +179,12 @@ const Agenda = () => {
     const minute = parseInt(timeParts[1], 10);
     if (minute % 5 !== 0) {
       toast.error('Minutos devem ser múltiplos de 5');
+      return;
+    }
+
+    const appointmentDate = new Date(`${selectedSlot.date}T${selectedSlot.time}:00`);
+    if (appointmentDate < new Date()) {
+      toast.error('Não é possível criar ou mover agendamentos para datas passadas');
       return;
     }
 
@@ -387,7 +401,9 @@ const Agenda = () => {
                     >
                       {appointment ? (
                         <div className="h-full flex flex-col justify-center gap-1">
-                          <p className="text-sm font-semibold truncate text-foreground">{appointment.patient?.lead?.name || appointment.patient?.name || 'Paciente'}</p>
+                          <p className="text-sm font-semibold truncate text-foreground">
+                            {format(new Date(appointment.scheduledAt), 'HH:mm')} • {appointment.patient?.lead?.name || appointment.patient?.name || 'Paciente'}
+                          </p>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs text-muted-foreground truncate font-medium">{appointment.procedure}</span>
                             <Badge className={cn("h-4 text-[9px] px-1.5", statusColors[appointment.status])}>
