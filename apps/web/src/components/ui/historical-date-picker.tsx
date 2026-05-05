@@ -168,7 +168,7 @@ export function HistoricalDatePicker({
             caption: "hidden", 
           }}
           components={{
-            // @ts-ignore
+            // @ts-expect-error - internal date picker type issue
             Caption: (props) => <CustomCaption {...props} fromYear={minYear} toYear={maxYear} />
           }}
           fromDate={new Date(minYear, 0, 1)}

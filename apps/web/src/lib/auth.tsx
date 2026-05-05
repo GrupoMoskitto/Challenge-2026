@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { gql, useQuery } from '@apollo/client';
 import { serverLogout } from './apollo';

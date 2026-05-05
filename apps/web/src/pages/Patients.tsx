@@ -263,7 +263,7 @@ const Patients = () => {
     if (statusFilter !== urlStatus) { setStatusFilter(urlStatus); setShowFilters(!!urlStatus); }
     if (urlPatientId !== selectedPatientId) { setSelectedPatientId(urlPatientId); }
     if (urlTab !== activeTab) { setActiveTab(urlTab); }
-  }, [searchParams]);
+  }, [searchParams, activeTab, search, selectedPatientId, statusFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
