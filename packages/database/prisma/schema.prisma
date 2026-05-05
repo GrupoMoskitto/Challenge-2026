@@ -64,6 +64,7 @@ model Lead {
   whatsappActive  Boolean    @default(false)
   notes            String?
   status           LeadStatus @default(NEW)
+  deletedAt        DateTime?  // LGPD: soft-delete flag
   createdAt        DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -74,6 +75,7 @@ model Lead {
   @@index([email])
   @@index([phone])
   @@index([status])
+  @@index([deletedAt])
 }
 
 model Patient {
@@ -86,6 +88,7 @@ model Patient {
   weight        Float?   // Peso em kg
   height        Float?   // Altura em cm
   howMet        String?  // Por onde nos conheceu
+  deletedAt     DateTime?  // LGPD: soft-delete flag
 
   lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   appointments  Appointment[]
@@ -100,6 +103,7 @@ model Patient {
   updatedAt     DateTime @updatedAt
 
   @@index([leadId])
+  @@index([deletedAt])
 }
 
 model Surgeon {
