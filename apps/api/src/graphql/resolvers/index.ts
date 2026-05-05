@@ -512,10 +512,14 @@ export const resolvers = {
     leads: async (_: unknown, { status, first, after, search }: { status?: LeadStatus; first?: number; after?: string; search?: string }, context: Context) => {
       assertAuthenticated(context);
       
-      const limit = first || 20;
+      const MAX_PAGE_SIZE = 100;
+      const limit = Math.min(first || 20, MAX_PAGE_SIZE);
       const cursor = after ? decodeId(after) : undefined;
       
-      const whereClause: Prisma.LeadWhereInput = status ? { status } : {};
+      const whereClause: Prisma.LeadWhereInput = {
+        ...(status ? { status } : {}),
+        deletedAt: null, // LGPD: exclude soft-deleted
+      };
 
       if (search) {
         const sanitizedSearch = search.trim().substring(0, 100);
@@ -578,14 +582,19 @@ export const resolvers = {
     lead: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       const decodedId = decodeId(id);
-      return prisma.lead.findUnique({ 
+      const result = await prisma.lead.findUnique({ 
         where: { id: decodedId },
         include: { contacts: { orderBy: { date: 'desc' } } },
       });
+      // LGPD: hide soft-deleted leads
+      if (result && result.deletedAt) return null;
+      return result;
     },
     leadByCpf: async (_: unknown, { cpf }: { cpf: string }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.lead.findUnique({ where: { cpf } });
+      const result = await prisma.lead.findUnique({ where: { cpf } });
+      if (result && result.deletedAt) return null;
+      return result;
     },
     patients: async (_: unknown, { first, after, where }: { 
       first?: number; 
@@ -600,10 +609,13 @@ export const resolvers = {
     }, context: Context) => {
       assertAuthenticated(context);
       
-      const limit = first || 20;
+      const MAX_PAGE_SIZE = 100;
+      const limit = Math.min(first || 20, MAX_PAGE_SIZE);
       const cursor = after ? decodeId(after) : undefined;
 
-      const whereClause: Prisma.PatientWhereInput = {};
+      const whereClause: Prisma.PatientWhereInput = {
+        deletedAt: null, // LGPD: exclude soft-deleted
+      };
 
       if (where?.status) {
         whereClause.lead = { ...(whereClause.lead || {}), status: where.status } as any;
@@ -825,7 +837,8 @@ export const resolvers = {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'visualização de logs de auditoria');
 
-      const limit = first || 50;
+      const MAX_PAGE_SIZE = 100;
+      const limit = Math.min(first || 50, MAX_PAGE_SIZE);
       const cursor = after ? decodeId(after) : undefined;
 
       const whereClause: Prisma.AuditLogWhereInput = {};
@@ -1362,10 +1375,60 @@ export const resolvers = {
     },
     deleteLead: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
-      assertRole(context, ['ADMIN', 'SALES'], 'exclusão de lead');
+      assertRole(context, ['ADMIN'], 'exclusão de lead (LGPD)');
       const leadId = decodeId(id);
-      await prisma.lead.deleteMany({ where: { id: leadId } });
-      return { success: true };
+
+      const lead = await prisma.lead.findUnique({
+        where: { id: leadId },
+        include: { patient: true },
+      });
+      if (!lead) throw new Error('Lead não encontrado');
+      if (lead.deletedAt) throw new Error('Lead já foi removido');
+
+      const now = new Date();
+      const anonymized = {
+        name: '[DADOS REMOVIDOS - LGPD]',
+        email: `removed_${leadId}@lgpd.local`,
+        phone: '00000000000',
+        cpf: `000.000.000-${leadId.slice(-2)}`,
+        notes: null,
+        deletedAt: now,
+      };
+
+      await prisma.$transaction(async (tx) => {
+        // 1. Anonymize Lead personal data
+        await tx.lead.update({ where: { id: leadId }, data: anonymized });
+
+        // 2. Anonymize linked Patient (if exists)
+        if (lead.patient) {
+          await tx.patient.update({
+            where: { id: lead.patient.id },
+            data: {
+              address: null,
+              medicalRecord: null,
+              howMet: null,
+              deletedAt: now,
+            },
+          });
+        }
+
+        // 3. RN06: Audit trail for LGPD anonymization
+        await tx.auditLog.create({
+          data: {
+            entityType: 'Lead',
+            entityId: leadId,
+            action: 'LGPD_ANONYMIZED',
+            userId: context.user?.userId,
+            oldValue: {
+              name: lead.name,
+              hadPatient: !!lead.patient,
+            } as Prisma.InputJsonValue,
+            reason: 'Direito ao esquecimento - LGPD Art. 18',
+          },
+        });
+      });
+
+      return { success: true, message: 'Dados anonimizados com sucesso (LGPD)' };
     },
     exportLeads: async (_: unknown, __: unknown, context: Context) => {
       assertAuthenticated(context);
@@ -1465,7 +1528,11 @@ export const resolvers = {
     },
     createAppointment: async (_: unknown, { input }: { input: CreateAppointmentInput }, context: Context) => {
       assertAuthenticated(context);
-      const appointment = await prisma.appointment.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), scheduledAt: new Date(input.scheduledAt) }, include: { patient: true, surgeon: true } });
+      const scheduledAt = new Date(input.scheduledAt);
+      if (scheduledAt < new Date()) {
+        throw new Error('Não é possível criar agendamentos no passado');
+      }
+      const appointment = await prisma.appointment.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), scheduledAt }, include: { patient: true, surgeon: true } });
       await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: appointment.id, action: 'CREATED', userId: context.user?.userId, appointmentId: appointment.id } });
       await prisma.notification.create({ data: { appointmentId: appointment.id, type: 'CONFIRMATION', status: 'PENDING' } });
       return appointment;
@@ -1724,6 +1791,15 @@ export const resolvers = {
     markAllNotificationsAsRead: async (_: unknown, __: unknown, context: Context) => {
       assertAuthenticated(context);
       await prisma.notification.updateMany({ where: { status: { in: ['PENDING', 'SENT'] } }, data: { status: 'READ' } });
+      return true;
+    },
+    deleteNotification: async (_: unknown, { id }: { id: string }, context: Context) => {
+      assertAuthenticated(context);
+      return prisma.notification.delete({ where: { id: decodeId(id) } });
+    },
+    deleteAllNotifications: async (_: unknown, __: unknown, context: Context) => {
+      assertAuthenticated(context);
+      await prisma.notification.deleteMany({});
       return true;
     },
   },

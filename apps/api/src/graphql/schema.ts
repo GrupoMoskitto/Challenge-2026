@@ -786,6 +786,8 @@ export const typeDefs = gql`
     # Notifications
     markNotificationAsRead(id: ID!): Notification!
     markAllNotificationsAsRead: Boolean!
+    deleteNotification(id: ID!): Notification
+    deleteAllNotifications: Boolean!
     
     testMessageTemplate(templateId: ID!, instanceName: String!): Boolean!
 

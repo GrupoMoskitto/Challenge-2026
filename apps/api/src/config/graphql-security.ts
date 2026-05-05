@@ -19,6 +19,7 @@ import { logger } from './logger';
 
 const MAX_DEPTH = 7;
 const MAX_COMPLEXITY = 1000;
+const MAX_QUERY_LENGTH = 5000;
 
 // --- Query Depth Limiting ---
 
@@ -209,6 +210,23 @@ export function createComplexityPlugin(): ApolloServerPlugin<BaseContext> {
   };
 }
 
+// --- Query Size Limiting ---
+
+export function createQuerySizeLimitPlugin(): ApolloServerPlugin<BaseContext> {
+  return {
+    async requestDidStart(requestContext): Promise<GraphQLRequestListener<BaseContext>> {
+      const query = requestContext.request.query;
+      if (query && query.length > MAX_QUERY_LENGTH) {
+        logger.warn('GraphQL:Security', `Query size ${query.length} exceeds max ${MAX_QUERY_LENGTH}`);
+        throw new Error(
+          `Query size ${query.length} exceeds maximum of ${MAX_QUERY_LENGTH} characters. Simplifique sua consulta.`
+        );
+      }
+      return {};
+    },
+  };
+}
+
 // --- Introspection Control ---
 
 export function getIntrospectionConfig(): boolean {
@@ -221,6 +239,7 @@ export function getIntrospectionConfig(): boolean {
 
 export function getSecurityPlugins(): ApolloServerPlugin<BaseContext>[] {
   return [
+    createQuerySizeLimitPlugin(),
     createDepthLimitPlugin(),
     createComplexityPlugin(),
   ];

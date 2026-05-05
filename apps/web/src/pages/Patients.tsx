@@ -507,11 +507,38 @@ const Patients = () => {
               <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <TabsList className="w-full">
                   <TabsTrigger value="timeline" className="flex-1">Linha do Tempo</TabsTrigger>
+                  <TabsTrigger value="appointments" className="flex-1">Consultas</TabsTrigger>
                   <TabsTrigger value="documents" className="flex-1">Documentos</TabsTrigger>
                   <TabsTrigger value="postop" className="flex-1">Pós-Operatório</TabsTrigger>
                 </TabsList>
                 <TabsContent value="timeline" className="mt-6">
                   <PatientTimeline patient={patient} />
+                </TabsContent>
+                <TabsContent value="appointments" className="mt-4 space-y-4">
+                  {patient.appointments?.length === 0 ? <div className="py-20 text-center text-sm text-muted-foreground">Nenhuma consulta registrada.</div> : (
+                    patient.appointments?.map((apt: any) => (
+                      <Card key={apt.id}>
+                        <CardContent className="p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-medium">{apt.procedure}</p>
+                              <p className="text-xs text-muted-foreground">{format(new Date(apt.scheduledAt), "dd/MM/yyyy 'às' HH:mm")} • Dr(a). {apt.surgeon?.name}</p>
+                            </div>
+                          </div>
+                          <Badge 
+                            className={cn(
+                              apt.status === 'COMPLETED' ? "bg-emerald-500 text-white" : 
+                              apt.status === 'SCHEDULED' || apt.status === 'CONFIRMED' ? "bg-blue-500 text-white" : 
+                              "bg-red-500 text-white", "border-none"
+                            )}
+                          >
+                            {apt.status === 'COMPLETED' ? 'Concluído' : apt.status === 'SCHEDULED' ? 'Agendado' : apt.status === 'CONFIRMED' ? 'Confirmado' : apt.status === 'CANCELLED' ? 'Cancelado' : 'Faltou'}
+                          </Badge>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </TabsContent>
                 <TabsContent value="documents" className="mt-4 space-y-4">
                   <div className="flex justify-end"><Button size="sm" onClick={() => setNewDocDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Novo</Button></div>

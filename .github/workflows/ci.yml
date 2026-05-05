@@ -63,10 +63,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Generate Prisma Client
-        run: |
-          cd packages/database
-          npx prisma generate
-          cd ../..
+        run: pnpm --filter @crmed/database exec prisma generate
 
       - name: TypeScript Check
         run: |
@@ -132,10 +129,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Generate Prisma Client
-        run: |
-          cd packages/database
-          npx prisma generate
-          cd ../..
+        run: pnpm --filter @crmed/database exec prisma generate
 
       - name: Setup Test Database
         run: pnpm --filter @crmed/database db:push || true
@@ -261,9 +255,7 @@ jobs:
       - name: Validate Prisma Schema
         run: |
           echo "Validating Prisma schema..."
-          cd packages/database
-          npx prisma generate
-          cd ../..
+          pnpm --filter @crmed/database exec prisma generate
           
       - name: Check for Migration Safety
         run: |

@@ -86,8 +86,24 @@ const loginLimiter = rateLimit({
   keyGenerator: (req) => ipKeyGenerator(req.ip || ""),
 });
 
+const mutationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRedisStore(),
+  message: 'Limite de mutações excedido. Tente novamente em 15 minutos.',
+  keyGenerator: (req) => `mutation:${ipKeyGenerator(req.ip || '')}`,
+  skip: (req) => {
+    const body = req.body as Record<string, unknown> | undefined;
+    const query = (body?.query as string) || '';
+    return !query.trimStart().startsWith('mutation');
+  },
+});
+
 // Apply rate limiting
 app.use(apiLimiter);
+app.use(mutationLimiter);
 
 // --- Apollo Server with Security Plugins ---
 const server = new ApolloServer<Context>({
