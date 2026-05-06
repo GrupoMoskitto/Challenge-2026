@@ -325,6 +325,8 @@ export const typeDefs = gql`
     type: DocumentType!
     date: DateTime!
     status: DocumentStatus!
+    fileUrl: String
+    fileType: String
     createdAt: DateTime!
   }
 
@@ -622,6 +624,8 @@ export const typeDefs = gql`
     type: DocumentType!
     date: DateTime!
     status: DocumentStatus
+    fileUrl: String
+    fileType: String
   }
 
   input CreatePostOpInput {

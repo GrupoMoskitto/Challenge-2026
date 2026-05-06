@@ -14,3 +14,4 @@ prisma/migrations
 /infra/docker/data/
 binary-output/
 bfg-1.14.0.jar
+**/uploads/*

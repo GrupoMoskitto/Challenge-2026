@@ -1,5 +1,4 @@
-import { prisma, checkUniqueness } from '@crmed/database';
-import { LeadStatus, AppointmentStatus, DocumentStatus, PostOpStatus, BudgetStatus, ComplaintStatus, UserRole, Prisma } from '@prisma/client';
+import { prisma, checkUniqueness, LeadStatus, AppointmentStatus, DocumentStatus, PostOpStatus, BudgetStatus, ComplaintStatus, UserRole, Prisma } from '@crmed/database';
 import { format, subDays } from 'date-fns';
 import { DateTimeScalar, IDScalar, JSONScalar } from '../scalars';
 import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit, COOKIE_OPTIONS, isTokenRevoked, revokeUserTokens, clearTokenRevocation } from '../../auth';
@@ -277,6 +276,8 @@ interface CreateDocumentInput {
   type: string;
   date: string;
   status?: string;
+  fileUrl?: string;
+  fileType?: string;
 }
 
 interface CreatePostOpInput {

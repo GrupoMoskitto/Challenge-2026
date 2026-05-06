@@ -334,6 +334,8 @@ model Document {
   type      DocumentType
   date      DateTime
   status    DocumentStatus  @default(PENDING)
+  fileUrl   String?
+  fileType  String?
 
   patient   Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
 

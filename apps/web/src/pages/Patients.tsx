@@ -23,7 +23,8 @@ import {
   History as HistoryIcon, 
   Loader2, 
   Trash2,
-  Info
+  Info,
+  UploadCloud
 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import {
@@ -312,6 +313,8 @@ const Patients = () => {
 
   const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
+  const [newDocFile, setNewDocFile] = useState<File | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [newPostOpDialogOpen, setNewPostOpDialogOpen] = useState(false);
   const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
 
@@ -353,21 +356,51 @@ const Patients = () => {
   };
 
   const handleCreateDocument = async () => {
-    if (!selectedPatientId || !newDocForm.name) return;
+    if (!selectedPatientId || !newDocForm.name || !newDocFile) {
+      toast.error("Por favor, preencha o nome e selecione um arquivo.");
+      return;
+    }
     try {
+      // 1. Upload file to REST API
+      const formData = new FormData();
+      formData.append('file', newDocFile);
+      
+      // Use the same API_URL format as Apollo
+      const apiBase = import.meta.env.VITE_API_URL?.replace('/graphql', '') || 'http://localhost:3001';
+      
+      const uploadRes = await fetch(`${apiBase}/api/upload`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include', // Necessário para enviar o cookie de access_token
+        headers: {
+          ...(localStorage.getItem('user') ? { 'Authorization': `Bearer ${JSON.parse(localStorage.getItem('user')!)?.token}` } : {})
+        }
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('Falha no upload do arquivo');
+      }
+
+      const { url, type } = await uploadRes.json();
+
+      // 2. Save metadata via GraphQL
       await createDocument({
         variables: {
           input: {
             patientId: selectedPatientId,
             name: newDocForm.name,
             type: newDocForm.type,
-            date: new Date(newDocForm.date).toISOString()
+            date: new Date(newDocForm.date).toISOString(),
+            status: "UPLOADED",
+            fileUrl: url,
+            fileType: type
           }
         }
       });
       toast.success("Documento registrado!");
       setNewDocDialogOpen(false);
       setNewDocForm({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
+      setNewDocFile(null);
       refetchPatient();
     } catch (e: any) { toast.error(e.message); }
   };
@@ -549,8 +582,21 @@ const Patients = () => {
                           <div className="flex items-center gap-3">
                             <FileText className="h-5 w-5 text-muted-foreground" />
                             <div>
-                              <p className="text-sm font-medium">{doc.name}</p>
-                              <p className="text-xs text-muted-foreground">{documentTypeLabels[doc.type]} • {format(new Date(doc.date), 'dd/MM/yyyy')}</p>
+                              <p className="text-sm font-medium">
+                                {doc.fileUrl ? (
+                                  <a 
+                                    href={`${import.meta.env.VITE_API_URL?.replace('/graphql', '') || 'http://localhost:3001'}${doc.fileUrl}`}
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="text-primary hover:underline flex items-center"
+                                  >
+                                    {doc.name}
+                                  </a>
+                                ) : (
+                                  doc.name
+                                )}
+                              </p>
+                              <p className="text-xs text-muted-foreground">{documentTypeLabels[doc.type as keyof typeof documentTypeLabels]} • {format(new Date(doc.date), 'dd/MM/yyyy')}</p>
                             </div>
                           </div>
                           <Badge 
@@ -625,7 +671,68 @@ const Patients = () => {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Novo Documento</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2"><Label>Nome do Arquivo *</Label><Input value={newDocForm.name} onChange={e => setNewDocForm(f => ({...f, name: e.target.value}))} /></div>
+            <div className="space-y-2"><Label>Nome do Documento *</Label><Input value={newDocForm.name} onChange={e => setNewDocForm(f => ({...f, name: e.target.value}))} /></div>
+            
+            <div className="space-y-2">
+              <Label>Arquivo *</Label>
+              <div 
+                className={cn(
+                  "relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl transition-all text-center",
+                  isDraggingFile ? "border-primary bg-primary/5" : "border-muted-foreground/20 bg-muted/20 hover:bg-muted/40",
+                  newDocFile && "border-green-500/50 bg-green-500/5"
+                )}
+                onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+                onDragLeave={() => setIsDraggingFile(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingFile(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) {
+                    if (file.size > 10 * 1024 * 1024) {
+                      toast.error("O arquivo excede o limite de 10MB.");
+                      return;
+                    }
+                    setNewDocFile(file);
+                  }
+                }}
+              >
+                <div className="bg-background p-3 rounded-full shadow-sm mb-3 border">
+                  {newDocFile ? <Check className="h-6 w-6 text-green-500" /> : <UploadCloud className="h-6 w-6 text-primary" />}
+                </div>
+                <div className="space-y-1">
+                  {newDocFile ? (
+                    <>
+                      <p className="text-sm font-bold text-foreground">{newDocFile.name}</p>
+                      <p className="text-xs text-muted-foreground font-medium">{(newDocFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-foreground">
+                        Arraste imagens, PDFs ou documentos Office
+                      </p>
+                      <p className="text-xs text-muted-foreground">ou clique para buscar (Max 10MB)</p>
+                    </>
+                  )}
+                </div>
+                <input 
+                  type="file" 
+                  accept="image/jpeg, image/png, image/webp, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.size > 10 * 1024 * 1024) {
+                        toast.error("O arquivo excede o limite de 10MB.");
+                        e.target.value = '';
+                        return;
+                      }
+                      setNewDocFile(file);
+                    }
+                  }} 
+                />
+              </div>
+            </div>
+
             <div className="space-y-2"><Label>Tipo *</Label><Select value={newDocForm.type} onValueChange={v => setNewDocForm(f => ({...f, type: v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(documentTypeLabels).map(([val, label]) => <SelectItem key={val} value={val}>{label}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label>Emissão *</Label><HistoricalDatePicker value={newDocForm.date} onChange={(iso) => setNewDocForm(f => ({...f, date: iso }))} minYear={2020} locale={ptBR} /></div>
           </div>

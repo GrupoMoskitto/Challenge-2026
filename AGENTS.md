@@ -46,6 +46,17 @@ infra/            → Docker, Evolution API
 
 ---
 
+## Compliance & LGPD
+
+**Never bypass these security and privacy standards:**
+
+1. **Minimalismo de Dados (Data Minimization):** Return only the necessary fields in GraphQL queries. Avoid over-fetching patient data.
+2. **Autorização Rígida (Access Control):** URLs to medical records or uploaded documents MUST be protected by authentication. Anonymous or unauthorized access is strictly forbidden.
+3. **Logs de Auditoria (Audit Trails):** Changes to patient status, complaints, and budgets must always trigger an `AuditLog` via RN06.
+4. **Exclusão Lógica (Soft-Delete):** For database records related to patients or leads, use `deletedAt` for soft-deletion instead of hard-deletes to preserve audit integrity and historical data.
+
+---
+
 ## Code Style Guidelines
 
 ### General

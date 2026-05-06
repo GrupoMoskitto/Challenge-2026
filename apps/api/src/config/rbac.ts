@@ -6,7 +6,7 @@
  */
 
 import { prisma } from '@crmed/database';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@crmed/database';
 import type { Context } from '../graphql/resolvers';
 import { logger } from './logger';
 

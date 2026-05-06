@@ -34,3 +34,5 @@ export async function checkUniqueness(data: {
 
   return true;
 }
+
+export * from '@prisma/client';

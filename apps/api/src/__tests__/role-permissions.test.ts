@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolvers, Context } from '../graphql/resolvers/index';
 import { prisma } from '@crmed/database';
-import { LeadStatus } from '@prisma/client';
+import { LeadStatus } from '@crmed/database';
 
 describe('Role Permissions & Access Control', () => {
   let findUniqueLeadSpy: any;

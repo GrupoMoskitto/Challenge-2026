@@ -483,7 +483,11 @@ const Leads = () => {
                     <Button variant={filterHasAppointment ? "default" : "outline"} size="sm" className="text-[10px] h-6" onClick={() => setFilterHasAppointment(v => !v)}>Agenda</Button>
                   </div>
                </div>
-               {hasActiveFilters && <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setFilterOrigins([]); setFilterProcedures([]); setFilterWhatsapp(false); setFilterIsPatient(false); setFilterHasAppointment(false); }} className="w-full text-xs text-destructive pt-2 border-t mt-2 rounded-none">Limpar Filtros</Button>}
+               {hasActiveFilters && (
+                 <div className="pt-3 border-t mt-3">
+                   <Button variant="outline" size="sm" onClick={() => { setSearch(""); setFilterOrigins([]); setFilterProcedures([]); setFilterWhatsapp(false); setFilterIsPatient(false); setFilterHasAppointment(false); }} className="w-full text-xs font-semibold hover:bg-destructive hover:text-destructive-foreground transition-colors border-destructive/20 text-destructive h-8">Limpar Filtros</Button>
+                 </div>
+               )}
             </DropdownMenuContent>
           </DropdownMenu>
 

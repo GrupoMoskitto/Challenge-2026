@@ -177,6 +177,8 @@ export const GET_PATIENT = gql`
         type
         status
         date
+        fileUrl
+        fileType
       }
       appointments {
         id
@@ -336,9 +338,9 @@ export const UPDATE_APPOINTMENT = gql`
 `;
 
 export const DELETE_APPOINTMENT = gql`
-  mutation DeleteAppointment($id: ID!) {
-    deleteAppointment(id: $id) {
-      id
+  mutation DeleteAppointment($input: DeleteAppointmentInput!) {
+    deleteAppointment(input: $input) {
+      success
     }
   }
 `;

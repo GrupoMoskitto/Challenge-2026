@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolvers, Context } from '../graphql/resolvers';
 import { prisma } from '@crmed/database';
-import { LeadStatus } from '@prisma/client';
+import { LeadStatus } from '@crmed/database';
 
 describe('API Integration Tests', () => {
   beforeEach(() => {

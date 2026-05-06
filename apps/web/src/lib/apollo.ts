@@ -1,5 +1,6 @@
 import { ApolloClient, InMemoryCache, createHttpLink, ApolloLink, Observable } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
+import { toast } from 'sonner';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/graphql';
 const API_BASE = API_URL.replace('/graphql', '');
@@ -79,18 +80,23 @@ const refreshLink = new ApolloLink((operation, forward) => {
 const errorLink = onError(({ graphQLErrors, networkError }) => {
   if (graphQLErrors) {
     graphQLErrors.forEach(({ message, locations, path, extensions }) => {
-      console.error(
-        `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
-      );
-      // On auth errors, clear local user data (cookies are managed server-side)
-      if (extensions?.code === 'UNAUTHENTICATED' || 
-          message.includes('não autenticado')) {
+      console.error(`[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`);
+      
+      if (extensions?.code === 'UNAUTHENTICATED' || message.includes('não autenticado')) {
         localStorage.removeItem('user');
+        toast.error('Sessão expirada', { description: 'Por favor, faça login novamente.' });
+      } else if (message.includes('RN01_VIOLATION') || message.includes('RN03_VIOLATION')) {
+        toast.error('Ação Bloqueada', { description: message.replace(/RN\d+_VIOLATION:/, '').trim() });
+      } else if (message.includes('Muitas tentativas') || message.includes('Limite de')) {
+        toast.error('Aguarde um momento', { description: message });
+      } else {
+        toast.error('Erro na requisição', { description: message });
       }
     });
   }
   if (networkError) {
     console.error(`[Network error]: ${networkError}`);
+    toast.error('Erro de conexão', { description: 'Falha ao se comunicar com o servidor.' });
     if ('statusCode' in networkError && networkError.statusCode === 401) {
       localStorage.removeItem('user');
     }

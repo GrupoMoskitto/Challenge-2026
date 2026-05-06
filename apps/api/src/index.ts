@@ -15,6 +15,8 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
+import multer from 'multer';
+import fs from 'fs';
 import { getSecurityPlugins, getIntrospectionConfig } from './config/graphql-security';
 import { logger } from './config/logger';
 
@@ -195,6 +197,108 @@ app.post('/auth/logout', (_req, res) => {
   res.clearCookie('refresh_token', { ...COOKIE_OPTIONS.CLEAR, path: '/auth/refresh' });
   res.json({ success: true });
 });
+
+// --- REST Auth Middleware ---
+const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  let token = req.cookies?.access_token as string | undefined;
+  if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+    token = req.headers.authorization.substring(7);
+  }
+
+  if (!token) {
+    res.status(401).json({ error: 'Não autorizado' });
+    return;
+  }
+
+  try {
+    const payload = verifyToken(token);
+    if (!payload || !payload.userId) {
+      res.status(401).json({ error: 'Token inválido' });
+      return;
+    }
+    const revoked = await isTokenRevoked(payload.userId);
+    if (revoked) {
+      res.status(401).json({ error: 'Sessão revogada' });
+      return;
+    }
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Token inválido ou expirado' });
+  }
+};
+
+// --- File Upload Infrastructure (LGPD Compliant) ---
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const allowedMimeTypes = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // xlsx
+];
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB Limit
+  fileFilter: (req, file, cb) => {
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de arquivo não permitido. Envie apenas imagens, PDFs, ou documentos Office.') as any, false);
+    }
+  }
+});
+
+app.post('/api/upload', requireAuth, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nenhum arquivo recebido' });
+    }
+    
+    const fileUrl = `/api/uploads/${req.file.filename}`;
+    res.json({ 
+      url: fileUrl, 
+      type: req.file.mimetype,
+      filename: req.file.originalname 
+    });
+  });
+});
+
+app.get('/api/uploads/:filename', requireAuth, (req, res) => {
+  const filename = req.params.filename;
+  if (filename.includes('..') || filename.includes('/')) {
+     res.status(400).json({ error: 'Caminho inválido' });
+     return;
+  }
+  const filePath = path.join(uploadDir, filename);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'Arquivo não encontrado' });
+    return;
+  }
+  res.sendFile(filePath);
+});
+
 
 async function startServer() {
   await server.start();
