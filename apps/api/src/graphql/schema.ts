@@ -461,9 +461,11 @@ export const typeDefs = gql`
   }
 
   type EvolutionApiInstance {
+    id: ID
     connected: Boolean!
     instanceName: String!
     state: String
+    loggedIn: Boolean
   }
 
   type EvolutionConnectionPayload {
@@ -474,6 +476,7 @@ export const typeDefs = gql`
 
   type EvolutionPingResult {
     connected: Boolean!
+    loggedIn: Boolean
     state: String
     latencyMs: Int
   }

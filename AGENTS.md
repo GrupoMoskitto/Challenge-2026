@@ -13,13 +13,13 @@ You are a **Senior Software Engineer** specialized in full-stack TypeScript appl
 ```
 apps/api          → GraphQL backend (Apollo Server, Node.js)
 apps/web          → Internal dashboard (React 18, Vite, Tailwind CSS)
-apps/workers      → BullMQ workers (WhatsApp reminders via Evolution API)
+apps/workers      → BullMQ workers (WhatsApp reminders via Evolution Go)
 functions/        → AWS Lambdas (PDF, webhooks)
 packages/database → Prisma ORM (schema, migrations, shared client)
 packages/config   → Shared ESLint, Prettier, TSConfig
 packages/types    → Shared TypeScript types
 packages/ui       → Reusable React components
-infra/            → Docker, Evolution API
+infra/            → Docker, Evolution Go
 ```
 
 ### Stack
@@ -170,20 +170,16 @@ Frontend must map: `data?.users?.edges?.map((e) => e.node)`
 
 ---
 
-## Evolution API Integration
+## Evolution Go (EvoGo) Integration
 
-The Evolution API integration lives entirely in `apps/api/src/graphql/resolvers/index.ts`. Key patterns:
+The Evolution Go integration lives entirely in `apps/api/src/graphql/resolvers/index.ts` and `apps/workers/src/evolution/`. Key patterns:
 
-- **Always type JSON responses** — never use `await response.json()` bare. Cast to a specific interface:
+- **EvoGo Envelope Unwrapping** — All EvoGo responses come wrapped in an envelope. Use `EvoGoClient.unwrap` or cast to `{ data: T, message: string }`:
   ```typescript
-  const data = (await response.json()) as { instance?: { state?: string; instanceName?: string } };
+  const json = await response.json() as { data?: { state?: string } };
   ```
-- **Always include `integration: "WHATSAPP-BAILEYS"`** in the create instance request body.
-- **Error extraction** — Evolution API nests errors in `response.message`. Use:
-  ```typescript
-  const nested = errorBody.response as Record<string, unknown> | undefined;
-  const msg = (nested?.message as string) || (errorBody.message as string) || JSON.stringify(errorBody);
-  ```
+- **Authentication Headers** — EvoGo uses `apikey` (Global Key) and often requires `Authorization: Bearer <instanceToken>` for instance-scoped operations.
+- **Error extraction** — EvoGo returns `{ status: 4xx, message: "...", data: {...} }` or plain text (e.g. `401 Unauthorized` / `404 page not found`). Always wrap `.json()` parsing in try-catch to prevent crashes on non-JSON error pages.
 - **Never use `confirm()`** for destructive actions — always use a `<Dialog>` with a descriptive warning.
 - **State variables for dialogs**:
   ```tsx
@@ -290,7 +286,7 @@ pnpm --filter @crmed/database db:generate
 - **Apollo Client**: Always use `credentials: 'include'` when calling the API to send the secure cookies.
 - **RBAC**: Always use centralized helpers (`assertAuthenticated`, `assertRole`, `enforceStatusChange`) from `apps/api/src/config/rbac.ts` at the beginning of sensitive resolvers.
 - **Enum Validation**: Do not trust client inputs for enums. Always validate on the server using `validateEnum()`.
-- **Webhooks**: External endpoints (like Evolution API callbacks) must use `webhookSecurityMiddleware` for HMAC-SHA256 signature validation and IP allowlists.
+- **Webhooks**: External endpoints (like Evolution Go callbacks) must use `webhookSecurityMiddleware` for HMAC-SHA256 signature validation and IP allowlists.
 - Use `hashPassword()` from `src/auth.ts` for passwords
 - `DEV_ALLOWED_PHONE` must be respected in message sending
 
@@ -319,3 +315,18 @@ pnpm --filter @crmed/database db:generate
 - **Don't assume** — ask if ambiguous
 - **Tests first** — write failing test before fix
 - **Backward-compatible** — GraphQL changes must not break existing queries
+
+---
+
+### Automação WhatsApp & Chatbot (Evolution Go)
+
+- A infraestrutura de comunicação baseia-se unicamente na versão Golang do Evolution API (EvoGo), onde o `instanceToken` é mandatório em requisições instance-scoped via header `apikey`.
+- **Prevenção de Duplicação (Estabilidade):** O webhook processa os eventos no worker principal usando uma verificação de `fingerprint` em memória (`Set`) garantindo um lock natural de 10s para não processar e responder duas vezes a mesma mensagem.
+- **Onboarding de Leads (Máquina de Estados):**
+  A UX atualizada exige confirmações progressivas (para reduzir lixo na base de dados):
+  1. `NEW_ASK_NAME`: Solicita o nome amigável.
+  2. `NEW_CONFIRM_NAME`: Pede "Sim/Não" via formato simulado de botões. Retorna ao passo anterior em caso de erro.
+  3. `NEW_ASK_EMAIL`: Oferece uma vantagem ("experiência mais completa / recebimento de relatórios") para a captação do e-mail. Aceita a interrupção graciosa utilizando o input "Pular". Realiza Regex validação em caso do dado fornecido.
+  4. `NEW_ASK_INTEREST`: Interpola todos os dados validados dentro da criação do Lead no banco.
+
+- **Sandbox Environment:** O código no dev bloqueia mensagens enviadas para números aleatórios a menos que correspondam com precisão com a ENVAR `DEV_ALLOWED_PHONE` localizada na raiz do repositório no arquivo `.env`.

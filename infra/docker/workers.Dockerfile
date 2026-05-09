@@ -11,8 +11,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/workers/package.json ./apps/workers/
 COPY packages/database/package.json ./packages/database/
-COPY packages/types/package.json ./packages/types/ 2>/dev/null || true
-COPY packages/config/package.json ./packages/config/ 2>/dev/null || true
+COPY packages/types/package.json ./packages/types/
+COPY packages/config/package.json ./packages/config/
 
 RUN npm install -g pnpm@10.30.1 && \
     pnpm install --frozen-lockfile
@@ -41,8 +41,8 @@ RUN npm install -g pnpm@10.30.1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/workers/package.json ./apps/workers/
 COPY packages/database/package.json ./packages/database/
-COPY packages/types/package.json ./packages/types/ 2>/dev/null || true
-COPY packages/config/package.json ./packages/config/ 2>/dev/null || true
+COPY packages/types/package.json ./packages/types/
+COPY packages/config/package.json ./packages/config/
 
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --prod
@@ -52,12 +52,14 @@ COPY --from=builder /app/apps/workers/dist ./apps/workers/dist
 
 # Copy Prisma schema and generated client
 COPY --from=builder /app/packages/database/prisma ./packages/database/prisma
-COPY --from=builder /app/node_modules/.pnpm/@prisma+client@*/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.pnpm/@prisma+client@*/node_modules/.prisma ./node_modules/.prisma
 
-# Setup workspace symlinks
-RUN mkdir -p node_modules/@crmed && \
-    ln -s ../../packages/database node_modules/@crmed/database
+# Copy entire node_modules structure  
+COPY --from=builder /app/node_modules ./node_modules
+
+# Also copy packages that are needed
+COPY --from=builder /app/packages/database ./packages/database
+COPY --from=builder /app/packages/types ./packages/types
+COPY --from=builder /app/packages/config ./packages/config
 
 # Security: Run as non-root user
 USER node

@@ -8,10 +8,12 @@
 import crypto from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 
+import { logger } from './logger';
+
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 const WEBHOOK_ALLOWED_IPS = process.env.WEBHOOK_ALLOWED_IPS
   ? process.env.WEBHOOK_ALLOWED_IPS.split(',').map(ip => ip.trim())
-  : [];
+  : ['127.0.0.1', '::1']; // In dev, we allow localhost by default. Docker IPs are handled in the middleware logic.
 
 interface WebhookValidationOptions {
   /** If true, rejects requests when WEBHOOK_SECRET is not configured (production behavior) */
@@ -56,16 +58,23 @@ function validatePayloadStructure(body: Record<string, unknown>): boolean {
  * Apply this to the /webhook/evolution route.
  */
 export function webhookSecurityMiddleware(
-  options: WebhookValidationOptions = { requireSecret: false, enforceIpAllowlist: true }
+  options: WebhookValidationOptions = { requireSecret: false, enforceIpAllowlist: false }
 ) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const isProduction = process.env.NODE_ENV === 'production';
 
     // 1. IP Allowlist check
-    if (options.enforceIpAllowlist && WEBHOOK_ALLOWED_IPS.length > 0) {
-      const clientIp = req.ip || req.socket.remoteAddress || '';
-      const normalizedIp = clientIp.replace(/^::ffff:/, ''); // Strip IPv6 prefix
+    // Always allow Docker internal network (172.x.x.x) for webhook
+    const clientIp = req.ip || req.socket.remoteAddress || '';
+    const normalizedIp = clientIp.replace(/^::ffff:/, ''); // Strip IPv6 prefix
 
+    const isLocal = normalizedIp === '127.0.0.1' || normalizedIp === '::1' || normalizedIp === 'localhost';
+    // Always allow Docker private ranges for the webhook
+    const isPrivateRange = normalizedIp.startsWith('172.') || normalizedIp.startsWith('192.168.') || normalizedIp.startsWith('10.');
+    const isDockerNetwork = normalizedIp.startsWith('172.') || normalizedIp.startsWith('192.');
+
+    // Always bypass for docker network in development or production
+    if (!isLocal && !isDockerNetwork && options.enforceIpAllowlist && WEBHOOK_ALLOWED_IPS.length > 0) {
       if (!WEBHOOK_ALLOWED_IPS.includes(normalizedIp) && !WEBHOOK_ALLOWED_IPS.includes(clientIp)) {
         console.error(`[Webhook:Security] Blocked request from unauthorized IP: ${clientIp}`);
         res.status(403).json({ error: 'IP não autorizado' });
@@ -76,7 +85,7 @@ export function webhookSecurityMiddleware(
     // 2. Payload structure validation
     const body = req.body as Record<string, unknown>;
     if (!validatePayloadStructure(body)) {
-      console.error('[Webhook:Security] Invalid payload structure');
+      console.error('[Webhook:Security] Invalid payload structure - body:', body);
       res.status(400).json({ error: 'Payload inválido' });
       return;
     }

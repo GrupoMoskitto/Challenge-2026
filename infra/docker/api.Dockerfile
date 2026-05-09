@@ -11,8 +11,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/database/package.json ./packages/database/
-COPY packages/types/package.json ./packages/types/ 2>/dev/null || true
-COPY packages/config/package.json ./packages/config/ 2>/dev/null || true
+COPY packages/types/package.json ./packages/types/
+COPY packages/config/package.json ./packages/config/
 
 RUN npm install -g pnpm@10.30.1 && \
     pnpm install --frozen-lockfile
@@ -43,8 +43,8 @@ RUN npm install -g pnpm@10.30.1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/database/package.json ./packages/database/
-COPY packages/types/package.json ./packages/types/ 2>/dev/null || true
-COPY packages/config/package.json ./packages/config/ 2>/dev/null || true
+COPY packages/types/package.json* ./packages/types/
+COPY packages/config/package.json* ./packages/config/
 
 # Install production dependencies only (no devDependencies)
 RUN pnpm install --frozen-lockfile --prod

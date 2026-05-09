@@ -311,6 +311,12 @@ interface EvolutionInstanceResponse {
   connectionStatus?: string;
   status?: string;
   state?: string;
+  connected?: boolean;
+}
+
+interface EvolutionGoResponse<T> {
+  data: T;
+  message?: string;
 }
 
 interface EvolutionConnectionStateResponse {
@@ -962,27 +968,27 @@ export const resolvers = {
       if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
 
       try {
-        const response = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
+        const response = await fetch(`${EVOLUTION_API_URL}/instance/all`, {
           headers: { apikey: EVOLUTION_API_KEY },
         });
         
-        if (!response.ok) throw new Error('Failed to fetch from Evolution API');
+        if (!response.ok) throw new Error('Failed to fetch from Evolution Go API');
         
-        const rawData = (await response.json()) as EvolutionInstanceResponse[] | { instances?: EvolutionInstanceResponse[] };
-        const data: EvolutionInstanceResponse[] = Array.isArray(rawData) ? rawData : ((rawData as { instances?: EvolutionInstanceResponse[] })?.instances || []);
+        const rawBody = await response.json() as { data?: Array<Record<string, unknown>> };
         
-        return data.map((inst: EvolutionInstanceResponse) => {
-          const name = inst.instance?.instanceName || inst.name || inst.instanceName || 'Unknown';
-          const state = inst.instance?.state || inst.connectionStatus || inst.status || inst.state || 'disconnected';
-          return {
-            connected: state === 'open' || state === 'CONNECTED',
-            instanceName: name,
-            state: state,
-          };
-        });
+        // EvoGo always returns { data: [...], message: "success" }
+        const instances = rawBody.data || [];
+        
+        return instances.map((inst: Record<string, unknown>) => ({
+          id: inst.id as string,
+          connected: inst.connected === true,
+          instanceName: inst.name as string || 'Unknown',
+          state: inst.connected ? 'open' : 'disconnected',
+          loggedIn: inst.connected === true && !!inst.jid,
+        }));
       } catch (error) {
-        logger.error('EvolutionAPI:fetchInstances', (error as Error).message, error);
-        throw new Error('Falha ao buscar instâncias da Evolution API');
+        logger.error('EvoGo:fetchInstances', (error as Error).message, error);
+        throw new Error('Falha ao buscar instâncias da Evolution Go API');
       }
     },
     pingEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
@@ -995,27 +1001,44 @@ export const resolvers = {
 
       const start = Date.now();
       try {
-        const response = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${name}`, {
+        // First, find the instance UUID by name
+        const listResponse = await fetch(`${EVOLUTION_API_URL}/instance/all`, {
           headers: { 'apikey': EVOLUTION_API_KEY },
+        });
+        const listJson = await listResponse.json() as { data?: Array<Record<string, unknown>> };
+        const instances = listJson.data || [];
+        const instance = instances.find((i) => i.name === name);
+        
+        if (!instance) {
+          const latencyMs = Date.now() - start;
+          return { connected: false, loggedIn: false, state: 'not_found', latencyMs };
+        }
+
+        const instanceToken = (instance.token as string) || EVOLUTION_API_KEY;
+
+        // EvoGo: GET /instance/status with instance token
+        const response = await fetch(`${EVOLUTION_API_URL}/instance/status`, {
+          headers: { 'apikey': instanceToken },
         });
         const latencyMs = Date.now() - start;
 
         if (!response.ok) {
-          return { connected: false, state: 'offline', latencyMs };
+          return { connected: false, loggedIn: false, state: 'offline', latencyMs };
         }
 
-        const data = (await response.json()) as { instance?: { state?: string } };
-        const state = data?.instance?.state || 'unknown';
+        const statusBody = await response.json() as { data?: { Connected?: boolean; LoggedIn?: boolean; Name?: string } };
+        const statusData = statusBody.data;
 
         return {
-          connected: state === 'open' || state === 'CONNECTED',
-          state,
+          connected: statusData?.Connected === true,
+          loggedIn: statusData?.LoggedIn === true,
+          state: statusData?.Connected ? 'open' : 'disconnected',
           latencyMs,
         };
       } catch (error) {
         const latencyMs = Date.now() - start;
-        logger.error('EvolutionAPI:ping', (error as Error).message, error);
-        return { connected: false, state: 'unreachable', latencyMs };
+        logger.error('EvoGo:ping', (error as Error).message, error);
+        return { connected: false, loggedIn: false, state: 'unreachable', latencyMs };
       }
     },
     testPhoneLastDigits: async (_: unknown, __: unknown, context: Context) => {
@@ -1757,10 +1780,32 @@ export const resolvers = {
       const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
       const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
       if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
-      const response = await fetch(`${EVOLUTION_API_URL}/instance/create`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY }, body: JSON.stringify({ instanceName: name, token: EVOLUTION_API_KEY, qrcode: true, integration: "WHATSAPP-BAILEYS" }) });
-      if (!response.ok) throw new Error('Erro Evolution API');
-      const data = (await response.json()) as EvolutionCreateResponse;
-      return { connected: false, instanceName: name, state: data?.instance?.state || 'disconnected' };
+      
+      const token = `${name}-${Date.now()}-token`;
+      
+      // EvoGo: POST /instance/create — no "integration" field needed
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
+        body: JSON.stringify({ name, token }),
+      });
+      
+      if (!response.ok) {
+        const errBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const msg = (errBody.message as string) || response.statusText;
+        throw new Error(`Erro Evolution Go: ${msg}`);
+      }
+      
+      const json = await response.json() as { data?: Record<string, unknown> };
+      const instanceData = json.data;
+      
+      return {
+        id: instanceData?.id as string,
+        connected: instanceData?.connected === true,
+        instanceName: name,
+        state: instanceData?.connected ? 'open' : 'disconnected',
+        loggedIn: false,
+      };
     },
     deleteEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
       assertAuthenticated(context);
@@ -1768,7 +1813,14 @@ export const resolvers = {
       const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
       const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
       if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
-      await fetch(`${EVOLUTION_API_URL}/instance/delete/${name}`, { method: 'DELETE', headers: { 'apikey': EVOLUTION_API_KEY } });
+      
+      const listResponse = await fetch(`${EVOLUTION_API_URL}/instance/all`, { headers: { 'apikey': EVOLUTION_API_KEY } });
+      const listJson = (await listResponse.json()) as { data?: Array<{ id: string; name: string }> };
+      const instance = (listJson.data || []).find((i) => i.name === name);
+      
+      if (!instance) throw new Error(`Instância ${name} não encontrada`);
+      
+      await fetch(`${EVOLUTION_API_URL}/instance/delete/${instance.id}`, { method: 'DELETE', headers: { 'apikey': EVOLUTION_API_KEY } });
       return true;
     },
     connectEvolutionInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
@@ -1776,17 +1828,127 @@ export const resolvers = {
       assertRole(context, ['ADMIN'], 'evolution');
       const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
       const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
-      const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${name}`, { headers: { 'apikey': EVOLUTION_API_KEY } });
-      const data = (await response.json()) as EvolutionConnectResponse;
-      return { qrCode: data?.base64 || null, pairingCode: data?.pairingCode || null, connected: false };
+      const WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || 'http://host.docker.internal:3002/webhook/evolution';
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY is required');
+      
+      const listResponse = await fetch(`${EVOLUTION_API_URL}/instance/all`, {
+        headers: { 'apikey': EVOLUTION_API_KEY },
+      });
+      const listText = await listResponse.text();
+      let listJson: any = {};
+      try { listJson = JSON.parse(listText); } catch(e) {}
+      
+      const instances = listJson.data || listJson || [];
+      const instanceData = instances.find((i: any) => i.name === name || i.instance?.instanceName === name);
+      
+      if (!instanceData) throw new Error(`Instância "${name}" não encontrada`);
+      
+      const instanceToken = (instanceData.token as string) || EVOLUTION_API_KEY;
+      const authHeaders = {
+        'apikey': instanceToken,
+        'Authorization': `Bearer ${instanceToken}`,
+        'Content-Type': 'application/json'
+      };
+
+      let isConnecting = false;
+      let connected = false;
+      let loggedIn = false;
+      let qrCode = null;
+      let pairingCode = null;
+
+      const safeFetch = async (path: string, method: string = 'GET', body?: any, additionalHeaders?: any) => {
+        logger.info('EvoGo:fetch', `[${method}] ${path}`);
+        const opts: any = { method, headers: { ...authHeaders, ...additionalHeaders } };
+        if (body) opts.body = JSON.stringify(body);
+        const resp = await fetch(`${EVOLUTION_API_URL}${path}`, opts);
+        const text = await resp.text();
+        logger.info('EvoGo:fetch', `[${method}] ${path} -> Status: ${resp.status} | Body: ${text.substring(0, 150)}`);
+        let json: any = null;
+        try { json = JSON.parse(text); } catch(e) {}
+        return { status: resp.status, ok: resp.ok, text, json };
+      };
+
+      const statusRes = await safeFetch(`/instance/status`);
+      if (statusRes.ok && statusRes.json) {
+        connected = statusRes.json.data?.Connected === true || statusRes.json.instance?.state === 'open' || statusRes.json.state === 'open';
+        loggedIn = statusRes.json.data?.LoggedIn === true || statusRes.json.instance?.state === 'open' || statusRes.json.state === 'open';
+        isConnecting = statusRes.json.data?.State === 'connecting' || statusRes.json.instance?.state === 'connecting' || statusRes.json.state === 'connecting';
+      }
+
+      if (!connected && !isConnecting && !loggedIn) {
+        const connectRes = await safeFetch(`/instance/connect`, 'POST', {
+          webhookUrl: WEBHOOK_URL,
+          webhook: WEBHOOK_URL,
+          subscribe: ['MESSAGE', 'CONNECTION', 'QRCODE'],
+          immediate: true,
+        });
+
+        if (connectRes.json) {
+          qrCode = connectRes.json.qrcode?.base64 || connectRes.json.base64 || connectRes.json.data?.qrcode?.base64 || connectRes.json.data?.qrcode || null;
+          pairingCode = connectRes.json.pairingCode || connectRes.json.code || null;
+        }
+      }
+
+      if (loggedIn) {
+        logger.info('EvoGo:connect', `Instance already logged in. Bypassing QR code.`);
+        return { qrCode: null, pairingCode: null, connected: true };
+      }
+      
+      if (!qrCode && !loggedIn) {
+        const qrRes = await safeFetch(`/instance/qr`);
+        
+        if (qrRes.json) {
+          qrCode = qrRes.json.qrcode?.base64 || qrRes.json.base64 || qrRes.json.data?.qrcode?.base64 || qrRes.json.data?.qrcode || qrRes.json.data?.Qrcode || null;
+          pairingCode = qrRes.json.pairingCode || qrRes.json.code || qrRes.json.data?.code || null;
+        }
+      }
+      
+      logger.info('EvoGo:connect', `Final Return -> QR: ${qrCode ? 'Yes' : 'No'}, Connected: ${loggedIn}`);
+      
+      return { qrCode, pairingCode, connected: loggedIn };
     },
     markNotificationAsRead: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       return prisma.notification.update({ where: { id: decodeId(id) }, data: { status: 'READ' } });
     },
-    testMessageTemplate: async (_: unknown, __: unknown, context: Context) => {
+    testMessageTemplate: async (_: unknown, { templateId, instanceName }: { templateId: string; instanceName: string }, context: Context) => {
       assertAuthenticated(context);
+      const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
+      const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+      if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
+      const DEV_ALLOWED_PHONE = process.env.DEV_ALLOWED_PHONE;
+      if (!DEV_ALLOWED_PHONE) throw new Error('DEV_ALLOWED_PHONE não configurado no ambiente');
+      const template = await prisma.messageTemplate.findUnique({ where: { id: decodeId(templateId) } });
+      if (!template) throw new Error('Template não encontrado');
+      let content = template.content.replace(/{nome}/g, 'Paciente Teste');
+      content = content.replace(/{medico}/g, 'Dr. João');
+      content = content.replace(/{data}/g, new Date().toLocaleDateString('pt-BR'));
+      content = content.replace(/{hora}/g, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+      
+      // Find instance UUID by name for the instance token
+      const listResponse = await fetch(`${EVOLUTION_API_URL}/instance/all`, {
+        headers: { 'apikey': EVOLUTION_API_KEY },
+      });
+      const listJson = await listResponse.json() as { data?: Array<Record<string, unknown>> };
+      const instances = listJson.data || [];
+      const instance = instances.find((i) => i.name === instanceName);
+      const instanceToken = (instance?.token as string) || EVOLUTION_API_KEY;
+      
+      // EvoGo: POST /send/text with instance token in apikey
+      const response = await fetch(`${EVOLUTION_API_URL}/send/text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': instanceToken,
+        },
+        body: JSON.stringify({ number: DEV_ALLOWED_PHONE, text: content }),
+      });
+      
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const msg = (errorBody.message as string) || JSON.stringify(errorBody);
+        throw new Error(`Erro ao enviar teste: ${msg}`);
+      }
       return true;
     },
     markAllNotificationsAsRead: async (_: unknown, __: unknown, context: Context) => {

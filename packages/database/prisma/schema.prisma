@@ -460,3 +460,16 @@ model Treatment {
   @@index([complaintId])
   @@index([date])
 }
+
+model WhatsappSession {
+  id        String   @id @default(cuid())
+  jid       String   @unique    // remoteJid (ex: 5511963252226@s.whatsapp.net)
+  stage     String
+  data      Json                // estado completo da sessão
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([jid])
+  @@index([expiresAt])
+}

@@ -24,15 +24,25 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 - **Centralização de Leads** — Kanban interativo com arrastar e soltar (Drag & Drop) e Optimistic UI
 - **Filtros Avançados de Leads** — Por origem, procedimento, WhatsApp ativo, status de paciente e agendamento
 - **Gestão de Agendas** — Controle em tempo real da disponibilidade dos cirurgiões
-- **Automação WhatsApp** — Disparos automáticos para confirmações e lembretes (RN05)
+- **Automação WhatsApp & Chatbot Inteligente** — Disparos automáticos para confirmações, lembretes (RN05) e captura de leads através de um bot interativo com UX premium (pedindo validações, captando e-mail de forma condicional e oferecendo atalhos contextuais).
 - **Notificações em Tempo Real** — Centro de notificações com marcar como lida individual ou em massa
-- **Gestão de Instâncias WhatsApp** — Criação, conexão via QR Code e exclusão de instâncias da Evolution API diretamente pelo painel
+- **Gestão de Instâncias WhatsApp** — Criação, conexão via QR Code de forma nativa ao painel com integração direta a Evolution API Go (`EvoGo`).
 - **Conversão Lead → Paciente** — Fluxo completo de conversão com ficha clínica (pós-ops, documentos, histórico)
 - **Inteligência de Dados** — Dashboards de conversão, performance e ociosidade médica
 - **Import/Export** — Importação e exportação de leads via CSV
 - **Auditoria Completa** — Rastreabilidade total de ações e alterações (RN06)
 - **UX Premium** — Skeletons Anti-CLS, Debounce de busca, animações 60fps e Empty States informativos
 - **Navegação Estável** — Sincronização inteligente URL-Estado para evitar loops e garantir persistência de filtros
+
+### 🧪 Testando o Fluxo de Onboarding (Chatbot WhatsApp)
+Para testar como se fosse um cliente se cadastrando via WhatsApp sem enviar mensagens reais para seus contatos:
+1. No arquivo `.env` da raiz, certifique-se de preencher `DEV_ALLOWED_PHONE="55[SEUDDD][SEUNUMERO]"`.
+2. Certifique-se de gerar e ler o QR code no painel do Dashboard com outro aparelho (que simulará a clínica).
+3. Do seu número de testes (`DEV_ALLOWED_PHONE`), envie qualquer mensagem para o número da clínica (como "Olá" ou "Quero informações").
+4. O robô deve iniciar a state machine, pedindo como gostaria de ser chamado.
+5. Ele pedirá a confirmação do nome via lista estruturada.
+6. Oferecerá a captação opcional de E-mail (tente mandar algo errado, em seguida use "Pular", ou coloque um e-mail válido).
+7. Finalize selecionando a área do procedimento; verifique no seu Dashboard (aba de Leads) que seu usuário foi perfeitamente criado!
 
 ### Stack
 
@@ -42,7 +52,7 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 | **Frontend** | React · Vite · Tailwind CSS · Radix UI · shadcn/ui |
 | **Banco de Dados** | PostgreSQL · Prisma ORM |
 | **Mensageria / Jobs** | Redis · BullMQ · Cron |
-| **WhatsApp** | Evolution API (Baileys) |
+| **WhatsApp** | Evolution Go (Golang) |
 | **Infra** | Docker |
 | **Autenticação** | JWT (jsonwebtoken · bcryptjs) |
 | **Testes** | Vitest · Testing Library |
@@ -68,7 +78,7 @@ packages/
 ├── ui/               # Biblioteca de componentes React
 
 infra/
-└── docker/           # Dockerfiles, Docker Compose e Evolution API
+└── docker/           # Dockerfiles, Docker Compose e Evolution Go
 ```
 
 ### Documentação Visual
@@ -216,7 +226,7 @@ pnpm infra:dev
 | --- | --- |
 | `pnpm dev` | Inicia todos os projetos em modo dev |
 | `pnpm build` | Build de todos os projetos |
-| `pnpm infra:up` | Sobe containers Docker (PostgreSQL, Redis, Evolution API) |
+| `pnpm infra:up` | Sobe containers Docker (PostgreSQL, Redis, Evolution Go) |
 | `pnpm infra:down` | Para containers Docker |
 | `pnpm infra:dev` | **Setup completo**: Docker + seed + dev |
 | `pnpm --filter @crmed/api dev` | Inicia apenas a API |
@@ -232,7 +242,7 @@ pnpm infra:dev
 | Workers | `3002` |
 | PostgreSQL | `5432` |
 | Redis | `6379` |
-| Evolution API | `8080` |
+| Evolution Go | `8080` |
 
 ### Regras de Negócio
 
@@ -251,8 +261,10 @@ O projeto utiliza um arquivo central `.env.example` na raiz do repositório. Cop
 | --- | --- |
 | `DATABASE_URL` | Conexão PostgreSQL |
 | `REDIS_URL` | Conexão Redis (BullMQ / State) |
-| `EVOLUTION_API_KEY` | Chave da Evolution API |
-| `EVOLUTION_API_URL` | URL da Evolution API (padrão: `http://localhost:8080`) |
+| `EVOLUTION_API_KEY` | Chave da Evolution Go |
+| `EVOLUTION_API_URL` | URL da Evolution Go (padrão: `http://localhost:8080`) |
+| `EVOLUTION_WEBHOOK_URL` | URL do webhook para receber mensagens do WhatsApp |
+| `EVOLUTION_INSTANCE_ID` | UUID da instância primária para Workers |
 | `EVOLUTION_INSTANCE_NAME` | Instância para lembretes automáticos |
 | `DEV_ALLOWED_PHONE` | **Sandbox** — Restringe mensagens a este nº em dev |
 
@@ -405,20 +417,19 @@ PostOpStatus:      SCHEDULED · COMPLETED · CANCELLED
 
 ---
 
-### WhatsApp — Evolution API
+### WhatsApp — Evolution Go (EvoGo)
 
-A automação de mensagens (RN05) usa a [Evolution API](https://github.com/EvolutionAPI/evolution-api) rodando via **Docker** (`evoapicloud/evolution-api:homolog`). O container sobe automaticamente com `pnpm infra:up`.
+A automação de mensagens (RN05) usa o [Evolution Go](https://github.com/evolution-foundation/evolution-go) rodando via **Docker** (`evoapicloud/evolution-go:latest`). O container sobe automaticamente com `pnpm infra:up`.
 
 <details>
 <summary><strong>Como conectar via QR Code</strong></summary>
 
-Se `pnpm infra:dev` está rodando, a Evolution API já está ativa na porta `8080`.
+Se `pnpm infra:dev` está rodando, o Evolution Go já está ativo na porta `8080`.
 
-**Via Manager UI (recomendado):**
-1. Acesse `http://localhost:8080/manager`
-2. Login com API Key: `<sua_chave_do_env>`
-3. Crie ou selecione a instância `crmed-whatsapp`
-4. Clique em **"Get QR Code"** e escaneie com o WhatsApp
+**Via UI do CRMed (recomendado):**
+1. Acesse o menu **Configurações > Integrações** no sistema
+2. Crie uma nova instância ou clique em "Parear Dispositivo"
+3. Escaneie o QR Code exibido na tela
 
 **Via curl:**
 
@@ -427,7 +438,7 @@ Se `pnpm infra:dev` está rodando, a Evolution API já está ativa na porta `808
 curl -X POST http://localhost:8080/instance/create \
   -H "apikey: $EVOLUTION_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"instanceName":"crmed-whatsapp","qrcode":true,"integration":"WHATSAPP-BAILEYS"}'
+  -d '{"instanceName":"crmed-whatsapp","qrcode":true}'
 
 # Verificar conexão
 curl http://localhost:8080/instance/connectionState/crmed-whatsapp \
@@ -439,6 +450,26 @@ curl http://localhost:8080/instance/connectionState/crmed-whatsapp \
 > [!IMPORTANT]
 > **Sandbox Mode:** A variável `DEV_ALLOWED_PHONE` restringe **todas** as mensagens apenas ao número definido em dev. Mensagens bloqueadas são logadas como `[INFO] [WhatsApp] Mensagem bloqueada para ...XXXX (sandbox ativo)`.
 
+### Webhook de Mensagens Recebidas
+
+O sistema recebe mensagens de entrada do WhatsApp através de um webhook que é registrado ao parear a instância no EvoGo.
+
+**Como funciona:**
+- Ao conectar a instância via painel (`Configurações > Integrações WhatsApp`), o sistema registra automaticamente o webhook no EvoGo via `POST /instance/connect/{name}`.
+- O endpoint do webhook é `http://localhost:3002/webhook/evolution` (workers)
+- O webhook recebe eventos de `MESSAGES` (mensagens recebidas), `CONNECTION` (mudanças de conexão) e `QRCODE` (geração).
+
+**Configuração:**
+```bash
+# No arquivo .env
+EVOLUTION_WEBHOOK_URL=http://host.docker.internal:3002/webhook/evolution
+```
+
+**Segurança:**
+- O webhook valida HMAC-SHA256 via header `x-webhook-signature` (quando configurado no EvoGo).
+- IP allowlist configurável via `WEBHOOK_ALLOWED_IPS`
+- Em produção, o `WEBHOOK_SECRET` é altamente recomendado.
+
 ### Workers e Logger
 
 Os workers utilizam um **logger estruturado** (`apps/workers/src/config/logger.ts`) que exibe logs limpos e coloridos:
@@ -449,7 +480,7 @@ Os workers utilizam um **logger estruturado** (`apps/workers/src/config/logger.t
 [12:30:02] [ERR] [Chatbot] Erro processando mensagem de João
 ```
 
-A Evolution API sobe em segundo plano e sem stream de logs no terminal local; a observabilidade do fluxo fica concentrada nos `workers`, que fazem a filtragem de forma mais limpa.
+A API do Evolution Go sobe em segundo plano e sem stream de logs no terminal local; a observabilidade do fluxo fica concentrada nos `workers`, que fazem a filtragem de forma mais limpa.
 
 ---
 

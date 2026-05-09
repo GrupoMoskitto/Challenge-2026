@@ -1,0 +1,115 @@
+import { redisConnection } from '../config/redis';
+import { prisma } from '@crmed/database';
+import { logger } from '../config/logger';
+
+const STATE_PREFIX = 'whatsapp_state:';
+const STATE_TTL = 3600; // 1 hour in seconds
+
+export type ChatStage = 
+  | 'START' 
+  | 'NEW_ASK_NAME' 
+  | 'NEW_CONFIRM_NAME'
+  | 'NEW_ASK_EMAIL'
+  | 'NEW_ASK_INTEREST' 
+  | 'EXISTING_MENU' 
+  | 'EXISTING_FAQ' 
+  | 'EXISTING_PROCEDURE' 
+  | 'EXISTING_SCHEDULE';
+
+export interface ChatState {
+  stage: ChatStage;
+  userName?: string;
+  email?: string;
+  interest?: string;
+  leadId?: string;
+}
+
+export class WhatsappSession {
+  /**
+   * Obtém a sessão ativa de um número. Procura no Redis primeiro.
+   * Se não achar, procura no banco de dados (pode ter sido reiniciado).
+   */
+  static async get(jid: string): Promise<ChatState> {
+    const key = `${STATE_PREFIX}${jid}`;
+    
+    // 1. Tenta cache em Redis
+    const stateJSON = await redisConnection.get(key);
+    if (stateJSON) {
+      try {
+        return JSON.parse(stateJSON) as ChatState;
+      } catch (e) {
+        logger.warn('WhatsApp:Session', `Invalid JSON in Redis for ${jid}, resetting`);
+      }
+    }
+
+    // 2. Fallback: banco de dados (se model existir)
+    try {
+      // Usando query bruta de fallback caso o prisma model não tenha sido gerado
+      const session = await prisma.whatsappSession.findUnique({
+        where: { jid }
+      });
+
+      if (session && session.expiresAt > new Date()) {
+        const state = session.data as unknown as ChatState;
+        
+        // Restaura pro Redis pra próxima interação
+        await redisConnection.set(key, JSON.stringify(state), 'EX', STATE_TTL);
+        return state;
+      } else if (session) {
+        // Sessão expirada no banco, deleta
+        await prisma.whatsappSession.delete({ where: { jid } }).catch(() => {});
+      }
+    } catch (e) {
+      // Ignorar erros caso a migration ainda não tenha rodado
+    }
+
+    return { stage: 'START' };
+  }
+
+  /**
+   * Salva a sessão no Redis e no Banco de Dados.
+   */
+  static async save(jid: string, state: ChatState): Promise<void> {
+    const key = `${STATE_PREFIX}${jid}`;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + STATE_TTL * 1000);
+
+    // 1. Salva no Redis (rápido)
+    await redisConnection.set(key, JSON.stringify(state), 'EX', STATE_TTL);
+
+    // 2. Persiste no Banco de Dados (durável)
+    try {
+      await prisma.whatsappSession.upsert({
+        where: { jid },
+        update: {
+          stage: state.stage,
+          data: state as any,
+          expiresAt
+        },
+        create: {
+          jid,
+          stage: state.stage,
+          data: state as any,
+          expiresAt
+        }
+      });
+    } catch (e) {
+      // Se falhar (ex: falta da migration), não interrompe o fluxo pois temos o Redis
+      logger.warn('WhatsApp:Session', `Não foi possível persistir sessão no banco para ${jid}`, e);
+    }
+  }
+
+  /**
+   * Limpa a sessão (quando atendimento encerra ou vai pra humano).
+   */
+  static async clear(jid: string): Promise<void> {
+    const key = `${STATE_PREFIX}${jid}`;
+    await redisConnection.del(key);
+    
+    try {
+      await prisma.whatsappSession.delete({ where: { jid } }).catch(() => {});
+    } catch (e) {
+      // Ignorar
+    }
+  }
+}

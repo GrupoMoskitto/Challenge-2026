@@ -1,2 +1,8 @@
 CREATE DATABASE evolution;
 GRANT ALL PRIVILEGES ON DATABASE evolution TO crmed;
+
+CREATE DATABASE evogo_auth;
+GRANT ALL PRIVILEGES ON DATABASE evogo_auth TO crmed;
+
+CREATE DATABASE evogo_users;
+GRANT ALL PRIVILEGES ON DATABASE evogo_users TO crmed;

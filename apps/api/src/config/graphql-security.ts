@@ -170,6 +170,12 @@ export function createDepthLimitPlugin(): ApolloServerPlugin<BaseContext> {
       return {
         async didResolveOperation(requestContext) {
           const { document, operationName } = requestContext;
+          
+          // Skip depth check for IntrospectionQuery to prevent console spam
+          if (operationName === 'IntrospectionQuery') {
+            return;
+          }
+
           const depth = calculateQueryDepth(document);
 
           if (depth > MAX_DEPTH) {

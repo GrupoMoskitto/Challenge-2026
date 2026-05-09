@@ -24,21 +24,18 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 const app = express();
 
-// --- Security Headers ---
 app.use(helmet({
-  contentSecurityPolicy: isProduction ? undefined : false, // Disable CSP in dev for GraphQL Sandbox
+  contentSecurityPolicy: isProduction ? undefined : false,
   crossOriginEmbedderPolicy: false,
 }));
 
-// --- Cookie Parser ---
 app.use(cookieParser());
 
-// --- CORS Configuration ---
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
   : isProduction
-    ? [] // No wildcard in production — must configure CORS_ORIGIN
-    : ['http://localhost:3000', 'http://localhost:5173']; // Dev defaults
+    ? []
+    : ['http://localhost:3000', 'http://localhost:5173'];
 
 app.use(cors({
   origin: isProduction
@@ -51,21 +48,18 @@ app.use(cors({
         }
       }
     : allowedOrigins,
-  credentials: true, // Required for cookies
+  credentials: true,
 }));
 
-app.use(express.json({ limit: '1mb' })); // Limit payload size
+app.use(express.json({ limit: '1mb' }));
 
-// --- Healthcheck ---
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
 
-// --- Rate Limiting (Redis-backed for distributed deployments) ---
 const createRedisStore = (): RedisStore | undefined => {
   try {
     return new RedisStore({
-      // Use the auth Redis connection
       sendCommand: (...args: string[]) => authRedis.call(args[0], ...args.slice(1)) as any,
     });
   } catch (err) {
@@ -91,8 +85,8 @@ const rateLimitHandler = (req: express.Request, res: express.Response, next: exp
 };
 
 const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minuto
-  limit: 100, // 100 req/min
+  windowMs: 60 * 1000,
+  limit: 100,
   standardHeaders: true,
   legacyHeaders: false,
   store: createRedisStore(),
@@ -114,8 +108,8 @@ const loginLimiter = rateLimit({
 });
 
 const mutationLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minuto
-  limit: 20, // 20 req/min
+  windowMs: 60 * 1000,
+  limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
   store: createRedisStore(),
@@ -130,11 +124,9 @@ const mutationLimiter = rateLimit({
   },
 });
 
-// Apply rate limiting
 app.use(apiLimiter);
 app.use(mutationLimiter);
 
-// --- Apollo Server with Security Plugins ---
 const server = new ApolloServer<Context>({
   typeDefs,
   resolvers,
@@ -142,7 +134,6 @@ const server = new ApolloServer<Context>({
   plugins: getSecurityPlugins(),
 });
 
-// --- Auth Refresh Endpoint (REST, cookie-based) ---
 app.post('/auth/refresh', loginLimiter, async (req, res) => {
   try {
     const refreshToken = req.cookies?.refresh_token as string | undefined;
@@ -160,7 +151,6 @@ app.post('/auth/refresh', loginLimiter, async (req, res) => {
       return;
     }
 
-    // Check blacklist
     const revoked = await isTokenRevoked(decoded.userId);
     if (revoked) {
       res.clearCookie('access_token', COOKIE_OPTIONS.CLEAR);
@@ -169,7 +159,6 @@ app.post('/auth/refresh', loginLimiter, async (req, res) => {
       return;
     }
 
-    // Verify user still exists and is active
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user || !user.isActive) {
       res.clearCookie('access_token', COOKIE_OPTIONS.CLEAR);
@@ -191,14 +180,12 @@ app.post('/auth/refresh', loginLimiter, async (req, res) => {
   }
 });
 
-// --- Auth Logout Endpoint (clears cookies) ---
 app.post('/auth/logout', (_req, res) => {
   res.clearCookie('access_token', COOKIE_OPTIONS.CLEAR);
   res.clearCookie('refresh_token', { ...COOKIE_OPTIONS.CLEAR, path: '/auth/refresh' });
   res.json({ success: true });
 });
 
-// --- REST Auth Middleware ---
 const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   let token = req.cookies?.access_token as string | undefined;
   if (!token && req.headers.authorization?.startsWith('Bearer ')) {
@@ -227,7 +214,6 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   }
 };
 
-// --- File Upload Infrastructure (LGPD Compliant) ---
 const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -249,14 +235,14 @@ const allowedMimeTypes = [
   'image/webp',
   'application/pdf',
   'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // xlsx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 ];
 
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB Limit
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true);
@@ -286,7 +272,7 @@ app.post('/api/upload', requireAuth, (req, res) => {
 });
 
 app.get('/api/uploads/:filename', requireAuth, (req, res) => {
-  const filename = req.params.filename;
+  const filename = req.params.filename as string;
   if (filename.includes('..') || filename.includes('/')) {
      res.status(400).json({ error: 'Caminho inválido' });
      return;
@@ -307,10 +293,8 @@ async function startServer() {
     '/graphql',
     expressMiddleware(server, {
       context: async ({ req, res }: { req: express.Request; res: express.Response }): Promise<Context> => {
-        // 1. Try cookie-based auth first
         let token = (req as Record<string, unknown> & express.Request).cookies?.access_token as string | undefined;
 
-        // 2. Fall back to Bearer token for backward compatibility & API clients
         if (!token) {
           const authHeader = req.headers.authorization;
           if (authHeader?.startsWith('Bearer ')) {
@@ -323,7 +307,6 @@ async function startServer() {
           
           if (payload && payload.userId) {
             try {
-              // Check token blacklist (revocation)
               const revoked = await isTokenRevoked(payload.userId);
               if (revoked) {
                 logger.info('Auth:Context', `Revoked token used by user ${payload.userId}`);
@@ -352,7 +335,7 @@ async function startServer() {
   app.listen(port, () => {
     logger.success('Server', `🚀 GraphQL Server ready at: http://localhost:${port}/graphql`);
     if (isProduction) {
-      logger.info('Security', 'Production mode: introspection disabled, CORS restricted, cookies secure');
+      logger.info('Security', 'Production mode active');
     }
   });
 }

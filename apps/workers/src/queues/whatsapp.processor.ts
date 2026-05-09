@@ -1,6 +1,6 @@
 import { Queue, Worker, Job, ConnectionOptions } from 'bullmq';
 import { redisConnection } from '../config/redis';
-import { WhatsAppService } from '../services/whatsapp.service';
+import { WhatsappSender } from '../whatsapp/whatsapp.sender';
 import { prisma } from '@crmed/database';
 import { logger } from '../config/logger';
 
@@ -48,7 +48,11 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
       // Use the instance name from the job if provided, otherwise fallback to default
       const defaultInstance = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
       const instanceName = jobInstanceName || defaultInstance;
-      await WhatsAppService.sendMessage(instanceName, phone, message);
+      const result = await WhatsappSender.sendMessage(instanceName, phone, message, leadId);
+
+      if (result.status === 'blocked_by_dev_sandbox') {
+         logger.info('Worker', `Job ${job.id} processado (bloqueado pelo Sandbox)`);
+      }
 
       // 2. Fulfill RN06: Create an AuditLog representing the successful delivery
       await prisma.auditLog.create({

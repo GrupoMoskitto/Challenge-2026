@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
+import { WhatsAppConnectionCard } from "@/components/WhatsAppConnectionCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,9 +125,9 @@ function highlightVariables(content: string) {
   return parts.map((part, i) => {
     if (part.startsWith("{") && part.endsWith("}")) {
       return (
-        <Badge key={i} variant="secondary" className="text-xs font-mono mx-0.5 px-1.5 py-0">
+        <span key={i} className="text-xs font-mono mx-0.5 px-1.5 py-0 bg-secondary text-secondary-foreground rounded">
           {part}
-        </Badge>
+        </span>
       );
     }
     return <span key={i}>{part}</span>;
@@ -226,39 +227,14 @@ const Settings = () => {
   const [updateProfile, { loading: updatingProfile }] = useMutation(UPDATE_PROFILE);
   const [createEvolutionInstance] = useMutation(CREATE_EVOLUTION_INSTANCE, {
     onCompleted: () => {
-      setTimeout(() => refetchEvo(), 1000);
+      toast.success("Instância criada com sucesso!");
     },
-    update(cache, { data }) {
-      if (!data?.createEvolutionInstance) return;
-      cache.modify({
-        fields: {
-          evolutionApiInstances(existing = []) {
-            const alreadyExists = existing.some((inst: any) => {
-              const name = inst.instanceName || cache.readField('instanceName', inst);
-              return name === data.createEvolutionInstance.instanceName;
-            });
-            if (alreadyExists) return existing;
-            return [...existing, data.createEvolutionInstance];
-          }
-        }
-      });
-    }
   });
 
   const [deleteEvolutionInstance] = useMutation(DELETE_EVOLUTION_INSTANCE, {
     onCompleted: () => {
-      setTimeout(() => refetchEvo(), 1000);
+      toast.success("Instância deletada com sucesso!");
     },
-    update(cache, { data }, { variables }) {
-      if (!data?.deleteEvolutionInstance) return;
-      cache.modify({
-        fields: {
-          evolutionApiInstances(existing = []) {
-            return existing.filter((inst: any) => inst.instanceName !== variables?.name);
-          }
-        }
-      });
-    }
   });
   const [connectEvolutionInstance] = useMutation(CONNECT_EVOLUTION_INSTANCE);
 
@@ -307,9 +283,22 @@ const Settings = () => {
 
   const handleDeleteAvail = async (id: string) => {
     try {
-      await deleteAvail({ variables: { id } });
+      await deleteAvail({
+        variables: { id },
+        update(cache) {
+          cache.modify({
+            fields: {
+              surgeons(existingSurgeons = []) {
+                return existingSurgeons.map((surgeon: any) => ({
+                  ...surgeon,
+                  availability: (surgeon.availability || []).filter((a: any) => a.id !== id),
+                }));
+              },
+            },
+          });
+        },
+      });
       toast.success("Horário removido");
-      refetchSchedule();
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -325,9 +314,22 @@ const Settings = () => {
 
   const handleDeleteExtraAvail = async (id: string) => {
     try {
-      await deleteExtra({ variables: { id } });
+      await deleteExtra({
+        variables: { id },
+        update(cache) {
+          cache.modify({
+            fields: {
+              surgeons(existingSurgeons = []) {
+                return existingSurgeons.map((surgeon: any) => ({
+                  ...surgeon,
+                  extraAvailability: (surgeon.extraAvailability || []).filter((e: any) => e.id !== id),
+                }));
+              },
+            },
+          });
+        },
+      });
       toast.success("Removido");
-      refetchSchedule();
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -370,9 +372,22 @@ const Settings = () => {
 
   const handleDeleteBlock = async (id: string) => {
     try {
-      await deleteBlock({ variables: { id } });
+      await deleteBlock({
+        variables: { id },
+        update(cache) {
+          cache.modify({
+            fields: {
+              surgeons(existingSurgeons = []) {
+                return existingSurgeons.map((surgeon: any) => ({
+                  ...surgeon,
+                  blocks: (surgeon.blocks || []).filter((b: any) => b.id !== id),
+                }));
+              },
+            },
+          });
+        },
+      });
       toast.success("Bloqueio removido");
-      refetchSchedule();
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -438,6 +453,7 @@ const Settings = () => {
   const [createInstanceDialogOpen, setCreateInstanceDialogOpen] = useState(false);
   const [newInstanceName, setNewInstanceName] = useState("");
   const [qrCodeData, setQrCodeData] = useState<{ base64: string | null; pairingCode: string | null } | null>(null);
+  const [connectingInstanceName, setConnectingInstanceName] = useState<string>("");
   const [qrCodeDialogOpen, setQrCodeDialogOpen] = useState(false);
   const [deleteInstanceDialogOpen, setDeleteInstanceDialogOpen] = useState(false);
   const [instanceToDelete, setInstanceToDelete] = useState<string | null>(null);
@@ -449,9 +465,9 @@ const Settings = () => {
     }
     try {
       await createEvolutionInstance({ variables: { name: newInstanceName.trim() } });
-      toast.success("Instância criada com sucesso!");
       setCreateInstanceDialogOpen(false);
       setNewInstanceName("");
+      setTimeout(() => refetchEvo(), 500);
     } catch (err: any) {
       toast.error(err.message || "Erro ao criar instância");
     }
@@ -466,28 +482,17 @@ const Settings = () => {
     if (!instanceToDelete) return;
     try {
       await deleteEvolutionInstance({ variables: { name: instanceToDelete } });
-      toast.success("Instância deletada com sucesso!");
       setDeleteInstanceDialogOpen(false);
       setInstanceToDelete(null);
+      setTimeout(() => refetchEvo(), 500);
     } catch (err: any) {
       toast.error(err.message || "Erro ao deletar instância");
     }
   };
 
-  const handleConnectInstance = async (name: string) => {
-    try {
-      const { data } = await connectEvolutionInstance({ variables: { name } });
-      const { qrCode, pairingCode } = data.connectEvolutionInstance;
-      
-      if (qrCode) {
-        setQrCodeData({ base64: qrCode, pairingCode });
-        setQrCodeDialogOpen(true);
-      } else {
-        toast.info("A instância já pode estar conectada ou não retornou QR Code.");
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao gerar QR Code");
-    }
+  const handleConnectInstance = (name: string) => {
+    setConnectingInstanceName(name);
+    setQrCodeDialogOpen(true); // Abre instantaneamente!
   };
 
   const validateForm = (form: TemplateForm): boolean => {
@@ -798,22 +803,36 @@ const Settings = () => {
                     evolutionInstances.map((inst: any) => (
                       <div key={inst.instanceName} className="border rounded-lg p-6 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                          <div className={`h-12 w-12 rounded-full flex items-center justify-center ${inst.connected ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
-                            <PhoneIcon className={`h-6 w-6 ${inst.connected ? 'text-green-500' : 'text-destructive'}`} />
+                          <div className={`h-12 w-12 rounded-full flex items-center justify-center ${inst.loggedIn ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
+                            <PhoneIcon className={`h-6 w-6 ${inst.loggedIn ? 'text-green-500' : 'text-destructive'}`} />
                           </div>
                           <div>
                             <h4 className="font-semibold text-base">Instância: {inst.instanceName}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Status: <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs">{inst.state}</span>
-                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-sm text-muted-foreground">
+                                Status: <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs">{inst.state}</span>
+                              </p>
+                              {inst.id && (
+                                <p className="text-xs text-muted-foreground flex items-center gap-1 border-l pl-2 ml-1">
+                                  ID: <span className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded" title={inst.id}>{inst.id.substring(0, 8)}...</span>
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div>
-                          {inst.connected ? (
-                            <Badge className="bg-green-500">Conectado</Badge>
+                          {inst.loggedIn ? (
+                            <Badge className="bg-green-500">Pareado e Pronto</Badge>
+                          ) : inst.connected ? (
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-yellow-500 hover:bg-yellow-600">Aguardando QR</Badge>
+                              <Button variant="outline" size="sm" onClick={() => handleConnectInstance(inst.instanceName)}>
+                                Parear Dispositivo
+                              </Button>
+                            </div>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <Badge variant="destructive">Desconectado</Badge>
+                              <Badge variant="destructive">Offline</Badge>
                               <Button variant="outline" size="sm" onClick={() => handleConnectInstance(inst.instanceName)}>
                                 Conectar
                               </Button>
@@ -983,9 +1002,9 @@ const Settings = () => {
                                     {getTriggerLabel(template.triggerDays)}
                                   </Badge>
                                 </div>
-                                <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                                <div className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
                                   {highlightVariables(template.content)}
-                                </p>
+                                </div>
                               </div>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -1477,9 +1496,9 @@ const Settings = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="bg-muted/50 rounded-lg p-4 mt-2">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+            <div className="text-sm leading-relaxed whitespace-pre-wrap">
               {previewTemplate ? highlightVariables(previewTemplate.content) : ""}
-            </p>
+            </div>
           </div>
           <div className="flex justify-end pt-2">
             <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
@@ -1637,7 +1656,7 @@ const Settings = () => {
                 <SelectContent>
                   {evolutionInstances.map((inst: any) => (
                     <SelectItem key={inst.instanceName} value={inst.instanceName}>
-                      {inst.instanceName} ({inst.connected ? 'Ativa' : 'Offline'})
+                      {inst.instanceName} ({inst.loggedIn ? 'Pronta' : inst.connected ? 'Aguardando QR' : 'Offline'})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1681,8 +1700,11 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* QR Code Dialog */}
-      <Dialog open={qrCodeDialogOpen} onOpenChange={setQrCodeDialogOpen}>
+      {/* WhatsApp Connection Card */}
+      <Dialog open={qrCodeDialogOpen} onOpenChange={(open) => {
+        setQrCodeDialogOpen(open);
+        if (!open) refetchEvo();
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Conectar WhatsApp</DialogTitle>
@@ -1690,28 +1712,15 @@ const Settings = () => {
               Escaneie o QR Code abaixo com seu WhatsApp para conectar a instância.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center p-6 bg-muted/30 rounded-lg border border-dashed">
-            {qrCodeData?.base64 ? (
-              <img src={qrCodeData.base64} alt="WhatsApp QR Code" className="w-64 h-64 object-contain rounded" />
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-10">
-                Nenhum QR Code retornado.
-              </p>
-            )}
-            {qrCodeData?.pairingCode && (
-              <div className="mt-4 text-center">
-                <p className="text-sm text-muted-foreground mb-1">Ou use o código de pareamento:</p>
-                <code className="bg-background px-3 py-1.5 rounded-md text-lg font-bold tracking-widest border">
-                  {qrCodeData.pairingCode}
-                </code>
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={() => {
-              setQrCodeDialogOpen(false);
-              refetchEvo();
-            }}>Concluído</Button>
+          <div className="flex justify-center">
+            <WhatsAppConnectionCard
+              instanceName={connectingInstanceName || "crmed-whatsapp"}
+              onConnected={() => {
+                setQrCodeDialogOpen(false);
+                setConnectingInstanceName("");
+                refetchEvo();
+              }}
+            />
           </div>
         </DialogContent>
       </Dialog>

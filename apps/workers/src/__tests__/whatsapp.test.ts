@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach, MockInstance } from 'vitest';
 import { processDailyAppointments } from '../jobs/dailyCron';
-import { WhatsAppService } from '../services/whatsapp.service';
+import { WhatsappSender } from '../whatsapp/whatsapp.sender';
 import { whatsappQueue } from '../queues/whatsapp.processor';
 import { prisma } from '@crmed/database';
 
-vi.mock('../services/whatsapp.service', () => ({
-  WhatsAppService: {
-    sendMessage: vi.fn(),
+vi.mock('../whatsapp/whatsapp.sender', () => ({
+  WhatsappSender: {
+    sendMessage: vi.fn().mockResolvedValue({ delivered: true }),
   }
 }));
 
@@ -94,7 +94,7 @@ describe('RN05 - WhatsApp Notifications', () => {
   });
 });
 
-describe('WhatsAppService - Sandbox Logic', () => {
+describe('WhatsappSender - Sandbox Logic', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
@@ -108,6 +108,10 @@ describe('WhatsAppService - Sandbox Logic', () => {
   });
 
   it('should block messages to not allowed numbers in sandbox mode', async () => {
-    const { WhatsAppService: Service } = await import('../services/whatsapp.service');
+    const { WhatsappSender: Sender } = await import('../whatsapp/whatsapp.sender');
+    
+    // Test with blocked number
+    const result = await Sender.sendMessage('test-instance', '5511999999999', 'test');
+    expect(result).toEqual({ delivered: false, status: 'blocked_by_dev_sandbox' });
   });
 });

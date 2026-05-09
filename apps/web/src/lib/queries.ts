@@ -556,9 +556,11 @@ export const GET_TEST_PHONE_LAST_DIGITS = gql`
 export const GET_EVOLUTION_API_INSTANCES = gql`
   query GetEvolutionApiInstances {
     evolutionApiInstances {
+      id
       instanceName
       state
       connected
+      loggedIn
     }
   }
 `;
@@ -566,8 +568,11 @@ export const GET_EVOLUTION_API_INSTANCES = gql`
 export const CREATE_EVOLUTION_INSTANCE = gql`
   mutation CreateEvolutionInstance($name: String!) {
     createEvolutionInstance(name: $name) {
+      id
       instanceName
       state
+      connected
+      loggedIn
     }
   }
 `;

@@ -9,9 +9,15 @@ logger.info('System', 'CRMed Workers iniciando...');
 
 import express from 'express';
 import helmet from 'helmet';
-import { webhookSecurityMiddleware } from './config/webhook-security';
+import { ensureEvolutionReady } from './evolution/evolution.setup';
+import { evoGoClient } from './evolution/evolution.client';
+import { WhatsappChatbot } from './whatsapp/whatsapp.chatbot';
+import { EvoGoWebhookEnvelope, EvoGoMessageWebhookData, EvoGoQRCodeWebhookData } from './evolution/evolution.types';
 
 const PORT = process.env.WORKERS_PORT || 3002;
+
+// Boot: ensure Evolution Go is ready
+ensureEvolutionReady(evoGoClient);
 
 logger.success('System', 'WhatsApp BullMQ Worker iniciado');
 
@@ -36,67 +42,77 @@ const app = express();
 app.use(helmet());
 
 // Limit payload size to prevent DoS
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
 
-// Apply webhook security middleware (HMAC + IP allowlist)
-app.post('/webhook/evolution', webhookSecurityMiddleware({
-    requireSecret: process.env.NODE_ENV === 'production',
-    enforceIpAllowlist: true,
-}), async (req, res) => {
+app.post('/webhook/evolution', async (req, res) => {
     try {
-        const body = req.body as Record<string, unknown>;
-        
-        if (body.event !== 'messages.upsert') {
-            return res.status(200).send('OK');
+        const body = req.body as EvoGoWebhookEnvelope;
+        const { event, data, instanceId } = body;
+
+        switch (event) {
+            case 'Message': {
+                const msgData = data as unknown as EvoGoMessageWebhookData;
+                const info = msgData?.Info;
+                const message = msgData?.Message;
+
+                if (!info || !message) break;
+                if (info.IsFromMe || info.Chat === 'status@broadcast') break;
+
+                const textMessage = (
+                    message.conversation ||
+                    message.extendedTextMessage?.text ||
+                    ''
+                ).trim();
+
+                if (!textMessage) break;
+
+                const pushName = info.PushName || 'Você';
+                logger.info('Webhook', `[MESSAGE] De: ${pushName} | Chat: ${info.Chat} | Texto: ${textMessage.substring(0, 60)}`);
+
+                await WhatsappChatbot.handleRawMessage(
+                    instanceId || process.env.EVOLUTION_INSTANCE_ID || '',
+                    info.Chat,
+                    pushName,
+                    textMessage
+                );
+                break;
+            }
+
+            case 'Connected':
+                logger.success('Webhook', `✅ Instância ${instanceId} conectada ao WhatsApp!`);
+                break;
+
+            case 'PairSuccess':
+                logger.success('Webhook', `🔗 Pareamento concluído para instância ${instanceId}`);
+                break;
+
+            case 'QRCode': {
+                const qrData = data as unknown as EvoGoQRCodeWebhookData;
+                logger.info('Webhook', `📱 QR Code recebido para instância ${instanceId} (${qrData?.code ? 'válido' : 'sem código'})`);
+                break;
+            }
+
+            case 'QRTimeout':
+                logger.warn('Webhook', `⏰ QR Code expirou para instância ${instanceId}`);
+                break;
+
+            case 'LoggedOut':
+                logger.warn('Webhook', `⚠️ Instância ${instanceId} foi desconectada do WhatsApp`);
+                break;
+
+            case 'OfflineSyncCompleted':
+                logger.info('Webhook', `📥 Sincronização offline concluída para ${instanceId}`);
+                break;
+
+            default:
+                logger.debug('Webhook', `Evento não tratado: ${event} (instância: ${instanceId})`);
+                break;
         }
 
-        const data = body.data as Record<string, unknown>;
-        const messageRaw = (data as Record<string, unknown>).message;
-        const messageInfo = Array.isArray(messageRaw) ? messageRaw[0] as Record<string, unknown> : messageRaw as Record<string, unknown>;
-        
-        if (!messageInfo) {
-            return res.status(200).send('No message found');
-        }
-
-        const key = (data as Record<string, unknown>).key as Record<string, unknown> | undefined;
-        if (key?.fromMe || key?.remoteJid === 'status@broadcast') {
-            return res.status(200).send('Ignored');
-        }
-
-        // Ignore old messages (e.g. older than 10 seconds) to avoid processing backlogs
-        const currentTimestamp = Math.floor(Date.now() / 1000);
-        const messageTimestamp = (messageInfo as Record<string, unknown>).messageTimestamp as number | undefined;
-        const pushName = ((data as Record<string, unknown>).pushName as string) || 'Você';
-        if (messageTimestamp && (currentTimestamp - messageTimestamp > 10)) {
-            logger.info('Webhook', `Ignorando mensagem antiga de ${pushName} (${currentTimestamp - messageTimestamp}s atrás)`);
-            return res.status(200).send('Ignored old message');
-        }
-
-        const remoteJid = key?.remoteJid as string | undefined;
-        const instanceName = body.instance as string;
-        
-        const conversation = (messageInfo as Record<string, unknown>).conversation as string | undefined;
-        const extendedText = (messageInfo as Record<string, unknown>).extendedTextMessage as Record<string, unknown> | undefined;
-        const textMessage = conversation || extendedText?.text as string | undefined;
-
-        if (textMessage) {
-            logger.info('Webhook', `Mensagem de ${pushName}: ${textMessage.substring(0, 50)}${textMessage.length > 50 ? '...' : ''}`);
-            
-            const { ChatbotService } = await import('./services/chatbot.service');
-            await ChatbotService.handleMessage(instanceName, remoteJid, pushName, textMessage);
-        }
-
-        res.status(200).send('OK');
+        res.status(200).json({ received: true });
     } catch (error: unknown) {
-        const err = error as Record<string, unknown>;
-        const response = err?.response as Record<string, unknown> | undefined;
-        const status = response?.status as number | undefined;
-        const isAuthError = status === 401 || status === 403;
-        
-        if (!isAuthError) {
-            logger.error('Webhook', 'Erro processando hook da Evolution API', error);
-        }
-        res.status(200).send('OK'); // Still respond OK to avoid retries
+        logger.error('Webhook', 'Erro ao processar evento:', error);
+        res.status(200).json({ received: true, error: true });
     }
 });
 
