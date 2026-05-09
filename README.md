@@ -34,16 +34,6 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 - **UX Premium** — Skeletons Anti-CLS, Debounce de busca, animações 60fps e Empty States informativos
 - **Navegação Estável** — Sincronização inteligente URL-Estado para evitar loops e garantir persistência de filtros
 
-### 🧪 Testando o Fluxo de Onboarding (Chatbot WhatsApp)
-Para testar como se fosse um cliente se cadastrando via WhatsApp sem enviar mensagens reais para seus contatos:
-1. No arquivo `.env` da raiz, certifique-se de preencher `DEV_ALLOWED_PHONE="55[SEUDDD][SEUNUMERO]"`.
-2. Certifique-se de gerar e ler o QR code no painel do Dashboard com outro aparelho (que simulará a clínica).
-3. Do seu número de testes (`DEV_ALLOWED_PHONE`), envie qualquer mensagem para o número da clínica (como "Olá" ou "Quero informações").
-4. O robô deve iniciar a state machine, pedindo como gostaria de ser chamado.
-5. Ele pedirá a confirmação do nome via lista estruturada.
-6. Oferecerá a captação opcional de E-mail (tente mandar algo errado, em seguida use "Pular", ou coloque um e-mail válido).
-7. Finalize selecionando a área do procedimento; verifique no seu Dashboard (aba de Leads) que seu usuário foi perfeitamente criado!
-
 ### Stack
 
 | Camada | Tecnologia |
@@ -205,13 +195,8 @@ pnpm install
 pnpm infra:dev
 ```
 
-> [!TIP]
-> O comando `pnpm infra:dev` automatiza **todo** o setup: Docker, banco de dados com seed, Evolution API (WhatsApp) e todos os apps em paralelo. A variável `DEV_ALLOWED_PHONE` no arquivo `.env` da raiz restringe **todas** as mensagens apenas ao número definido em dev (sandbox mode).
-
-### Instalação Manual
-
 <details>
-<summary>Passo a passo</summary>
+<summary><strong>Instalação Manual (Passo a passo)</strong></summary>
 
 1. **Dependências:** `npm install --global pnpm && pnpm install`
 2. **Docker:** `pnpm infra:up` (PostgreSQL, Redis, Evolution API)
@@ -219,6 +204,9 @@ pnpm infra:dev
 4. **Apps:** `pnpm dev`
 
 </details>
+
+> [!TIP]
+> O comando `pnpm infra:dev` automatiza **todo** o setup: Docker, banco de dados com seed, Evolution API (WhatsApp) e todos os apps em paralelo. A variável `DEV_ALLOWED_PHONE` no arquivo `.env` da raiz restringe **todas** as mensagens apenas ao número definido em dev (sandbox mode).
 
 ### Scripts
 
@@ -447,40 +435,45 @@ curl http://localhost:8080/instance/connectionState/crmed-whatsapp \
 
 </details>
 
+<details>
+<summary><strong>Testando o Fluxo de Onboarding (Chatbot)</strong></summary>
+
+Para testar como se fosse um cliente se cadastrando via WhatsApp sem enviar mensagens reais para seus contatos:
+1. No arquivo `.env` da raiz, certifique-se de preencher `DEV_ALLOWED_PHONE="55[SEUDDD][SEUNUMERO]"`.
+2. Certifique-se de gerar e ler o QR code no painel do Dashboard com outro aparelho (que simulará a clínica).
+3. Do seu número de testes (`DEV_ALLOWED_PHONE`), envie qualquer mensagem para o número da clínica (como "Olá" ou "Quero informações").
+4. O robô deve iniciar a state machine, pedindo como gostaria de ser chamado.
+5. Ele pedirá a confirmação do nome via lista estruturada.
+6. Oferecerá a captação opcional de E-mail (tente mandar algo errado, em seguida use "Pular", ou coloque um e-mail válido).
+7. Finalize selecionando a área do procedimento; verifique no seu Dashboard (aba de Leads) que seu usuário foi perfeitamente criado!
+
+</details>
+
 > [!IMPORTANT]
 > **Sandbox Mode:** A variável `DEV_ALLOWED_PHONE` restringe **todas** as mensagens apenas ao número definido em dev. Mensagens bloqueadas são logadas como `[INFO] [WhatsApp] Mensagem bloqueada para ...XXXX (sandbox ativo)`.
 
-### Webhook de Mensagens Recebidas
+#### Webhook de Mensagens Recebidas
 
-O sistema recebe mensagens de entrada do WhatsApp através de um webhook que é registrado ao parear a instância no EvoGo.
+O sistema recebe mensagens de entrada do WhatsApp através de um webhook registrado automaticamente ao parear a instância.
 
-**Como funciona:**
-- Ao conectar a instância via painel (`Configurações > Integrações WhatsApp`), o sistema registra automaticamente o webhook no EvoGo via `POST /instance/connect/{name}`.
-- O endpoint do webhook é `http://localhost:3002/webhook/evolution` (workers)
-- O webhook recebe eventos de `MESSAGES` (mensagens recebidas), `CONNECTION` (mudanças de conexão) e `QRCODE` (geração).
+- **Fluxo:** Registro via `POST /instance/connect/{name}` no EvoGo.
+- **Endpoint:** `http://localhost:3002/webhook/evolution` (workers)
+- **Eventos:** `MESSAGES`, `CONNECTION` e `QRCODE`.
 
-**Configuração:**
+> [!NOTE]
+> **Segurança:** O webhook valida HMAC-SHA256 via header `x-webhook-signature`. Em produção, o uso de `WEBHOOK_SECRET` e IP allowlist (`WEBHOOK_ALLOWED_IPS`) é obrigatório.
+
+#### Workers e Logger
+
+Os workers utilizam um **logger estruturado** (`apps/workers/src/config/logger.ts`) para manter o terminal limpo e legível:
+
 ```bash
-# No arquivo .env
-EVOLUTION_WEBHOOK_URL=http://host.docker.internal:3002/webhook/evolution
-```
-
-**Segurança:**
-- O webhook valida HMAC-SHA256 via header `x-webhook-signature` (quando configurado no EvoGo).
-- IP allowlist configurável via `WEBHOOK_ALLOWED_IPS`
-- Em produção, o `WEBHOOK_SECRET` é altamente recomendado.
-
-### Workers e Logger
-
-Os workers utilizam um **logger estruturado** (`apps/workers/src/config/logger.ts`) que exibe logs limpos e coloridos:
-
-```
 [12:30:00] [OK] [WhatsApp] Mensagem enviada para 551196325xxxx
 [12:30:01] [INFO] [Worker] Processando job abc123: send-reminder
 [12:30:02] [ERR] [Chatbot] Erro processando mensagem de João
 ```
 
-A API do Evolution Go sobe em segundo plano e sem stream de logs no terminal local; a observabilidade do fluxo fica concentrada nos `workers`, que fazem a filtragem de forma mais limpa.
+A API do Evolution Go opera em background para que a observabilidade do fluxo fique concentrada nos logs dos workers.
 
 ---
 
