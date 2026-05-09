@@ -34,17 +34,25 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 - **UX Premium** — Skeletons Anti-CLS, Debounce de busca, animações 60fps e Empty States informativos
 - **Navegação Estável** — Sincronização inteligente URL-Estado para evitar loops e garantir persistência de filtros
 
-### 🧪 Testando o Fluxo de Onboarding (Chatbot WhatsApp)
-Para testar como se fosse um cliente se cadastrando via WhatsApp sem enviar mensagens reais para seus contatos:
-1. No arquivo `.env` da raiz, certifique-se de preencher `DEV_ALLOWED_PHONE="55[SEUDDD][SEUNUMERO]"`.
-2. Certifique-se de gerar e ler o QR code no painel do Dashboard com outro aparelho (que simulará a clínica).
-3. Do seu número de testes (`DEV_ALLOWED_PHONE`), envie qualquer mensagem para o número da clínica (como "Olá" ou "Quero informações").
-4. O robô deve iniciar a state machine, pedindo como gostaria de ser chamado.
-5. Ele pedirá a confirmação do nome via lista estruturada.
-6. Oferecerá a captação opcional de E-mail (tente mandar algo errado, em seguida use "Pular", ou coloque um e-mail válido).
-7. Finalize selecionando a área do procedimento; verifique no seu Dashboard (aba de Leads) que seu usuário foi perfeitamente criado!
+---
 
-### Stack
+### CI/CD e Testes
+
+O pipeline GitHub Actions roda automaticamente a cada push:
+
+- **Linting** — ESLint flat config para todo o monorepo
+- **Testes Unitários/Integração** — Vitest validando RN01 (duplicidade), RN03 (hierarquia) e RN06 (auditoria)
+- **Coverage Report** — Geração de relatórios de cobertura do código durante o build do CI para garantir segurança das regras de negócio
+
+---
+
+### Automação WhatsApp & Chatbot
+
+O robô interativo (Chatbot) gerencia o acolhimento inicial de novos leads, realizando a captação de dados (Nome e E-mail) e triagem de interesse de forma automatizada.
+
+---
+
+### Gestão do Projeto
 
 | Camada | Tecnologia |
 | --- | --- |
@@ -509,6 +517,35 @@ O projeto inclui um [`AGENTS.md`](AGENTS.md) — arquivo de instruções para **
 ### Contribuição
 
 Veja o guia completo em [`CONTRIBUTING.md`](CONTRIBUTING.md) — branches, commits, testes e checklist de PR.
+
+---
+
+### Automação WhatsApp & Chatbot — Testes e Sandbox
+
+<details>
+<summary><strong>Como testar o fluxo de onboarding</strong></summary>
+
+Para simular o contato de um cliente e validar a captação de dados:
+
+1. **Configure o Sandbox:** No arquivo `.env`, preencha `DEV_ALLOWED_PHONE="55..."` com o seu número (incluindo DDD).
+2. **Pareamento:** Acesse **Configurações > Integrações** e realize o pareamento via QR Code (leia com o celular que simulará a clínica).
+3. **Simulação:** Do seu celular de testes (`DEV_ALLOWED_PHONE`), envie qualquer mensagem (ex: "Olá") para o número pareado.
+4. **Fluxo Interativo:**
+    - O bot solicitará seu nome e pedirá confirmação.
+    - Oferecerá a captação de e-mail (opcional: digite o e-mail ou "Pular").
+    - Solicitará a área de interesse (estética, plástica, etc.).
+5. **Validação:** Verifique na aba **Leads** do Dashboard que um novo registro foi criado com todos os dados informados.
+
+</details>
+
+<details>
+<summary><strong>Segurança e Sandbox</strong></summary>
+
+Em ambiente de desenvolvimento (`NODE_ENV !== 'production'`), o sistema bloqueia rigorosamente qualquer disparo para números que não correspondam ao `DEV_ALLOWED_PHONE`.
+- Isso evita o envio acidental de mensagens para pacientes reais durante a manutenção do código.
+- O Dashboard exibe um aviso visual informando qual número está autorizado para testes.
+
+</details>
 
 ---
 
