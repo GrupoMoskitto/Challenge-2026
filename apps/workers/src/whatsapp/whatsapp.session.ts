@@ -38,13 +38,11 @@ export interface ChatState {
 
 export class WhatsappSession {
   /**
-   * Obtém a sessão ativa de um número. Procura no Redis primeiro.
-   * Se não achar, procura no banco de dados (pode ter sido reiniciado).
+   * Obtém a sessão ativa de um número
    */
   static async get(jid: string): Promise<ChatState> {
     const key = `${STATE_PREFIX}${jid}`;
     
-    // 1. Tenta cache em Redis
     const stateJSON = await redisConnection.get(key);
     if (stateJSON) {
       try {
@@ -54,42 +52,34 @@ export class WhatsappSession {
       }
     }
 
-    // 2. Fallback: banco de dados (se model existir)
     try {
-      // Usando query bruta de fallback caso o prisma model não tenha sido gerado
       const session = await prisma.whatsappSession.findUnique({
         where: { jid }
       });
 
       if (session && session.expiresAt > new Date()) {
         const state = session.data as unknown as ChatState;
-        
-        // Restaura pro Redis pra próxima interação
         await redisConnection.set(key, JSON.stringify(state), 'EX', STATE_TTL);
         return state;
       } else if (session) {
-        // Sessão expirada no banco, deleta
         await prisma.whatsappSession.delete({ where: { jid } }).catch(() => {});
       }
     } catch (e) {
-      // Ignorar erros caso a migration ainda não tenha rodado
     }
 
     return { stage: 'START' };
   }
 
   /**
-   * Salva a sessão no Redis e no Banco de Dados.
+   * Salva a sessão
    */
   static async save(jid: string, state: ChatState): Promise<void> {
     const key = `${STATE_PREFIX}${jid}`;
     const now = new Date();
     const expiresAt = new Date(now.getTime() + STATE_TTL * 1000);
 
-    // 1. Salva no Redis (rápido)
     await redisConnection.set(key, JSON.stringify(state), 'EX', STATE_TTL);
 
-    // 2. Persiste no Banco de Dados (durável)
     try {
       await prisma.whatsappSession.upsert({
         where: { jid },
@@ -106,13 +96,13 @@ export class WhatsappSession {
         }
       });
     } catch (e) {
-      // Se falhar (ex: falta da migration), não interrompe o fluxo pois temos o Redis
+      // Fail-safe: Redis já garantiu o estado temporário
       logger.warn('WhatsApp:Session', `Não foi possível persistir sessão no banco para ${jid}`, e);
     }
   }
 
   /**
-   * Limpa a sessão (quando atendimento encerra ou vai pra humano).
+   * Limpa a sessão
    */
   static async clear(jid: string): Promise<void> {
     const key = `${STATE_PREFIX}${jid}`;
@@ -121,7 +111,6 @@ export class WhatsappSession {
     try {
       await prisma.whatsappSession.delete({ where: { jid } }).catch(() => {});
     } catch (e) {
-      // Ignorar
     }
   }
 }

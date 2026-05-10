@@ -1,20 +1,13 @@
-// ============================================================================
 // Evolution Go (EvoGo) — Type Definitions
 // API Reference: https://docs.evolutionfoundation.com.br/evolution-go
-// ============================================================================
 
-// ---------------------------------------------------------------------------
-// Generic API Response Wrapper
-// EvoGo wraps ALL responses in { data: T, message: string }
-// ---------------------------------------------------------------------------
+/** EvoGo wraps ALL responses in { data: T, message: string } */
 export interface EvoGoResponse<T> {
   data: T;
   message: string;
 }
 
-// ---------------------------------------------------------------------------
-// Instance Management
-// ---------------------------------------------------------------------------
+
 
 /** Returned by GET /instance/all and POST /instance/create */
 export interface EvoGoInstanceData {
@@ -74,9 +67,7 @@ export interface EvoGoConnectPayload {
   phone?: string;          // Optional: use pairing code instead of QR
 }
 
-// ---------------------------------------------------------------------------
-// Send Message
-// ---------------------------------------------------------------------------
+
 
 /** Body for POST /send/text */
 export interface EvoGoSendTextPayload {
@@ -135,9 +126,7 @@ export interface EvoGoSendTextResponseData {
   MessageContextInfo?: Record<string, unknown>;
 }
 
-// ---------------------------------------------------------------------------
-// Webhook Payloads (received from EvoGo via HTTP POST)
-// ---------------------------------------------------------------------------
+
 
 /** Generic webhook envelope */
 export interface EvoGoWebhookEnvelope {

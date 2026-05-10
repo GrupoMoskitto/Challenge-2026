@@ -8,8 +8,6 @@ const isProduction = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? (() => { throw new Error('JWT_SECRET is required in production'); })() : 'dev-secret-do-not-use-in-prod');
 const REFRESH_SECRET = process.env.REFRESH_SECRET || (isProduction ? (() => { throw new Error('REFRESH_SECRET is required in production'); })() : 'dev-refresh-secret-do-not-use-in-prod');
 
-// --- Redis connection for token blacklist & rate limiting ---
-
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 export const authRedis = new Redis(REDIS_URL, {
@@ -26,12 +24,9 @@ authRedis.on('connect', () => {
   logger.info('Auth:Redis', 'Connected to Redis for auth services');
 });
 
-// Connect lazily — errors won't crash startup
 authRedis.connect().catch((err: unknown) => {
   logger.warn('Auth:Redis', 'Initial Redis connection failed, will retry', err);
 });
-
-// --- Token Blacklist (Revocation) ---
 
 const BLACKLIST_PREFIX = 'token_blacklist:';
 const REFRESH_TOKEN_TTL = 7 * 24 * 60 * 60; // 7 days in seconds (matches refresh token expiry)
@@ -82,7 +77,7 @@ export async function clearTokenRevocation(userId: string): Promise<void> {
   }
 }
 
-// --- Login Rate Limiting (in-memory fallback, production uses Redis via express-rate-limit) ---
+// Login Rate Limiting (in-memory fallback, production uses Redis via express-rate-limit)
 
 const loginAttempts = new Map<string, { count: number; firstAttempt: number }>();
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000;
@@ -123,8 +118,6 @@ export function resetRateLimit(ip: string): void {
   loginAttempts.delete(ip);
 }
 
-// --- JWT Types & Functions ---
-
 export interface JwtPayload {
   userId: string;
   email: string;
@@ -162,8 +155,6 @@ export const verifyRefreshToken = (token: string): JwtPayload | null => {
     return null;
   }
 };
-
-// --- Cookie Configuration ---
 
 export const COOKIE_OPTIONS = {
   ACCESS_TOKEN: {

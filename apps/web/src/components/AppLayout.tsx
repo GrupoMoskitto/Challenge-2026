@@ -31,7 +31,6 @@ export function AppLayout({ children, title }: AppLayoutProps) {
       </Sheet>
 
       <div className="flex h-screen-dvh w-full overflow-hidden bg-background">
-        {/* Desktop: fixed sidebar */}
         <div className="hidden lg:block">
           <AppSidebar />
         </div>

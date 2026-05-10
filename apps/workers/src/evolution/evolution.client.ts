@@ -11,9 +11,6 @@ import {
   EvoGoSendTextResponseData,
 } from './evolution.types';
 
-// ============================================================================
-// EvoGo API Error
-// ============================================================================
 
 export class EvolutionApiError extends Error {
   constructor(
@@ -97,13 +94,8 @@ export class EvoGoClient {
     return headers;
   }
 
-  // --------------------------------------------------------------------------
-  // Instance Management
-  // --------------------------------------------------------------------------
-
   /**
-   * GET /instance/all — List all instances
-   * Does NOT require instanceId header
+   * List all instances
    */
   async listInstances(): Promise<EvoGoInstanceData[]> {
     try {
@@ -118,8 +110,7 @@ export class EvoGoClient {
   }
 
   /**
-   * POST /instance/create — Create a new instance
-   * Does NOT require instanceId header
+   * Create a new instance
    */
   async createInstance(payload: EvoGoCreateInstancePayload): Promise<EvoGoInstanceData> {
     try {
@@ -138,7 +129,7 @@ export class EvoGoClient {
   }
 
   /**
-   * DELETE /instance/delete/:id — Delete an instance by UUID
+   * Delete an instance
    */
   async deleteInstance(instanceId: string): Promise<void> {
     try {
@@ -153,8 +144,7 @@ export class EvoGoClient {
   }
 
   /**
-   * GET /instance/status — Get instance connection status
-   * Requires instanceId header
+   * Get instance connection status
    */
   async getStatus(instanceId?: string): Promise<EvoGoStatusData> {
     try {
@@ -172,9 +162,8 @@ export class EvoGoClient {
   }
 
   /**
-   * POST /instance/connect — Connect instance and configure webhook
-   * Requires instanceId header
-   * This is the ONLY way to set up webhooks in EvoGo
+   * Connect instance and configure webhook
+   * Note: This is the ONLY way to set up webhooks in EvoGo
    */
   async connect(
     webhookUrl: string,
@@ -204,8 +193,7 @@ export class EvoGoClient {
   }
 
   /**
-   * GET /instance/qr — Get QR code for instance
-   * Requires instanceId header
+   * Get QR code for instance
    */
   async getQrCode(instanceId?: string): Promise<{ qrcode: string; code: string }> {
     try {
@@ -223,8 +211,7 @@ export class EvoGoClient {
   }
 
   /**
-   * POST /instance/disconnect — Disconnect instance
-   * Requires instanceId header
+   * Disconnect instance
    */
   async disconnect(instanceId?: string): Promise<void> {
     try {
@@ -242,13 +229,8 @@ export class EvoGoClient {
     }
   }
 
-  // --------------------------------------------------------------------------
-  // Messaging
-  // --------------------------------------------------------------------------
-
   /**
-   * POST /send/text — Send a text message
-   * Requires instanceId header
+   * Send a text message
    */
   async sendText(
     number: string,
@@ -277,12 +259,8 @@ export class EvoGoClient {
     }
   }
 
-  // --------------------------------------------------------------------------
-  // Health
-  // --------------------------------------------------------------------------
-
   /**
-   * Simple health check — tries to reach the API root
+   * Check API health
    */
   async checkHealth(): Promise<boolean> {
     try {
@@ -298,9 +276,6 @@ export class EvoGoClient {
   }
 }
 
-// ============================================================================
-// Singleton instance — configured from environment variables
-// ============================================================================
 
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '';

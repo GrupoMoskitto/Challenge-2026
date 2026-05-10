@@ -35,11 +35,8 @@ export class AppointmentService {
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 5);
 
-    try {
-      // Limpa locks expirados antes de tentar
       await this.clearExpiredLocks();
 
-      // Verifica se já existe um lock ativo para esta vaga
       const existingLock = await prisma.slotLock.findFirst({
         where: {
           surgeonId,
@@ -50,11 +47,10 @@ export class AppointmentService {
       });
 
       if (existingLock) {
-        if (existingLock.jid === jid) return true; // Já é do próprio usuário
-        return false; // Vaga ocupada por outro lock
+        if (existingLock.jid === jid) return true;
+        return false;
       }
 
-      // Cria o novo lock
       await prisma.slotLock.create({
         data: {
           surgeonId,

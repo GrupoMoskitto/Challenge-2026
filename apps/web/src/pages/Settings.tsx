@@ -157,7 +157,6 @@ const Settings = () => {
     setSearchParams(newParams, { replace: true });
   };
 
-  // Template state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -173,7 +172,6 @@ const Settings = () => {
   const [editTemplate, setEditTemplate] = useState<TemplateForm>(initialTemplateForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // User management state
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
   const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
   const [confirmDeactivateOpen, setConfirmDeactivateOpen] = useState(false);
@@ -186,7 +184,6 @@ const Settings = () => {
 
   const [selectedInstance, setSelectedInstance] = useState<string>("");
 
-  // Schedule management state
   const [selectedSurgeonId, setSelectedSurgeonId] = useState<string | null>(null);
   const [editingAvailId, setEditingAvailId] = useState<string | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
@@ -197,7 +194,6 @@ const Settings = () => {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrData, setQrData] = useState<{ qrCode: string | null, pairingCode: string | null, instanceName: string } | null>(null);
 
-  // GraphQL
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
   const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS, { skip: !isAdmin });
   const { data: evoData, loading: evoLoading, refetch: refetchEvo, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
@@ -238,7 +234,6 @@ const Settings = () => {
   });
   const [connectEvolutionInstance] = useMutation(CONNECT_EVOLUTION_INSTANCE);
 
-  // Schedule mutations
   const [createAvail] = useMutation(CREATE_AVAILABILITY_SLOT);
   const [updateAvail] = useMutation(UPDATE_AVAILABILITY_SLOT);
   const [deleteAvail] = useMutation(DELETE_AVAILABILITY_SLOT);
@@ -449,7 +444,6 @@ const Settings = () => {
     }
   };
 
-  // Evolution API UI State
   const [createInstanceDialogOpen, setCreateInstanceDialogOpen] = useState(false);
   const [newInstanceName, setNewInstanceName] = useState("");
   const [qrCodeData, setQrCodeData] = useState<{ base64: string | null; pairingCode: string | null } | null>(null);
@@ -1081,7 +1075,6 @@ const Settings = () => {
 
                   {selectedSurgeon && (
                     <div className="grid gap-8 pt-4">
-                      {/* Horários Fixos */}
                       <div className="border rounded-xl p-6 bg-muted/30">
                         <div className="flex items-center justify-between mb-6">
                           <div>
@@ -1175,7 +1168,6 @@ const Settings = () => {
                         </div>
                       </div>
 
-                      {/* Plantões Extras */}
                       <div className="border rounded-xl p-6 bg-muted/30">
                         <div className="flex items-center justify-between mb-6">
                           <div>
@@ -1265,7 +1257,6 @@ const Settings = () => {
                         </div>
                       </div>
 
-                      {/* Bloqueios */}
                       <div className="border rounded-xl p-6 bg-muted/30">
                         <div className="flex items-center justify-between mb-6">
                           <div>
@@ -1421,7 +1412,6 @@ const Settings = () => {
           )}
         </Tabs>
 
-      {/* Create Template Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
@@ -1442,7 +1432,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Template Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
@@ -1463,7 +1452,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Template Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
@@ -1483,7 +1471,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Preview Template Dialog */}
       <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1513,7 +1500,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Create User Dialog */}
       <Dialog open={createUserDialogOpen} onOpenChange={setCreateUserDialogOpen}>
         <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
@@ -1558,7 +1544,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit User Dialog */}
       <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>

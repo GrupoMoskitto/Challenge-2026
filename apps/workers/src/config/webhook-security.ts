@@ -63,7 +63,6 @@ export function webhookSecurityMiddleware(
   return (req: Request, res: Response, next: NextFunction): void => {
     const isProduction = process.env.NODE_ENV === 'production';
 
-    // 1. IP Allowlist check
     // Always allow Docker internal network (172.x.x.x) for webhook
     const clientIp = req.ip || req.socket.remoteAddress || '';
     const normalizedIp = clientIp.replace(/^::ffff:/, ''); // Strip IPv6 prefix
@@ -82,7 +81,6 @@ export function webhookSecurityMiddleware(
       }
     }
 
-    // 2. Payload structure validation
     const body = req.body as Record<string, unknown>;
     if (!validatePayloadStructure(body)) {
       console.error('[Webhook:Security] Invalid payload structure - body:', body);
@@ -90,7 +88,6 @@ export function webhookSecurityMiddleware(
       return;
     }
 
-    // 3. HMAC Signature validation
     if (WEBHOOK_SECRET) {
       const signature = req.headers['x-webhook-signature'] as string | undefined;
 

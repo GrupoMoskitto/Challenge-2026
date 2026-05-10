@@ -1,5 +1,5 @@
 import { prisma, checkUniqueness, LeadStatus, AppointmentStatus, DocumentStatus, PostOpStatus, BudgetStatus, ComplaintStatus, UserRole, Prisma } from '@crmed/database';
-import { format, subDays, addDays } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { DateTimeScalar, IDScalar, JSONScalar } from '../scalars';
 import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit, COOKIE_OPTIONS, isTokenRevoked, revokeUserTokens, clearTokenRevocation } from '../../auth';
 import { dispatchLeadWelcome } from '../../services/whatsappQueue';

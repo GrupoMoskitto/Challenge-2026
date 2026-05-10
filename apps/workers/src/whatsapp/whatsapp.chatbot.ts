@@ -15,7 +15,6 @@ export class WhatsappChatbot {
     textMessage: string
   ) {
     console.log(`[DEBUG] handleRawMessage called for ${remoteJid} with message: ${textMessage}`);
-    // 1. Urgency Detection (Handover to Human)
     const urgentKeywords = ['emergencia', 'dor', 'atrasado', 'atraso', 'hospital', 'acidente', 'sangue', 'urgente'];
     if (urgentKeywords.some(k => textMessage.toLowerCase().includes(k))) {
       logger.warn('WhatsApp:Chatbot', `Urgência detectada de ${remoteJid}: ${textMessage}`);
@@ -49,14 +48,12 @@ export class WhatsappChatbot {
 
     const state = await WhatsappSession.get(remoteJid);
 
-    // 2. Stale Context Guard
     if (state.appointmentId) {
       const appt = await prisma.appointment.findUnique({ where: { id: state.appointmentId } });
       if (!appt || appt.status !== 'SCHEDULED' || appt.scheduledAt < new Date()) {
         logger.info('WhatsApp:Chatbot', `Contexto obsoleto para ${remoteJid} (appt: ${state.appointmentId})`);
         state.appointmentId = undefined;
         state.stage = 'START';
-        // Se a mensagem for numérica, pode ser um clique de botão antigo, ignoramos e resetamos
         if (/^\d$/.test(textMessage.trim())) {
           await WhatsappSender.sendMessage(instanceId, remoteJid, `Olá! Notei que você tentou responder a uma notificação de uma consulta que já não está mais ativa. Como posso te ajudar hoje?`);
           await WhatsappSession.clear(remoteJid);
@@ -125,7 +122,6 @@ export class WhatsappChatbot {
       }
     }
 
-    // Process remaining stages
     switch (state.stage) {
       case 'CONFIRM_APPOINTMENT':
         if (textMessage === '1') {
@@ -202,12 +198,9 @@ export class WhatsappChatbot {
           state.lastVerificationAt = Date.now();
           await this.listAppointmentsFlow(instanceId, remoteJid, state);
         } else {
-          let errorMsg = `⚠️ Desculpe, não consegui validar sua identidade.`;
-          if (result.error === 'INVALID_FORMAT') {
-            errorMsg = `⚠️ O formato da data parece estar incorreto. Por favor, use o padrão *DD/MM/AAAA* (Ex: 15/05/1990):`;
-          } else {
-            errorMsg = `⚠️ A data informada não confere com nossos registros. Por favor, verifique e tente novamente:`;
-          }
+          const errorMsg = result.error === 'INVALID_FORMAT'
+            ? `⚠️ O formato da data parece estar incorreto. Por favor, use o padrão *DD/MM/AAAA* (Ex: 15/05/1990):`
+            : `⚠️ A data informada não confere com nossos registros. Por favor, verifique e tente novamente:`;
           await WhatsappSender.sendMessage(instanceId, remoteJid, errorMsg);
         }
         break;

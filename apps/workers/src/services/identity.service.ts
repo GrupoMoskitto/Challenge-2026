@@ -1,5 +1,4 @@
 import { prisma } from '@crmed/database';
-import { logger } from '../config/logger';
 import { parse, isValid, format, startOfDay } from 'date-fns';
 
 export interface ValidationResult {

@@ -7,7 +7,6 @@ import { logger } from '../config/logger';
 export const WHATSAPP_QUEUE_NAME = 'whatsapp-reminders';
 export const WHATSAPP_DLQ_NAME = 'whatsapp-dead-letter';
 
-// BullMQ Queue instance with default retry policy
 export const whatsappQueue = new Queue(WHATSAPP_QUEUE_NAME, {
   connection: redisConnection as ConnectionOptions,
   defaultJobOptions: {
@@ -21,7 +20,7 @@ export const whatsappQueue = new Queue(WHATSAPP_QUEUE_NAME, {
   },
 });
 
-// Dead Letter Queue for permanently failed jobs
+// Dead Letter Queue (DLQ)
 export const whatsappDLQ = new Queue(WHATSAPP_DLQ_NAME, {
   connection: redisConnection as ConnectionOptions,
 });
@@ -36,7 +35,6 @@ interface WhatsAppJobData {
   instanceName?: string; // Optional custom instance
 }
 
-// BullMQ Worker to process the events
 export const whatsappWorker = new Worker<WhatsAppJobData>(
   WHATSAPP_QUEUE_NAME,
   async (job: Job<WhatsAppJobData>) => {
@@ -44,8 +42,6 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
     const { appointmentId, leadId, phone, message, triggerDays, instanceName: jobInstanceName } = job.data;
 
     try {
-      // 1. Send the WhatsApp message via Evolution API
-      // Use the instance name from the job if provided, otherwise fallback to default
       const defaultInstance = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
       const instanceName = jobInstanceName || defaultInstance;
       const result = await WhatsappSender.sendMessage(instanceName, phone, message, leadId);
@@ -54,7 +50,7 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
          logger.info('Worker', `Job ${job.id} processado (bloqueado pelo Sandbox)`);
       }
 
-      // 2. Fulfill RN06: Create an AuditLog representing the successful delivery
+      // RN06: Successful delivery audit
       await prisma.auditLog.create({
         data: {
           entityType: appointmentId ? 'Appointment' : 'Lead',
@@ -71,7 +67,6 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
       const errMessage = error instanceof Error ? error.message : String(error);
       logger.error('Worker', `Falha ao enviar para ${phone}`, errMessage);
       
-      // Still logging the failure for audit purposes
       await prisma.auditLog.create({
         data: {
           entityType: appointmentId ? 'Appointment' : 'Lead',
@@ -119,7 +114,7 @@ whatsappWorker.on('failed', async (job, err) => {
       attemptsMade: job.attemptsMade,
     });
 
-    // RN06: Audit trail for DLQ event
+    // RN06: DLQ audit
     await prisma.auditLog.create({
       data: {
         entityType: job.data.appointmentId ? 'Appointment' : 'Lead',

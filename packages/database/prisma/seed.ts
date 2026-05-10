@@ -1,4 +1,4 @@
-import { PrismaClient, LeadStatus, AppointmentStatus, NotificationType, ContactType, ContactDirection, ContactStatus, DocumentType, DocumentStatus, PostOpType, PostOpStatus, MessageChannel, BudgetStatus, ComplaintStatus, TreatmentStatus, UserRole } from '@prisma/client';
+import { PrismaClient, LeadStatus, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { subDays, addDays, setHours, setMinutes } from 'date-fns';
 
@@ -7,7 +7,6 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🚀 Starting MEGA-RICH seed process (30-day timeline)...');
 
-  // 1. CLEANING DATA
   await prisma.whatsappSession.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.contact.deleteMany();
@@ -32,27 +31,23 @@ async function main() {
 
   const hashedPassword = await bcrypt.hash('admin123', 10);
 
-  // 2. USERS
   const users = await Promise.all([
     prisma.user.create({ data: { email: 'admin@hsr.com.br', name: 'Dr. Arthur (Diretor)', role: UserRole.ADMIN, password: hashedPassword } }),
     prisma.user.create({ data: { email: 'recepcao@hsr.com.br', name: 'Beatriz Maria (Recepção)', role: UserRole.RECEPTION, password: hashedPassword } }),
     prisma.user.create({ data: { email: 'vendas@hsr.com.br', name: 'Daniela Comercial', role: UserRole.SALES, password: hashedPassword } }),
   ]);
 
-  // 3. SURGEONS
   const surgeons = await Promise.all([
     prisma.surgeon.create({ data: { name: 'Dr. Sérgio Vasconcelos', specialty: 'Cirurgia Plástica', crm: '123456-SP', email: 'sergio.v@hsr.com.br', phone: '5511999991111' } }),
     prisma.surgeon.create({ data: { name: 'Dra. Helena Mendes', specialty: 'Dermatologia', crm: '654321-SP', email: 'helena.m@hsr.com.br', phone: '5511999992222' } }),
     prisma.surgeon.create({ data: { name: 'Dra. Beatriz Matos', specialty: 'Cirurgia Geral', crm: '112233-SP', email: 'beatriz.m@hsr.com.br', phone: '5511999993333' } }),
   ]);
 
-  // 4. DATA GENERATORS
   const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Facebook'];
   const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD'];
   const generateCpf = () => `${Math.floor(100+Math.random()*899)}.${Math.floor(100+Math.random()*899)}.${Math.floor(100+Math.random()*899)}-${Math.floor(10+Math.random()*89)}`;
   const randomItem = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
 
-  // 5. SEEDING 60 LEADS OVER 30 DAYS
   console.log('📈 Seeding 60 leads with historical data...');
   for (let i = 0; i < 60; i++) {
     const creationDate = subDays(new Date(), Math.floor(Math.random() * 30));
@@ -78,9 +73,8 @@ async function main() {
       }
     });
 
-    // Contacts for metrics
     if (status !== LeadStatus.NEW) {
-        const contactDate = addDays(creationDate, Math.random() * 0.5); // Fast contact (within 12h)
+        const contactDate = addDays(creationDate, Math.random() * 0.5);
         await prisma.contact.create({
             data: {
                 leadId: lead.id,
@@ -94,7 +88,6 @@ async function main() {
         });
     }
 
-    // Convert to Patient if status is CONVERTED
     if (status === LeadStatus.CONVERTED) {
         const patient = await prisma.patient.create({
             data: {
@@ -105,7 +98,6 @@ async function main() {
             }
         });
 
-        // Add 1-2 appointments
         const apptDate = addDays(patient.createdAt, 2 + Math.random() * 10);
         await prisma.appointment.create({
             data: {
@@ -118,7 +110,6 @@ async function main() {
             }
         });
 
-        // Add some audit logs
         await prisma.auditLog.create({
             data: {
                 entityType: 'Lead',
@@ -134,10 +125,8 @@ async function main() {
     }
   }
 
-  // 6. SPECIAL CASES FOR DASHBOARD
   console.log('🎯 Seeding special dashboard scenarios...');
   
-  // A confirmed surgery tomorrow
   const patientVip = await prisma.patient.findFirst({ include: { lead: true } });
   if (patientVip) {
       await prisma.appointment.create({
@@ -151,7 +140,6 @@ async function main() {
       });
   }
 
-  // Some SAC Complaints
   const patients = await prisma.patient.findMany({ take: 3 });
   for (const p of patients) {
       await prisma.complaint.create({
@@ -164,7 +152,6 @@ async function main() {
       });
   }
 
-  // 7. MESSAGE TEMPLATES (Automations)
   console.log('📝 Seeding standard message templates...');
   await prisma.messageTemplate.createMany({
     data: [

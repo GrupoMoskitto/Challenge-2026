@@ -192,7 +192,6 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
   return (
     <header className="h-16 border-b border-border bg-card flex items-center justify-between px-3 md:px-6 shrink-0 gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        {/* Hamburger — visible on mobile/tablet (< lg) */}
         {onMenuToggle && (
           <button
             onClick={onMenuToggle}
@@ -206,7 +205,6 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
       </div>
 
         <div className="flex items-center gap-2 md:gap-4">
-          {/* New Patient Button (Primary Action) */}
           <button 
             onClick={() => openCreatePatientModal()}
             className="hidden md:flex bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium items-center gap-1.5 px-4 py-2 text-sm whitespace-nowrap transition-colors flex-shrink-0"
@@ -214,7 +212,6 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
             <Plus className="h-4 w-4" />
             Novo Paciente
           </button>
-          {/* Search */}
           <div className="flex-1 relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -279,7 +276,6 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
             )}
           </div>
 
-        {/* Notifications */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
@@ -393,7 +389,6 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Profile */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 px-2">

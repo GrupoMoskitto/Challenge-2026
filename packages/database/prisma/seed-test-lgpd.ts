@@ -1,4 +1,4 @@
-import { PrismaClient, LeadStatus, AppointmentStatus, NotificationType } from '@prisma/client';
+import { PrismaClient, LeadStatus, AppointmentStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
