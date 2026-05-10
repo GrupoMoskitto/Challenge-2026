@@ -24,8 +24,14 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 - **Centralização de Leads** — Kanban interativo com arrastar e soltar (Drag & Drop) e Optimistic UI
 - **Filtros Avançados de Leads** — Por origem, procedimento, WhatsApp ativo, status de paciente e agendamento
 - **Gestão de Agendas** — Controle em tempo real da disponibilidade dos cirurgiões
-- **Automação WhatsApp & Chatbot Inteligente** — Disparos automáticos para confirmações, lembretes (RN05) e captura de leads através de um bot interativo com UX premium (pedindo validações, captando e-mail de forma condicional e oferecendo atalhos contextuais).
+- **Automação WhatsApp & Chatbot Inteligente** — Disparos automáticos para confirmações, lembretes (RN05) e captura de leads através de um bot interativo com UX premium.
+- **Régua de Comunicação 360º** — Gestão proativa de agendamentos e **Pós-Operatório** em ciclos de 30 dias, 7 dias e 48 horas (Confirmação Crítica).
+- **Camada de Segurança LGPD** — Desafio de Identidade (validação de Data de Nascimento) obrigatório para pacientes acessarem dados sensíveis via WhatsApp.
+- **Sistema de Templates Blindado** — Redação dinâmica via Dashboard com injeção automática de opções da State Machine e *Graceful Degradation* (substituição inteligente de tags nulas).
+- **Autoatendimento (Self-Service)** — Consulta, confirmação e solicitação de reagendamento direto pelo WhatsApp sem intervenção humana inicial.
+- **Inatividade Consciente** — Monitoramento de falta de resposta que pausa o timer de 24h fora do horário comercial (Seg-Sex, 08h-18h), protegendo o fluxo da recepção.
 - **Notificações em Tempo Real** — Centro de notificações com marcar como lida individual ou em massa
+
 - **Gestão de Instâncias WhatsApp** — Criação, conexão via QR Code de forma nativa ao painel com integração direta a Evolution API Go (`EvoGo`).
 - **Conversão Lead → Paciente** — Fluxo completo de conversão com ficha clínica (pós-ops, documentos, histórico)
 - **Inteligência de Dados** — Dashboards de conversão, performance e ociosidade médica
@@ -238,8 +244,10 @@ pnpm infra:dev
 | --- | --- | --- |
 | **RN01** | **Duplicidade Zero** — Proibido cadastrar pacientes com CPF, e-mail ou telefone duplicados | Crítica |
 | **RN03** | **Hierarquia** — Mudanças de status crítico exigem autorização por role | Alta |
-| **RN05** | **Ciclo de Notificações** — WhatsApp: 4d, 2d, 1d antes e dia da consulta | Crítica |
+| **RN05** | **Ciclo de Notificações** — WhatsApp: 30d, 7d e 48h antes da consulta (inclui Pós-Op) | Crítica |
 | **RN06** | **Auditoria** — Toda tentativa de contato e alteração logada com data/hora/responsável | Alta |
+| **RN07** | **Segurança LGPD** — Validação de identidade (Nascimento) obrigatória para acesso a dados | Crítica |
+| **RN08** | **Expediente** — Timers de inatividade respeitam o horário comercial (08h-18h) | Média |
 
 ### Variáveis de Ambiente
 

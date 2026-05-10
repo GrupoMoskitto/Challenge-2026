@@ -16,6 +16,14 @@ export default {
       fontFamily: {
         sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
       },
+      height: {
+        'screen-dvh': '100dvh',
+        'screen-svh': '100svh',
+      },
+      minHeight: {
+        'screen-dvh': '100dvh',
+        'touch': '44px',
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -95,6 +103,14 @@ export default {
           "100%": {
             transform: "translateX(100%)",
           },
+        },
+        "mobile-nav-in": {
+          from: { transform: "translateX(-100%)", opacity: "0" },
+          to: { transform: "translateX(0)", opacity: "1" },
+        },
+        "mobile-nav-out": {
+          from: { transform: "translateX(0)", opacity: "1" },
+          to: { transform: "translateX(-100%)", opacity: "0" },
         },
       },
       animation: {

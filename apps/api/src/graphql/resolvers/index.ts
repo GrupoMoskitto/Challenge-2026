@@ -1558,7 +1558,7 @@ export const resolvers = {
       }
       const appointment = await prisma.appointment.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), scheduledAt }, include: { patient: true, surgeon: true } });
       await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: appointment.id, action: 'CREATED', userId: context.user?.userId, appointmentId: appointment.id } });
-      await prisma.notification.create({ data: { appointmentId: appointment.id, type: 'CONFIRMATION', status: 'PENDING' } });
+      await prisma.notification.create({ data: { appointmentId: appointment.id, type: 'CONFIRMATION_48H', status: 'PENDING' } });
       return appointment;
     },
     updateAppointment: async (_: unknown, { input }: { input: UpdateAppointmentInput }, context: Context) => {
@@ -1918,14 +1918,43 @@ export const resolvers = {
       if (!EVOLUTION_API_KEY) throw new Error('EVOLUTION_API_KEY environment variable is required');
       const DEV_ALLOWED_PHONE = process.env.DEV_ALLOWED_PHONE;
       if (!DEV_ALLOWED_PHONE) throw new Error('DEV_ALLOWED_PHONE não configurado no ambiente');
+
       const template = await prisma.messageTemplate.findUnique({ where: { id: decodeId(templateId) } });
       if (!template) throw new Error('Template não encontrado');
-      let content = template.content.replace(/{nome}/g, 'Paciente Teste');
-      content = content.replace(/{medico}/g, 'Dr. João');
-      content = content.replace(/{data}/g, new Date().toLocaleDateString('pt-BR'));
-      content = content.replace(/{hora}/g, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-      
-      // Find instance UUID by name for the instance token
+
+      // 1. Dados fictícios profissionais (evitando nomes reais)
+      const mockData = {
+        paciente: 'Sérgio Vasconcelos (Teste)',
+        procedimento: 'Procedimento Estético Avançado',
+        medico: 'Dra. Helena Mendes',
+        data: format(new Date(Date.now() + 86400000 * 2), 'dd/MM/yyyy'),
+        hora: '09:00'
+      };
+
+      // 2. Opções de Resposta baseadas no tipo (Espelhamento da State Machine)
+      let optionsSuffix = '';
+      if (template.name.includes('30D')) {
+        optionsSuffix = `\n\n1️⃣ Está tudo certo!\n2️⃣ Tenho dúvidas\n3️⃣ Preciso reagendar`;
+      } else if (template.name.includes('7D')) {
+        optionsSuffix = `\n\n1️⃣ Sim, tudo pronto!\n2️⃣ Preciso de ajuda\n3️⃣ Preciso reagendar`;
+      } else if (template.name.includes('48H')) {
+        optionsSuffix = `\n\n1️⃣ *SIM, CONFIRMAR*\n2️⃣ *REAGENDAR AGORA*\n3️⃣ *CANCELAR*`;
+      }
+
+      // 3. Parsing Robusto (Suporta {{tag}} e {tag})
+      let content = template.content;
+      const tags = ['paciente', 'procedimento', 'medico', 'data', 'hora'];
+
+      tags.forEach(tag => {
+        const value = (mockData as any)[tag];
+        const regexDouble = new RegExp(`\\{\\{\\s*${tag}\\s*\\}\\}`, 'g');
+        const regexSingle = new RegExp(`\\{${tag}\\}`, 'g');
+        content = content.replace(regexDouble, value).replace(regexSingle, value);
+      });
+
+      const finalMessage = `🧪 *[TESTE DE DISPARO]*\n\n${content}${optionsSuffix}`;
+
+      // 4. Busca token da instância
       const listResponse = await fetch(`${EVOLUTION_API_URL}/instance/all`, {
         headers: { 'apikey': EVOLUTION_API_KEY },
       });
@@ -1933,17 +1962,20 @@ export const resolvers = {
       const instances = listJson.data || [];
       const instance = instances.find((i) => i.name === instanceName);
       const instanceToken = (instance?.token as string) || EVOLUTION_API_KEY;
-      
-      // EvoGo: POST /send/text with instance token in apikey
+
+      // 5. Envio via EvoGo
       const response = await fetch(`${EVOLUTION_API_URL}/send/text`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'apikey': instanceToken,
         },
-        body: JSON.stringify({ number: DEV_ALLOWED_PHONE, text: content }),
+        body: JSON.stringify({ 
+          number: DEV_ALLOWED_PHONE.replace(/[^0-9]/g, ''), 
+          text: finalMessage 
+        }),
       });
-      
+
       if (!response.ok) {
         const errorBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
         const msg = (errorBody.message as string) || JSON.stringify(errorBody);
@@ -1951,6 +1983,7 @@ export const resolvers = {
       }
       return true;
     },
+
     markAllNotificationsAsRead: async (_: unknown, __: unknown, context: Context) => {
       assertAuthenticated(context);
       await prisma.notification.updateMany({ where: { status: { in: ['PENDING', 'SENT'] } }, data: { status: 'READ' } });

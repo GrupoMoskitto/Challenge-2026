@@ -65,11 +65,22 @@ function ThemeToggle({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  /** Called after a navigation action (used to close mobile drawer) */
+  onNavigate?: () => void;
+  /** Whether rendered inside a mobile drawer (forces expanded state, hides collapse toggle) */
+  isMobileDrawer?: boolean;
+}
+
+export function AppSidebar({ onNavigate, isMobileDrawer }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(() => {
+    if (isMobileDrawer) return false;
     return localStorage.getItem("sidebar-collapsed") === "true";
   });
   const location = useLocation();
+
+  // In mobile drawer, always expanded
+  const isCollapsed = isMobileDrawer ? false : collapsed;
 
   const handleLogout = async () => {
     await serverLogout();
@@ -78,8 +89,10 @@ export function AppSidebar() {
   };
 
   useEffect(() => {
-    localStorage.setItem("sidebar-collapsed", String(collapsed));
-  }, [collapsed]);
+    if (!isMobileDrawer) {
+      localStorage.setItem("sidebar-collapsed", String(collapsed));
+    }
+  }, [collapsed, isMobileDrawer]);
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user?.role === 'ADMIN';
@@ -89,17 +102,21 @@ export function AppSidebar() {
     navItems.push({ title: "Configurações", url: "/settings", icon: Settings });
   }
 
+  const handleNavClick = () => {
+    onNavigate?.();
+  };
+
   return (
     <aside
       className={cn(
-        "flex flex-col h-screen border-r transition-all duration-300 ease-in-out shrink-0 overflow-hidden",
+        "flex flex-col h-full border-r transition-all duration-300 ease-in-out shrink-0 overflow-hidden",
         "bg-sidebar-background/80 backdrop-blur-xl text-sidebar-foreground border-sidebar-border/50",
-        collapsed ? "w-16" : "w-60"
+        isMobileDrawer ? "w-full" : (isCollapsed ? "w-16" : "w-60")
       )}
     >
       {/* Logo */}
       <div className="flex items-center justify-center h-16 px-4 border-b border-sidebar-border">
-        <img src="/logo.svg" alt="Hospital São Rafael" className={collapsed ? "h-8 w-auto object-contain" : "h-9 w-auto object-contain"} />
+        <img src="/logo.svg" alt="Hospital São Rafael" className={isCollapsed ? "h-8 w-auto object-contain" : "h-9 w-auto object-contain"} />
       </div>
 
       {/* Nav Items */}
@@ -120,9 +137,10 @@ export function AppSidebar() {
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               )}
               activeClassName="bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary"
+              onClick={handleNavClick}
             >
               <item.icon className={cn("h-5 w-5 shrink-0", isActive && "text-sidebar-primary")} />
-              {!collapsed && <span className="whitespace-nowrap">{item.title}</span>}
+              {!isCollapsed && <span className="whitespace-nowrap">{item.title}</span>}
             </NavLink>
           );
         })}
@@ -130,7 +148,7 @@ export function AppSidebar() {
 
       {/* Theme Toggle */}
       <div className="px-2 py-1 overflow-x-hidden">
-        <ThemeToggle collapsed={collapsed} />
+        <ThemeToggle collapsed={isCollapsed} />
       </div>
 
       {/* Logout Button */}
@@ -139,26 +157,28 @@ export function AppSidebar() {
           variant="ghost"
           className={cn(
             "w-full justify-start text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-            collapsed && "justify-center px-0"
+            isCollapsed && "justify-center px-0"
           )}
           onClick={handleLogout}
         >
           <LogOut className="h-5 w-5 shrink-0" />
-          {!collapsed && <span className="ml-3 whitespace-nowrap">Sair</span>}
+          {!isCollapsed && <span className="ml-3 whitespace-nowrap">Sair</span>}
         </Button>
       </div>
 
-      {/* Collapse Toggle */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center justify-center h-12 border-t border-sidebar-border hover:bg-sidebar-accent transition-colors"
-      >
-        {collapsed ? (
-          <ChevronRight className="h-4 w-4 text-sidebar-foreground/60" />
-        ) : (
-          <ChevronLeft className="h-4 w-4 text-sidebar-foreground/60" />
-        )}
-      </button>
+      {/* Collapse Toggle — hidden in mobile drawer */}
+      {!isMobileDrawer && (
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex items-center justify-center h-12 border-t border-sidebar-border hover:bg-sidebar-accent transition-colors"
+        >
+          {collapsed ? (
+            <ChevronRight className="h-4 w-4 text-sidebar-foreground/60" />
+          ) : (
+            <ChevronLeft className="h-4 w-4 text-sidebar-foreground/60" />
+          )}
+        </button>
+      )}
     </aside>
   );
 }

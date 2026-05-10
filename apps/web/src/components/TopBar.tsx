@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus, Trash2 } from "lucide-react";
+import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus, Trash2, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ import { ptBR } from "date-fns/locale";
 
 interface TopBarProps {
   title: string;
+  /** Called to open the mobile navigation drawer */
+  onMenuToggle?: () => void;
 }
 
 const roleLabels: Record<string, string> = {
@@ -34,10 +36,11 @@ const roleLabels: Record<string, string> = {
 };
 
 const notificationTypeLabels: Record<string, string> = {
-  CONFIRMATION: "Confirmação de consulta",
-  REMINDER_2_DAYS: "Lembrete — 2 dias",
-  REMINDER_1_DAY: "Lembrete — 1 dia",
-  LAST_ATTEMPT: "Última tentativa de contato",
+  REMINDER_30D: "Lembrete — 30 dias",
+  REMINDER_7D: "Lembrete — 7 dias",
+  CONFIRMATION_48H: "Confirmação — 48 horas",
+  POST_OP_CONFIRMATION: "Confirmação Pós-Op",
+  LAST_ATTEMPT: "Última tentativa",
 };
 
 const NOTIFICATIONS_QUERY = gql`
@@ -66,7 +69,7 @@ const NOTIFICATIONS_QUERY = gql`
   }
 `;
 
-export function TopBar({ title }: TopBarProps) {
+export function TopBar({ title, onMenuToggle }: TopBarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { openCreatePatientModal } = usePatientModal();
@@ -162,7 +165,7 @@ export function TopBar({ title }: TopBarProps) {
   const handleLogout = async () => {
     await serverLogout();
     localStorage.removeItem('user');
-    navigate('/login');
+    window.location.href = '/login';
   };
 
   const handleProfile = () => {
@@ -187,11 +190,21 @@ export function TopBar({ title }: TopBarProps) {
   };
 
   return (
-    <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6 shrink-0">
-      <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+    <header className="h-16 border-b border-border bg-card flex items-center justify-between px-3 md:px-6 shrink-0 gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        {onMenuToggle && (
+          <button
+            onClick={onMenuToggle}
+            className="lg:hidden flex items-center justify-center h-10 w-10 rounded-md hover:bg-accent transition-colors shrink-0"
+            aria-label="Abrir menu"
+          >
+            <Menu className="h-5 w-5 text-foreground" />
+          </button>
+        )}
+        <h1 className="text-base md:text-lg font-semibold text-foreground truncate">{title}</h1>
+      </div>
 
-        <div className="flex items-center gap-4">
-          {/* New Patient Button (Primary Action) */}
+        <div className="flex items-center gap-2 md:gap-4">
           <button 
             onClick={() => openCreatePatientModal()}
             className="hidden md:flex bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium items-center gap-1.5 px-4 py-2 text-sm whitespace-nowrap transition-colors flex-shrink-0"
@@ -199,7 +212,6 @@ export function TopBar({ title }: TopBarProps) {
             <Plus className="h-4 w-4" />
             Novo Paciente
           </button>
-          {/* Search */}
           <div className="flex-1 relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -264,7 +276,6 @@ export function TopBar({ title }: TopBarProps) {
             )}
           </div>
 
-        {/* Notifications */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
@@ -378,7 +389,6 @@ export function TopBar({ title }: TopBarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Profile */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 px-2">

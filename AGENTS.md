@@ -43,6 +43,8 @@ infra/            → Docker, Evolution Go
 | **RN01** | **Zero Duplicates** — Use `checkUniqueness()` from `@crmed/database` | Tests break, data corrupts |
 | **RN03** | **Hierarchy** — RECEPTION cannot change status to CONVERTED/LOST | Security violation |
 | **RN06** | **Audit** — Every status change creates `AuditLog` | Loss of traceability |
+| **RN07** | **LGPD Challenge** — Mandatory DOB validation for sensitive data access | Privacy violation |
+| **RN08** | **Business Hours** — Inactivity timers pause outside 08:00 - 18:00 | Operational noise |
 
 ---
 
@@ -322,11 +324,16 @@ pnpm --filter @crmed/database db:generate
 
 - A infraestrutura de comunicação baseia-se unicamente na versão Golang do Evolution API (EvoGo), onde o `instanceToken` é mandatório em requisições instance-scoped via header `apikey`.
 - **Prevenção de Duplicação (Estabilidade):** O webhook processa os eventos no worker principal usando uma verificação de `fingerprint` em memória (`Set`) garantindo um lock natural de 10s para não processar e responder duas vezes a mesma mensagem.
-- **Onboarding de Leads (Máquina de Estados):**
-  A UX atualizada exige confirmações progressivas (para reduzir lixo na base de dados):
-  1. `NEW_ASK_NAME`: Solicita o nome amigável.
-  2. `NEW_CONFIRM_NAME`: Pede "Sim/Não" via formato simulado de botões. Retorna ao passo anterior em caso de erro.
-  3. `NEW_ASK_EMAIL`: Oferece uma vantagem ("experiência mais completa / recebimento de relatórios") para a captação do e-mail. Aceita a interrupção graciosa utilizando o input "Pular". Realiza Regex validação em caso do dado fornecido.
-  4. `NEW_ASK_INTEREST`: Interpola todos os dados validados dentro da criação do Lead no banco.
+- **Onboarding & Self-Service (State Machine):**
+  A UX atualizada exige confirmações progressivas e oferece autoatendimento:
+  1. `NEW_ASK_NAME` / `NEW_ASK_EMAIL`: Fluxo de captação de leads.
+  2. `VERIFY_DOB_CHALLENGE`: Desafio LGPD (Data de Nascimento) antes de listar agendamentos.
+  3. `VERIFY_DOB_ENRICH`: Progressive Profiling para capturar data de nascimento ausente.
+  4. `APPOINTMENT_LIST`: Autoatendimento para consulta e gestão de horários.
+
+- **Sistema de Templates & Parser:**
+  - O `NotificationService` utiliza o `TemplateParser` para interpolar chaves como `{{paciente}}`, `{{procedimento}}` e `{{medico}}`.
+  - **Graceful Degradation:** Tags nulas são substituídas por termos genéricos (ex: "nosso especialista").
+  - **Ações Fixas:** O sufixo de opções (1️⃣ Confirmar...) é injetado programaticamente para proteger a integridade do bot.
 
 - **Sandbox Environment:** O código no dev bloqueia mensagens enviadas para números aleatórios a menos que correspondam com precisão com a ENVAR `DEV_ALLOWED_PHONE` localizada na raiz do repositório no arquivo `.env`.

@@ -15,15 +15,11 @@ export async function processDailyAppointments() {
   logger.info('Cron', 'Iniciando varredura diária de consultas...');
 
   try {
-    // Buscar todos os templates do banco para fazer cache em memória local
     const templates = await prisma.messageTemplate.findMany();
     
-    // Configurar o range de busca de consultas.
-    // Queremos consultas de hoje (0) até 4 dias no futuro.
     const today = startOfDay(new Date());
     const maxDate = addDays(today, 5); 
 
-    // Buscar consultas que estão AGENDADAS ou CONFIRMADAS neste range
     const appointments = await prisma.appointment.findMany({
       where: {
         scheduledAt: {
@@ -52,17 +48,13 @@ export async function processDailyAppointments() {
       const aptDate = startOfDay(new Date(appointment.scheduledAt));
       const daysUntilApt = differenceInDays(aptDate, today);
 
-      // Verificar se existe um Template no banco correspondente ao número de dias
-      // Mantemos o range <= 5 e >= 0 para garantir que são templates de lembretes
       const template = templates.find(t => t.triggerDays === daysUntilApt && t.triggerDays >= 0 && t.triggerDays <= 5);
       
       if (!template) {
-        // console.warn(`[Cron] No template found for triggerDays = ${daysUntilApt}`);
         continue;
       }
 
-      // Evitar disparo duplicado (RN06)
-      // Procurar se já criamos um AuditLog de WHATSAPP_SENT para esta consulta neste exato trigger
+      // RN06: Evita disparo duplicado
       const alreadySent = await prisma.auditLog.findFirst({
         where: {
           entityType: 'Appointment',
@@ -79,7 +71,6 @@ export async function processDailyAppointments() {
         continue;
       }
 
-      // Fazer o Parse das variáveis: {nome}, {data}, {hora}, {medico}, {procedimento}
       let content = template.content;
       content = content.replace(/{nome}/g, leadData.name.split(' ')[0]);
       content = content.replace(/{data}/g, format(new Date(appointment.scheduledAt), 'dd/MM/yyyy'));
@@ -87,7 +78,6 @@ export async function processDailyAppointments() {
       content = content.replace(/{medico}/g, surgeonData?.name || 'seu médico');
       content = content.replace(/{procedimento}/g, appointment.procedure);
 
-      // Inserir na fila do BullMQ
       await whatsappQueue.add('send-reminder', {
         appointmentId: appointment.id,
         leadId: leadData.id,

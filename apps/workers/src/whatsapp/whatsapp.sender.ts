@@ -42,7 +42,7 @@ export class WhatsappSender {
     const number = this.sanitizePhone(phone);
 
     if (this.isBlockedBySandbox(number)) {
-      logger.info('WhatsApp:Sender', `[SANDBOX] Mensagem bloqueada para ${number}. Apenas ${process.env.DEV_ALLOWED_PHONE} permitido.`);
+      logger.debug('WhatsApp:Sender', `[SANDBOX] Mensagem bloqueada para ${number}. Apenas ${process.env.DEV_ALLOWED_PHONE} permitido.`);
       return { delivered: false, status: 'blocked_by_dev_sandbox' };
     }
 

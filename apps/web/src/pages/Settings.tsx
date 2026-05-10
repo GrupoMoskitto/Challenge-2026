@@ -157,7 +157,6 @@ const Settings = () => {
     setSearchParams(newParams, { replace: true });
   };
 
-  // Template state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -173,7 +172,6 @@ const Settings = () => {
   const [editTemplate, setEditTemplate] = useState<TemplateForm>(initialTemplateForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // User management state
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
   const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
   const [confirmDeactivateOpen, setConfirmDeactivateOpen] = useState(false);
@@ -186,7 +184,6 @@ const Settings = () => {
 
   const [selectedInstance, setSelectedInstance] = useState<string>("");
 
-  // Schedule management state
   const [selectedSurgeonId, setSelectedSurgeonId] = useState<string | null>(null);
   const [editingAvailId, setEditingAvailId] = useState<string | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
@@ -197,7 +194,6 @@ const Settings = () => {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrData, setQrData] = useState<{ qrCode: string | null, pairingCode: string | null, instanceName: string } | null>(null);
 
-  // GraphQL
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
   const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS, { skip: !isAdmin });
   const { data: evoData, loading: evoLoading, refetch: refetchEvo, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
@@ -238,7 +234,6 @@ const Settings = () => {
   });
   const [connectEvolutionInstance] = useMutation(CONNECT_EVOLUTION_INSTANCE);
 
-  // Schedule mutations
   const [createAvail] = useMutation(CREATE_AVAILABILITY_SLOT);
   const [updateAvail] = useMutation(UPDATE_AVAILABILITY_SLOT);
   const [deleteAvail] = useMutation(DELETE_AVAILABILITY_SLOT);
@@ -449,7 +444,6 @@ const Settings = () => {
     }
   };
 
-  // Evolution API UI State
   const [createInstanceDialogOpen, setCreateInstanceDialogOpen] = useState(false);
   const [newInstanceName, setNewInstanceName] = useState("");
   const [qrCodeData, setQrCodeData] = useState<{ base64: string | null; pairingCode: string | null } | null>(null);
@@ -693,33 +687,33 @@ const Settings = () => {
   return (
     <AppLayout title="Configurações">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="w-full mb-6">
-          <TabsTrigger value="profile" className="flex-1">
-            <User className="h-4 w-4 mr-2" />
-            Perfil
+        <TabsList className="w-full mb-6 overflow-x-auto no-scrollbar flex-nowrap">
+          <TabsTrigger value="profile" className="flex-1 min-w-0 gap-1.5">
+            <User className="h-4 w-4 shrink-0 hidden sm:block" />
+            <span className="truncate">Perfil</span>
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="integrations" className="flex-1">
-              <Plug className="h-4 w-4 mr-2" />
-              Integrações
+            <TabsTrigger value="integrations" className="flex-1 min-w-0 gap-1.5">
+              <Plug className="h-4 w-4 shrink-0 hidden sm:block" />
+              <span className="truncate">Integrações</span>
             </TabsTrigger>
           )}
           {isAdmin && (
-            <TabsTrigger value="users" className="flex-1">
-              <Users className="h-4 w-4 mr-2" />
-              Usuários
+            <TabsTrigger value="users" className="flex-1 min-w-0 gap-1.5">
+              <Users className="h-4 w-4 shrink-0 hidden sm:block" />
+              <span className="truncate">Usuários</span>
             </TabsTrigger>
           )}
           {isAdmin && (
-            <TabsTrigger value="templates" className="flex-1">
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Templates
+            <TabsTrigger value="templates" className="flex-1 min-w-0 gap-1.5">
+              <MessageSquare className="h-4 w-4 shrink-0 hidden sm:block" />
+              <span className="truncate">Templates</span>
             </TabsTrigger>
           )}
           {isAdmin && (
-            <TabsTrigger value="schedule" className="flex-1">
-              <CalendarIcon className="h-4 w-4 mr-2" />
-              Agenda
+            <TabsTrigger value="schedule" className="flex-1 min-w-0 gap-1.5">
+              <CalendarIcon className="h-4 w-4 shrink-0 hidden sm:block" />
+              <span className="truncate">Agenda</span>
             </TabsTrigger>
           )}
         </TabsList>
@@ -777,7 +771,7 @@ const Settings = () => {
           {isAdmin && (
             <TabsContent value="integrations">
               <Card>
-                <CardHeader className="flex flex-row items-start justify-between">
+                <CardHeader className="flex flex-col sm:flex-row items-start justify-between gap-3">
                   <div>
                     <CardTitle>Integrações</CardTitle>
                     <CardDescription>
@@ -801,53 +795,56 @@ const Settings = () => {
                     </div>
                   ) : (
                     evolutionInstances.map((inst: any) => (
-                      <div key={inst.instanceName} className="border rounded-lg p-6 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className={`h-12 w-12 rounded-full flex items-center justify-center ${inst.loggedIn ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
-                            <PhoneIcon className={`h-6 w-6 ${inst.loggedIn ? 'text-green-500' : 'text-destructive'}`} />
+                      <div key={inst.instanceName} className="border rounded-lg p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                          <div className={`shrink-0 h-10 w-10 sm:h-12 sm:w-12 rounded-full flex items-center justify-center ${inst.loggedIn ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
+                            <PhoneIcon className={`h-5 w-5 sm:h-6 sm:w-6 ${inst.loggedIn ? 'text-green-500' : 'text-destructive'}`} />
                           </div>
-                          <div>
-                            <h4 className="font-semibold text-base">Instância: {inst.instanceName}</h4>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-sm text-muted-foreground">
-                                Status: <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs">{inst.state}</span>
+                          <div className="min-w-0">
+                            <h4 className="font-semibold text-sm sm:text-base truncate">Instância: {inst.instanceName}</h4>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <p className="text-xs text-muted-foreground">
+                                Status: <span className="font-mono bg-muted px-1 py-0.5 rounded">{inst.state}</span>
                               </p>
                               {inst.id && (
-                                <p className="text-xs text-muted-foreground flex items-center gap-1 border-l pl-2 ml-1">
-                                  ID: <span className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded" title={inst.id}>{inst.id.substring(0, 8)}...</span>
+                                <p className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 border-l pl-2">
+                                  ID: <span className="font-mono bg-muted px-1 py-0.5 rounded" title={inst.id}>{inst.id.substring(0, 8)}...</span>
                                 </p>
                               )}
                             </div>
                           </div>
                         </div>
-                        <div>
-                          {inst.loggedIn ? (
-                            <Badge className="bg-green-500">Pareado e Pronto</Badge>
-                          ) : inst.connected ? (
-                            <div className="flex items-center gap-2">
-                              <Badge className="bg-yellow-500 hover:bg-yellow-600">Aguardando QR</Badge>
-                              <Button variant="outline" size="sm" onClick={() => handleConnectInstance(inst.instanceName)}>
-                                Parear Dispositivo
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <Badge variant="destructive">Offline</Badge>
-                              <Button variant="outline" size="sm" onClick={() => handleConnectInstance(inst.instanceName)}>
-                                Conectar
-                              </Button>
-                            </div>
-                          )}
+
+                        <div className="flex items-center justify-between w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-border gap-3">
+                          <div>
+                            {inst.loggedIn ? (
+                              <Badge className="bg-green-500">Pareado</Badge>
+                            ) : inst.connected ? (
+                              <div className="flex items-center gap-2">
+                                <Badge className="bg-yellow-500 hover:bg-yellow-600">Aguardando QR</Badge>
+                                <Button variant="outline" size="sm" onClick={() => handleConnectInstance(inst.instanceName)}>
+                                  Parear
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="destructive">Offline</Badge>
+                                <Button variant="outline" size="sm" onClick={() => handleConnectInstance(inst.instanceName)}>
+                                  Conectar
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                            onClick={() => confirmDeleteInstance(inst.instanceName)}
+                            title="Excluir instância"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="ml-4 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => confirmDeleteInstance(inst.instanceName)}
-                          title="Excluir instância"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))
                   )}
@@ -873,8 +870,9 @@ const Settings = () => {
                       </p>
                       <Button onClick={() => setCreateUserDialogOpen(true)}>Novo Usuário</Button>
                     </div>
-                    <div className="border rounded-lg">
-                      <div className="grid grid-cols-5 gap-4 p-4 border-b bg-muted/30 font-medium text-sm">
+                    <div className="border rounded-lg overflow-x-auto">
+                      <div className="min-w-[600px]">
+                      <div className="grid grid-cols-5 gap-4 p-3 sm:p-4 border-b bg-muted/30 font-medium text-xs sm:text-sm">
                         <div>Nome</div>
                         <div>E-mail</div>
                         <div>Cargo</div>
@@ -927,6 +925,7 @@ const Settings = () => {
                           </div>
                         ))
                       )}
+                    </div>
                     </div>
                   </div>
                 </CardContent>
@@ -990,7 +989,7 @@ const Settings = () => {
                           >
                             <div className="flex justify-between items-start">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-2">
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
                                   <h4 className="font-semibold text-sm">{template.name}</h4>
                                   <Badge
                                     variant="outline"
@@ -998,7 +997,7 @@ const Settings = () => {
                                   >
                                     {channelLabels[template.channel] || template.channel}
                                   </Badge>
-                                  <Badge variant="secondary" className="text-xs">
+                                  <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                     {getTriggerLabel(template.triggerDays)}
                                   </Badge>
                                 </div>
@@ -1011,7 +1010,7 @@ const Settings = () => {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="h-8 w-8 p-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0"
                                   >
                                     <MoreVertical className="h-4 w-4" />
                                   </Button>
@@ -1076,7 +1075,6 @@ const Settings = () => {
 
                   {selectedSurgeon && (
                     <div className="grid gap-8 pt-4">
-                      {/* Horários Fixos */}
                       <div className="border rounded-xl p-6 bg-muted/30">
                         <div className="flex items-center justify-between mb-6">
                           <div>
@@ -1170,7 +1168,6 @@ const Settings = () => {
                         </div>
                       </div>
 
-                      {/* Plantões Extras */}
                       <div className="border rounded-xl p-6 bg-muted/30">
                         <div className="flex items-center justify-between mb-6">
                           <div>
@@ -1260,7 +1257,6 @@ const Settings = () => {
                         </div>
                       </div>
 
-                      {/* Bloqueios */}
                       <div className="border rounded-xl p-6 bg-muted/30">
                         <div className="flex items-center justify-between mb-6">
                           <div>
@@ -1416,7 +1412,6 @@ const Settings = () => {
           )}
         </Tabs>
 
-      {/* Create Template Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
@@ -1437,7 +1432,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Template Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
@@ -1458,7 +1452,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Template Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
@@ -1478,7 +1471,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Preview Template Dialog */}
       <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1508,7 +1500,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Create User Dialog */}
       <Dialog open={createUserDialogOpen} onOpenChange={setCreateUserDialogOpen}>
         <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
@@ -1553,7 +1544,6 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit User Dialog */}
       <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>

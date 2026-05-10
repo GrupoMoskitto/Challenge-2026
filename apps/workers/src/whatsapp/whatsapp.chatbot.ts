@@ -2,6 +2,8 @@ import { prisma, checkUniqueness } from '@crmed/database';
 import { logger } from '../config/logger';
 import { WhatsappSession, ChatState } from './whatsapp.session';
 import { WhatsappSender } from './whatsapp.sender';
+import { IdentityService } from '../services/identity.service';
+import { AppointmentService } from '../services/appointment.service';
 
 const recentMessages = new Set<string>();
 
@@ -12,6 +14,15 @@ export class WhatsappChatbot {
     pushName: string,
     textMessage: string
   ) {
+    console.log(`[DEBUG] handleRawMessage called for ${remoteJid} with message: ${textMessage}`);
+    const urgentKeywords = ['emergencia', 'dor', 'atrasado', 'atraso', 'hospital', 'acidente', 'sangue', 'urgente'];
+    if (urgentKeywords.some(k => textMessage.toLowerCase().includes(k))) {
+      logger.warn('WhatsApp:Chatbot', `Urgência detectada de ${remoteJid}: ${textMessage}`);
+      await WhatsappSender.sendMessage(instanceId, remoteJid, `Entendi que se trata de uma situação urgente/imprevista. Estou conectando você agora mesmo com nossa equipe de acolhimento humana. Por favor, aguarde um instante.`);
+      await WhatsappSession.clear(remoteJid);
+      return;
+    }
+
     const messageFingerprint = `${remoteJid}:${textMessage}:${Math.floor(Date.now() / 10000)}`;
     if (recentMessages.has(messageFingerprint)) {
       logger.debug('WhatsApp:Chatbot', `Ignorando mensagem duplicada de ${remoteJid}`);
@@ -32,9 +43,25 @@ export class WhatsappChatbot {
     const phone = remoteJid.split('@')[0];
     const cleanPhone = phone.replace(/[^0-9]/g, '');
 
-    logger.info('WhatsApp:Chatbot', `[INBOUND] Mensagem de ${pushName} (${cleanPhone}): ${textMessage.substring(0, 50)}...`);
+    const logText = textMessage.replace(/\n/g, ' ').substring(0, 50);
+    logger.info('WhatsApp:Chatbot', `[INBOUND] Mensagem de ${pushName} (${cleanPhone}): ${logText}...`);
 
     const state = await WhatsappSession.get(remoteJid);
+
+    if (state.appointmentId) {
+      const appt = await prisma.appointment.findUnique({ where: { id: state.appointmentId } });
+      if (!appt || appt.status !== 'SCHEDULED' || appt.scheduledAt < new Date()) {
+        logger.info('WhatsApp:Chatbot', `Contexto obsoleto para ${remoteJid} (appt: ${state.appointmentId})`);
+        state.appointmentId = undefined;
+        state.stage = 'START';
+        if (/^\d$/.test(textMessage.trim())) {
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `Olá! Notei que você tentou responder a uma notificação de uma consulta que já não está mais ativa. Como posso te ajudar hoje?`);
+          await WhatsappSession.clear(remoteJid);
+          return;
+        }
+      }
+    }
+
     const previousStage = state.stage;
 
     if (state.leadId) {
@@ -54,7 +81,7 @@ export class WhatsappChatbot {
       await this.processStage(instanceId, remoteJid, pushName, cleanPhone, textMessage, state);
       
       if (state.stage !== previousStage) {
-        logger.info('WhatsApp:Chatbot', `Transição de estado para ${remoteJid}: ${previousStage} -> ${state.stage}`);
+        logger.debug('WhatsApp:Chatbot', `Transição de estado para ${remoteJid}: ${previousStage} -> ${state.stage}`);
       }
     } catch (error) {
       logger.error('WhatsApp:Chatbot', `Erro processando estágio ${state.stage} para ${remoteJid}`, error);
@@ -95,8 +122,149 @@ export class WhatsappChatbot {
       }
     }
 
-    // Process remaining stages
     switch (state.stage) {
+      case 'CONFIRM_APPOINTMENT':
+        if (textMessage === '1') {
+          if (state.appointmentId) {
+            await prisma.appointment.update({
+              where: { id: state.appointmentId },
+              data: { status: 'CONFIRMED' }
+            });
+          } else if (state.postOpId) {
+            await prisma.postOp.update({
+              where: { id: state.postOpId },
+              data: { status: 'CONFIRMED' }
+            });
+          }
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `Perfeito! Sua presença está confirmada. Ficamos muito felizes em cuidar de você. Em caso de dúvidas, estamos à disposição. ✨`);
+          await WhatsappSession.clear(remoteJid);
+        } else if (textMessage === '2') {
+          state.stage = 'EXISTING_SCHEDULE';
+          await WhatsappSession.save(remoteJid, state);
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `Entendido. Vamos buscar uma nova data para você. Um de nossos atendentes especializados entrará em contato em instantes para verificar a melhor disponibilidade. 👩‍💻`);
+        } else if (textMessage === '3') {
+          if (state.appointmentId) {
+            await prisma.appointment.update({
+              where: { id: state.appointmentId },
+              data: { status: 'CANCELLED' }
+            });
+          } else if (state.postOpId) {
+             // Nota: PostOp não tem status CANCELLED no enum original, 
+             // mas podemos manter como SCHEDULED ou adicionar se necessário.
+             // Para o MVP de PostOp, apenas notificamos a recepção via inatividade se não confirmar.
+          }
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `Compreendemos. Sua solicitação foi registrada em nosso sistema. Caso mude de ideia, sinta-se à vontade para nos procurar novamente. O Hospital São Rafael agradece.`);
+          await WhatsappSession.clear(remoteJid);
+        } else {
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `⚠️ Desculpe, não entendi. Por favor, digite *1* para confirmar, *2* para reagendar ou *3* para falar com um atendente.`);
+        }
+        break;
+
+      case 'VERIFY_DOB_ENRICH':
+      case 'VERIFY_DOB_CHALLENGE': {
+        const isEnrichment = state.stage === 'VERIFY_DOB_ENRICH';
+        const result = await IdentityService.validateDOB(remoteJid, textMessage);
+
+        if (result.isValid || (isEnrichment && result.error === 'MISMATCH')) {
+          // No enriquecimento, MISMATCH é esperado (já que não há data no banco), 
+          // mas o formato deve ser válido.
+          if (isEnrichment) {
+            // Parsing robusto para salvar
+            const cleanInput = textMessage.trim().replace(/\s/g, '');
+            const formats = ['dd/MM/yyyy', 'dd-MM-yyyy', 'ddMMyyyy'];
+            let dateObj: Date | null = null;
+            
+            const { parse, isValid, startOfDay } = await import('date-fns');
+            for (const f of formats) {
+              const d = parse(cleanInput, f, new Date());
+              if (isValid(d)) {
+                dateObj = startOfDay(d);
+                break;
+              }
+            }
+
+            if (dateObj) {
+              const phoneStr = remoteJid.split('@')[0].replace(/[^0-9]/g, '');
+              const lead = await prisma.lead.findFirst({ where: { phone: { contains: phoneStr.substring(phoneStr.length - 8) } } });
+              if (lead) {
+                await prisma.patient.update({
+                  where: { leadId: lead.id },
+                  data: { dateOfBirth: dateObj }
+                });
+                logger.success('WhatsApp:Chatbot', `Perfil enriquecido com DOB: ${dateObj.toISOString()} para ${remoteJid}`);
+              }
+            }
+          }
+          state.lastVerificationAt = Date.now();
+          await this.listAppointmentsFlow(instanceId, remoteJid, state);
+        } else {
+          const errorMsg = result.error === 'INVALID_FORMAT'
+            ? `⚠️ O formato da data parece estar incorreto. Por favor, use o padrão *DD/MM/AAAA* (Ex: 15/05/1990):`
+            : `⚠️ A data informada não confere com nossos registros. Por favor, verifique e tente novamente:`;
+          await WhatsappSender.sendMessage(instanceId, remoteJid, errorMsg);
+        }
+        break;
+      }
+
+      case 'APPOINTMENT_LIST': {
+        const appts = await AppointmentService.listPatientAppointments(remoteJid);
+        const index = parseInt(textMessage) - 1;
+        if (isNaN(index) || index < 0 || index >= appts.length) {
+          if (textMessage === '0') {
+            state.stage = 'EXISTING_MENU';
+            await WhatsappSession.save(remoteJid, state);
+            await this.sendExistingMenuOptions(instanceId, remoteJid, state.leadId);
+          } else {
+            await WhatsappSender.sendMessage(instanceId, remoteJid, `⚠️ Opção inválida. Digite o número da consulta ou 0 para voltar.`);
+          }
+          return;
+        }
+
+        const selected = appts[index];
+        state.appointmentId = selected.id;
+        state.selectedApptIndex = index;
+        state.stage = 'APPOINTMENT_CANCEL_CONFIRM';
+        await WhatsappSession.save(remoteJid, state);
+
+        const dateStr = selected.scheduledAt.toLocaleDateString('pt-BR');
+        const hourStr = selected.scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+        await WhatsappSender.sendFormattedButtons(
+          instanceId,
+          remoteJid,
+          `Gerenciar Agendamento`,
+          `O que deseja fazer com sua consulta de ${selected.procedure} em ${dateStr} às ${hourStr}?`,
+          [
+            { id: 'appt_confirm', title: 'Confirmar Presença' },
+            { id: 'appt_reschedule', title: 'Reagendar' },
+            { id: 'appt_cancel', title: 'Cancelar Consulta' }
+          ]
+        );
+        break;
+      }
+
+      case 'APPOINTMENT_CANCEL_CONFIRM':
+        if (textMessage === '1' || textMessage.toLowerCase().includes('confirmar')) {
+          await prisma.appointment.update({
+            where: { id: state.appointmentId },
+            data: { status: 'CONFIRMED' }
+          });
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `✅ *Confirmado!* Sua presença para o dia ${new Date().toLocaleDateString('pt-BR')} foi registrada com sucesso. Estamos te aguardando! ✨`);
+          await WhatsappSession.clear(remoteJid);
+        } else if (textMessage === '2' || textMessage.toLowerCase().includes('reagendar')) {
+          state.stage = 'EXISTING_SCHEDULE';
+          await WhatsappSession.save(remoteJid, state);
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `🔄 *Solicitação de Reagendamento*\n\nEntendido. Um de nossos atendentes entrará em contato em instantes para buscar uma nova data que seja ideal para você.`);
+        } else if (textMessage === '3' || textMessage.toLowerCase().includes('cancelar')) {
+           await AppointmentService.cancelAppointment(state.appointmentId!);
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `A sua consulta foi cancelada conforme solicitado. Caso precise agendar novamente no futuro, estaremos à disposição. 🏥`);
+          await WhatsappSession.clear(remoteJid);
+        } else {
+          state.stage = 'APPOINTMENT_LIST';
+          await this.listAppointmentsFlow(instanceId, remoteJid, state);
+        }
+        break;
+
       case 'NEW_ASK_NAME':
         state.userName = textMessage;
         state.stage = 'NEW_CONFIRM_NAME';
@@ -303,16 +471,37 @@ export class WhatsappChatbot {
     const leadId = state.leadId;
 
     switch (choice) {
-      case '1':
+      case '1': {
+        // Fluxo de Identidade LGPD
+        const { verified, nextStage } = await IdentityService.checkIdentity(remoteJid);
+        if (!verified) {
+          state.stage = nextStage as any;
+          await WhatsappSession.save(remoteJid, state);
+          if (nextStage === 'VERIFY_DOB_ENRICH') {
+            await WhatsappSender.sendMessage(instanceId, remoteJid, `Entendido! Para que você possa acessar seus agendamentos com total segurança, precisamos concluir seu cadastro.\n\nPor favor, informe sua *data de nascimento* (Ex: DD/MM/AAAA):`);
+          } else {
+            await WhatsappSender.sendMessage(instanceId, remoteJid, `Certo, ${state.userName}. Por segurança e para protegermos seus dados médicos conforme a LGPD, preciso confirmar sua identidade.\n\nPor favor, informe sua *Data de Nascimento* (Ex: 15/05/1985):`);
+          }
+          return;
+        }
+        
+        await this.listAppointmentsFlow(instanceId, remoteJid, state);
+        break;
+      }
+      case '2': {
+        // Reagendamento também exige validação se for paciente
+        const { verified: v2, nextStage: ns2 } = await IdentityService.checkIdentity(remoteJid);
+        if (!v2) {
+            state.stage = ns2 as any;
+            await WhatsappSession.save(remoteJid, state);
+            await WhatsappSender.sendMessage(instanceId, remoteJid, `Para prosseguir com o reagendamento seguro, informe sua *Data de Nascimento*:`);
+            return;
+        }
         state.stage = 'EXISTING_SCHEDULE';
         await WhatsappSession.save(remoteJid, state);
-        await WhatsappSender.sendMessage(instanceId, remoteJid, `📅 *Agendamentos*\n\nNossa equipe de recepção precisa acessar nossos calendários atualizados para agendar consultas ou procedimentos. 🗓️\n\nPara o dia do seu agendamento presencial, lembre-se que é necessário chegar com 1 hora de antecedência portando seu RG, carteirinha do convênio e guia médica aprovada. ⏱️📄\n\nPor favor, aguarde um momento que um de nossos recepcionistas irá te auxiliar em breve pelo chat. 👩‍💼💬\n\n_(Digite 0 a qualquer momento para voltar ao menu principal)_`, leadId);
+        await WhatsappSender.sendMessage(instanceId, remoteJid, `🔄 *Reagendamento*\n\nEntendemos que imprevistos acontecem! Nosso time vai buscar a melhor nova data para você. 🤝\n\nUm de nossos atendentes continuará este atendimento em instantes. 👩‍💻`, leadId);
         break;
-      case '2':
-        state.stage = 'EXISTING_SCHEDULE';
-        await WhatsappSession.save(remoteJid, state);
-        await WhatsappSender.sendMessage(instanceId, remoteJid, `🔄 *Reagendamento*\n\nEntendemos que imprevistos acontecem! Nosso time vai buscar a melhor nova data para você. 🤝\n\nLembre-se: em caso de cancelamento e solicitação de reembolso, nossa equipe financeira irá conduzir o processo no prazo acordado de até 30 dias com total transparência. 💳\n\nUm de nossos atendentes continuará este atendimento em instantes. 👩‍💻\n\n_(Digite 0 a qualquer momento para voltar ao menu principal)_`, leadId);
-        break;
+      }
       case '3':
         state.stage = 'EXISTING_PROCEDURE';
         await WhatsappSession.save(remoteJid, state);
@@ -335,5 +524,26 @@ export class WhatsappChatbot {
         await WhatsappSender.sendMessage(instanceId, remoteJid, `⚠️ Desculpe, não entendi a opção "${choice}".\n\nPor favor, digite o *número* correspondente à opção desejada.\n\n_(Exemplo: digite 1 para Agendamentos)_`, leadId);
         break;
     }
+  }
+
+  private static async listAppointmentsFlow(instanceId: string, remoteJid: string, state: ChatState) {
+    const appts = await AppointmentService.listPatientAppointments(remoteJid);
+    
+    if (appts.length === 0) {
+      await WhatsappSender.sendMessage(instanceId, remoteJid, `Não localizei agendamentos futuros em seu CPF. Deseja realizar um novo agendamento?\n\n1️⃣ Sim, por favor\n0️⃣ Voltar ao menu`);
+      return;
+    }
+
+    let text = `Localizei *${appts.length}* procedimento(s) em sua agenda:\n\n`;
+    appts.forEach((appt, i) => {
+      const dateStr = appt.scheduledAt.toLocaleDateString('pt-BR');
+      const hourStr = appt.scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      text += `*${i + 1}. ${appt.procedure}*\n👨‍⚕️ Dr. ${appt.surgeon.name}\n📅 ${dateStr} às ${hourStr}\n\n`;
+    });
+
+    text += `Para gerenciar um agendamento, digite o *número* correspondente.`;
+    state.stage = 'APPOINTMENT_LIST';
+    await WhatsappSession.save(remoteJid, state);
+    await WhatsappSender.sendMessage(instanceId, remoteJid, text);
   }
 }

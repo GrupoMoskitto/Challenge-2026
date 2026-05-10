@@ -4,6 +4,7 @@ import { processDailyAppointments } from './jobs/dailyCron';
 import './queues/whatsapp.processor';
 import { CronJob } from 'cron';
 import { logger } from './config/logger';
+import { NotificationService } from './config/notification.service';
 
 logger.info('System', 'CRMed Workers iniciando...');
 
@@ -24,6 +25,8 @@ logger.success('System', 'WhatsApp BullMQ Worker iniciado');
 const job = new CronJob('0 8 * * *', async () => {
     logger.info('Cron', 'Executando tarefa agendada de agendamentos diários...');
     await processDailyAppointments();
+    await NotificationService.processDailyReminders();
+    await NotificationService.checkInactivity();
 }, null, true, 'America/Sao_Paulo');
 
 job.start();
@@ -42,7 +45,43 @@ const app = express();
 app.use(helmet());
 
 // Limit payload size to prevent DoS
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+
+// Test endpoints for Confirmation Flow
+app.post('/test/trigger-reminder', async (req, res) => {
+    const { appointmentId, type } = req.body;
+    if (!appointmentId || !type) {
+        return res.status(400).json({ error: 'appointmentId e type são obrigatórios' });
+    }
+    try {
+        await NotificationService.triggerReminder(appointmentId, type);
+        res.json({ success: true, message: `Lembrete ${type} disparado` });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/test/check-inactivity', async (req, res) => {
+    try {
+        await NotificationService.checkInactivity();
+        res.json({ success: true, message: 'Verificação de inatividade concluída' });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/test/trigger-postop', async (req, res) => {
+    const { postOpId } = req.body;
+    if (!postOpId) {
+        return res.status(400).json({ error: 'postOpId é obrigatório' });
+    }
+    try {
+        await NotificationService.triggerPostOpReminder(postOpId);
+        res.json({ success: true, message: `Lembrete de Pós-Op disparado` });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 app.post('/webhook/evolution', async (req, res) => {
     try {
@@ -56,7 +95,16 @@ app.post('/webhook/evolution', async (req, res) => {
                 const message = msgData?.Message;
 
                 if (!info || !message) break;
-                if (info.IsFromMe || info.Chat === 'status@broadcast') break;
+                
+                // Ignore messages from self, status updates, groups, or broadcasts
+                if (
+                    info.IsFromMe || 
+                    info.Chat === 'status@broadcast' || 
+                    info.Chat.endsWith('@g.us') || 
+                    info.Chat.endsWith('@broadcast')
+                ) {
+                    break;
+                }
 
                 const textMessage = (
                     message.conversation ||
@@ -67,7 +115,8 @@ app.post('/webhook/evolution', async (req, res) => {
                 if (!textMessage) break;
 
                 const pushName = info.PushName || 'Você';
-                logger.info('Webhook', `[MESSAGE] De: ${pushName} | Chat: ${info.Chat} | Texto: ${textMessage.substring(0, 60)}`);
+                const logText = textMessage.replace(/\n/g, ' ').substring(0, 60);
+                logger.info('Webhook', `[MESSAGE] De: ${pushName} | Chat: ${info.Chat} | Texto: ${logText}`);
 
                 await WhatsappChatbot.handleRawMessage(
                     instanceId || process.env.EVOLUTION_INSTANCE_ID || '',

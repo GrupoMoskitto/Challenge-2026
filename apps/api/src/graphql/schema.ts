@@ -50,9 +50,10 @@ export const typeDefs = gql`
   }
 
   enum NotificationType {
-    CONFIRMATION
-    REMINDER_2_DAYS
-    REMINDER_1_DAY
+    REMINDER_30D
+    REMINDER_7D
+    CONFIRMATION_48H
+    POST_OP_CONFIRMATION
     LAST_ATTEMPT
   }
 

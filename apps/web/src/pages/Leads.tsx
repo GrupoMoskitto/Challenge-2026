@@ -444,10 +444,10 @@ const Leads = () => {
 
   return (
     <AppLayout title="Gestão de Leads">
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-0">
         {/* Header & Global Filters */}
-        <div className="flex flex-wrap items-center gap-3 mb-6 shrink-0">
-          <div className="relative flex-1 min-w-[240px] max-w-md">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-6 shrink-0">
+          <div className="relative flex-1 min-w-[180px] sm:min-w-[240px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Buscar por nome, CPF ou telefone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-10 shadow-sm" />
           </div>
@@ -503,12 +503,12 @@ const Leads = () => {
         </div>
 
         {/* Kanban Board Container */}
-        <div className="overflow-x-auto no-scrollbar pb-6">
-          <div className="flex gap-4 min-w-max items-start justify-center">
+        <div className="overflow-x-auto no-scrollbar pb-6 -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory scroll-smooth">
+          <div className="flex gap-3 sm:gap-4 min-w-max items-start justify-start lg:justify-center">
             {statusColumns.map(({ status, label, color }) => (
               <div
                 key={status}
-                className={cn("flex flex-col w-[300px] bg-muted/30 rounded-xl border border-border/50 transition-all min-h-[60vh]", dragOverColumn === status && "ring-2 ring-primary bg-primary/5 shadow-inner")}
+                className={cn("flex flex-col w-[260px] sm:w-[300px] bg-muted/30 rounded-xl border border-border/50 transition-all min-h-[50vh] sm:min-h-[60vh] snap-center", dragOverColumn === status && "ring-2 ring-primary bg-primary/5 shadow-inner")}
                 onDragOver={e => { e.preventDefault(); setDragOverColumn(status); }}
                 onDragLeave={() => setDragOverColumn(null)}
                 onDrop={e => handleDrop(e, status)}
@@ -594,8 +594,8 @@ const Leads = () => {
 
       {/* Modals and Dialogs */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[750px] p-0 flex flex-col h-[85vh] shadow-2xl border-primary/10 overflow-hidden">
-          <div className="px-8 py-6 border-b bg-gradient-to-b from-muted/20 to-transparent shrink-0">
+        <DialogContent className="sm:max-w-[750px] p-0 flex flex-col h-[95vh] sm:h-[85vh] shadow-2xl border-primary/10 overflow-hidden max-w-[calc(100vw-2rem)]">
+          <div className="px-4 sm:px-8 py-4 sm:py-6 border-b bg-gradient-to-b from-muted/20 to-transparent shrink-0">
             <DialogHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -622,14 +622,14 @@ const Leads = () => {
             </DialogHeader>
           </div>
           <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-8 border-b bg-transparent shrink-0 w-full">
-              <TabsList className="justify-start h-auto p-0 bg-transparent gap-8 w-full flex">
-                <TabsTrigger value="details" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 py-4 font-bold text-sm transition-all hover:text-primary">Informações Gerais</TabsTrigger>
-                <TabsTrigger value="timeline" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 py-4 font-bold text-sm transition-all hover:text-primary">Linha do Tempo</TabsTrigger>
+            <div className="px-4 sm:px-8 border-b bg-transparent shrink-0 w-full overflow-x-auto">
+              <TabsList className="justify-start h-auto p-0 bg-transparent gap-4 sm:gap-8 w-full flex">
+                <TabsTrigger value="details" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 py-3 sm:py-4 font-bold text-xs sm:text-sm transition-all hover:text-primary whitespace-nowrap">Informações Gerais</TabsTrigger>
+                <TabsTrigger value="timeline" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 py-3 sm:py-4 font-bold text-xs sm:text-sm transition-all hover:text-primary whitespace-nowrap">Linha do Tempo</TabsTrigger>
               </TabsList>
             </div>
             <TabsContent value="details" className="mt-0 p-0 overflow-y-auto flex-1 no-scrollbar bg-muted/5">
-              <div className="px-8 py-8 space-y-8 w-full mx-auto">
+              <div className="px-4 sm:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8 w-full mx-auto">
                 <div className="grid gap-3">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">Identificação</Label>
                   <div className="grid gap-2"><Label className="text-[11px] font-semibold">Nome Completo *</Label><Input value={editLead.name} onChange={e => setEditLead({...editLead, name: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" /></div>
@@ -637,7 +637,7 @@ const Leads = () => {
 
                 <div className="grid gap-3">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">Contatos</Label>
-                  <div className="grid grid-cols-2 gap-6 items-start">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                     <div className="grid gap-2">
                       <Label className="text-[11px] font-semibold">E-mail</Label>
                       <Input value={editLead.email} onChange={e => setEditLead({...editLead, email: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" />
@@ -663,7 +663,7 @@ const Leads = () => {
 
                 <div className="grid gap-3">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">Detalhes Adicionais</Label>
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="grid gap-2"><Label className="text-[11px] font-semibold">CPF</Label><Input value={editLead.cpf} onChange={e => setEditLead({...editLead, cpf: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" /></div>
                     <div className="grid gap-2"><Label className="text-[11px] font-semibold">Procedimento de Interesse</Label>
                       <Select value={editLead.procedure} onValueChange={v => setEditLead({...editLead, procedure: v})}>
@@ -676,7 +676,7 @@ const Leads = () => {
 
                 <div className="grid gap-3">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">Origem e Referência</Label>
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="grid gap-2"><Label className="text-[11px] font-semibold">Origem</Label>
                       <Select value={editLead.origin} onValueChange={v => setEditLead({...editLead, origin: v})}>
                         <SelectTrigger className="h-11 bg-background shadow-sm border-muted-foreground/20"><SelectValue placeholder="Selecione a origem" /></SelectTrigger>
@@ -693,11 +693,11 @@ const Leads = () => {
             <TabsContent value="timeline" className="p-0 overflow-y-auto flex-1 no-scrollbar bg-muted/5">
               <LeadTimeline leadId={editingLead?.id} />
             </TabsContent>
-            <div className="px-8 py-4 border-t bg-background flex justify-between items-center shrink-0">
+            <div className="px-4 sm:px-8 py-3 sm:py-4 border-t bg-background flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 shrink-0">
                <p className="text-xs text-muted-foreground italic">Campos com * são obrigatórios.</p>
                <div className="flex gap-2">
-                 <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="h-10 px-6">Cancelar</Button>
-                 <Button onClick={handleUpdateLead} disabled={updating} className="h-10 px-8 shadow-md">{updating ? <Loader2 className="animate-spin h-4 w-4" /> : "Salvar Alterações"}</Button>
+                 <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="h-10 px-4 sm:px-6 flex-1 sm:flex-none">Cancelar</Button>
+                 <Button onClick={handleUpdateLead} disabled={updating} className="h-10 px-6 sm:px-8 shadow-md flex-1 sm:flex-none">{updating ? <Loader2 className="animate-spin h-4 w-4" /> : "Salvar"}</Button>
                </div>
             </div>
           </Tabs>
@@ -750,7 +750,7 @@ const Leads = () => {
           <DialogHeader><DialogTitle>Novo Lead</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid gap-2"><Label>Nome *</Label><Input value={newLead.name} onChange={e => setNewLead({...newLead, name: e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2"><Label>Telefone *</Label><Input value={newLead.phone} onChange={e => setNewLead({...newLead, phone: e.target.value})} /></div>
               <div className="grid gap-2"><Label>CPF</Label><Input value={newLead.cpf} onChange={e => setNewLead({...newLead, cpf: e.target.value})} /></div>
             </div>
