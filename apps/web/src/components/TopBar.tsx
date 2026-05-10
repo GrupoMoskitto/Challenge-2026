@@ -165,7 +165,7 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
   const handleLogout = async () => {
     await serverLogout();
     localStorage.removeItem('user');
-    navigate('/login');
+    window.location.href = '/login';
   };
 
   const handleProfile = () => {
