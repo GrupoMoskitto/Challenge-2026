@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_LEADS, CREATE_PATIENT, GET_PATIENTS } from "@/lib/queries";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,7 +46,7 @@ const getSexMismatchWarning = (name?: string | null, sex?: string | null) => {
   if (!name || !sex) return null;
   const normalizedSex = normalizeString(sex);
   if (likelyFemaleName(name) && normalizedSex === "masculino") {
-    return "Possível inconsistência: nome sugere feminino e sexo está como masculino.";
+    return "Poss\u00edvel inconsist\u00eancia: nome sugere feminino e sexo est\u00e1 como masculino.";
   }
   return null;
 };
@@ -124,13 +124,13 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (form.weight) {
       const w = parseFloat(form.weight.replace(",", "."));
       if (isNaN(w) || w <= 0 || w > MAX_WEIGHT_KG) {
-        return toast.error(`Por favor, insira um peso válido e realista (até ${MAX_WEIGHT_KG}kg).`);
+        return toast.error(`Por favor, insira um peso v\u00e1lido e realista (at\u00e9 ${MAX_WEIGHT_KG}kg).`);
       }
     }
     if (form.height) {
       const h = parseFloat(form.height.replace(",", "."));
       if (isNaN(h) || h <= 0 || h > MAX_HEIGHT_CM) {
-        return toast.error(`Por favor, insira uma altura válida e realista (em cm, até ${MAX_HEIGHT_CM}cm).`);
+        return toast.error(`Por favor, insira uma altura v\u00e1lida e realista (em cm, at\u00e9 ${MAX_HEIGHT_CM}cm).`);
       }
     }
 
@@ -165,14 +165,12 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
   return (
     <PatientModalContext.Provider value={{ openCreatePatientModal }}>
       {children}
-      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-           <DialogHeader>
-             <DialogTitle>Converter Lead em Paciente</DialogTitle>
-             <DialogDescription>
-               Selecione um lead não convertido para criar o registro de paciente.
-             </DialogDescription>
-           </DialogHeader>
+      <ResponsiveModal
+        open={isOpen}
+        onOpenChange={handleOpenChange}
+        title="Converter Lead em Paciente"
+        description="Selecione um lead n\u00e3o convertido para criar o registro de paciente."
+      >
           <div className="space-y-4 py-4">
              <div className="space-y-2">
                <Label>Lead *</Label>
@@ -206,11 +204,11 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
               />
             </div>
             <div className="space-y-2">
-              <Label>Prontuário</Label>
+              <Label>Prontu\u00e1rio</Label>
               <Input value={form.medicalRecord} onChange={e => setForm(f => ({ ...f, medicalRecord: e.target.value }))} placeholder="Opcional" />
             </div>
             <div className="space-y-2">
-              <Label>Endereço</Label>
+              <Label>Endere\u00e7o</Label>
               <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Opcional" />
             </div>
             <div className="space-y-2">
@@ -234,6 +232,7 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 <Label>Peso (kg)</Label>
                 <Input
                   type="number"
+                  inputMode="decimal"
                   step="0.1"
                   min="1"
                   max="300"
@@ -246,6 +245,7 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 <Label>Altura (cm)</Label>
                 <Input
                   type="number"
+                  inputMode="numeric"
                   min="50"
                   max="250"
                   value={form.height}
@@ -265,7 +265,7 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
                   <SelectItem value="Facebook">Facebook</SelectItem>
                   <SelectItem value="Google">Google</SelectItem>
                   <SelectItem value="TikTok">TikTok</SelectItem>
-                  <SelectItem value="Indicação">Indicação</SelectItem>
+                  <SelectItem value="Indica\u00e7\u00e3o">Indica\u00e7\u00e3o</SelectItem>
                   <SelectItem value="Google Ads">Google Ads</SelectItem>
                   <SelectItem value="Facebook Ads">Facebook Ads</SelectItem>
                   <SelectItem value="Outro">Outro</SelectItem>
@@ -277,8 +277,7 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
             <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancelar</Button>
             <Button onClick={handleCreate} disabled={creating} className="min-w-[140px]">{creating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Criando...</> : "Criar Paciente"}</Button>
           </div>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveModal>
     </PatientModalContext.Provider>
   );
 };

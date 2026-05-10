@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus, Trash2 } from "lucide-react";
+import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus, Trash2, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ import { ptBR } from "date-fns/locale";
 
 interface TopBarProps {
   title: string;
+  /** Called to open the mobile navigation drawer */
+  onMenuToggle?: () => void;
 }
 
 const roleLabels: Record<string, string> = {
@@ -67,7 +69,7 @@ const NOTIFICATIONS_QUERY = gql`
   }
 `;
 
-export function TopBar({ title }: TopBarProps) {
+export function TopBar({ title, onMenuToggle }: TopBarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { openCreatePatientModal } = usePatientModal();
@@ -188,10 +190,22 @@ export function TopBar({ title }: TopBarProps) {
   };
 
   return (
-    <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6 shrink-0">
-      <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+    <header className="h-16 border-b border-border bg-card flex items-center justify-between px-3 md:px-6 shrink-0 gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        {/* Hamburger — visible on mobile/tablet (< lg) */}
+        {onMenuToggle && (
+          <button
+            onClick={onMenuToggle}
+            className="lg:hidden flex items-center justify-center h-10 w-10 rounded-md hover:bg-accent transition-colors shrink-0"
+            aria-label="Abrir menu"
+          >
+            <Menu className="h-5 w-5 text-foreground" />
+          </button>
+        )}
+        <h1 className="text-base md:text-lg font-semibold text-foreground truncate">{title}</h1>
+      </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {/* New Patient Button (Primary Action) */}
           <button 
             onClick={() => openCreatePatientModal()}

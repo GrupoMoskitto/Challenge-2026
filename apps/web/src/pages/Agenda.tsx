@@ -323,17 +323,17 @@ const Agenda = () => {
 
   return (
     <AppLayout title="Agenda Médica">
-      <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={prevDay}>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-4 sm:mb-6 gap-3">
+        <div className="flex items-center gap-2 sm:gap-4 justify-center sm:justify-start">
+          <Button variant="outline" size="icon" onClick={prevDay} className="shrink-0">
             <ChevronLeft className="h-4 w-4" />
           </Button>
           
           <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="min-w-[280px] justify-start text-center capitalize font-normal">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateLabel}
+              <Button variant="outline" className="flex-1 sm:min-w-[280px] justify-start text-center capitalize font-normal text-xs sm:text-sm truncate">
+                <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                <span className="truncate">{dateLabel}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -347,83 +347,79 @@ const Agenda = () => {
             </PopoverContent>
           </Popover>
           
-          <Button variant="outline" size="icon" onClick={nextDay}>
+          <Button variant="outline" size="icon" onClick={nextDay} className="shrink-0">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button onClick={() => setNewConsultDialogOpen(true)}>
+        <Button onClick={() => setNewConsultDialogOpen(true)} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nova Consulta
         </Button>
       </div>
 
-      <div className="bg-card border rounded-lg p-2 md:p-4 shadow-sm">
-        <div className="grid grid-cols-[80px_repeat(auto-fit,minmax(220px,1fr))] gap-4 overflow-x-auto pb-4 items-start">
-          <div className="sticky left-0 bg-card z-10">
-            <div className="mb-4 invisible pointer-events-none sticky top-0">
-              <Card>
-                <CardHeader className="p-3">
-                  <CardTitle className="text-sm">Horário</CardTitle>
-                  <p className="text-xs">&nbsp;</p>
-                </CardHeader>
-              </Card>
-            </div>
-            <div className="space-y-2">
-              {timeSlots.map((time) => (
-                <div key={time} className="h-20 flex items-center justify-center text-sm font-medium text-muted-foreground border-b">
-                  {time}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {surgeons.map((surgeon: any) => (
-            <div key={surgeon.id} className="min-w-[220px]">
-              <Card className="mb-4 sticky top-0 z-20 shadow-sm">
-                <CardHeader className="p-3 bg-secondary/30 rounded-t-lg">
-                  <CardTitle className="text-sm truncate">{surgeon.name}</CardTitle>
-                  <p className="text-xs text-muted-foreground truncate">{surgeon.specialty}</p>
-                </CardHeader>
-              </Card>
-              <div className="space-y-2">
-                {timeSlots.map((time) => {
-                  const appointment = getAppointment(surgeon.id, time);
-                  return (
-                    <div
-                      key={time}
-                      className={cn(
-                        "h-20 border rounded-lg p-3 transition-colors duration-300 border-l-4",
-                        appointment 
-                          ? "bg-primary/5 hover:bg-primary/10 border-primary cursor-pointer shadow-sm" 
-                          : "bg-muted/10 hover:bg-muted/30 cursor-pointer border-dashed border-border border-l-border"
-                      )}
-                      onClick={() => openNewAppointment(surgeon.id, time, appointment)}
-                    >
-                      {appointment ? (
-                        <div className="h-full flex flex-col justify-center gap-1">
-                          <p className="text-sm font-semibold truncate text-foreground">
-                            {format(new Date(appointment.scheduledAt), 'HH:mm')} • {appointment.patient?.lead?.name || appointment.patient?.name || 'Paciente'}
-                          </p>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-muted-foreground truncate font-medium">{appointment.procedure}</span>
-                            <Badge className={cn("h-4 text-[9px] px-1.5", statusColors[appointment.status])}>
-                              {statusLabels[appointment.status]}
-                            </Badge>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                          <span className="text-xs text-muted-foreground font-medium flex items-center">
-                            <Plus className="mr-1 h-3 w-3" /> Adicionar
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+      <div className="bg-card border rounded-lg shadow-sm overflow-hidden">
+        <div className="overflow-x-auto snap-x snap-mandatory scroll-smooth p-2 md:p-4">
+          <div className="flex gap-3 md:gap-4 min-w-max items-start">
+            {/* Time column */}
+            <div className="sticky left-[-8px] md:left-[-16px] z-10 shrink-0 w-[68px] md:w-[96px] bg-card border-r shadow-[2px_0_8px_-2px_rgba(0,0,0,0.1)] -ml-2 md:-ml-4 pl-2 md:pl-4 -my-2 md:-my-4 py-2 md:py-4">
+              <div className="mb-3 md:mb-4 h-[52px] md:h-[60px]" />
+              <div className="space-y-1.5 md:space-y-2">
+                {timeSlots.map((time) => (
+                  <div key={time} className="h-16 md:h-20 flex items-center justify-center text-xs md:text-sm font-medium text-muted-foreground border-b">
+                    {time}
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+
+            {surgeons.map((surgeon: any) => (
+              <div key={surgeon.id} className="min-w-[200px] md:min-w-[220px] flex-1 snap-center">
+                <Card className="mb-3 md:mb-4 sticky top-0 z-20 shadow-sm">
+                  <CardHeader className="p-2 md:p-3 bg-secondary/50 rounded-t-lg">
+                    <CardTitle className="text-xs md:text-sm truncate">{surgeon.name}</CardTitle>
+                    <p className="text-[10px] md:text-xs text-muted-foreground truncate">{surgeon.specialty}</p>
+                  </CardHeader>
+                </Card>
+                <div className="space-y-1.5 md:space-y-2">
+                  {timeSlots.map((time) => {
+                    const appointment = getAppointment(surgeon.id, time);
+                    return (
+                      <div
+                        key={time}
+                        className={cn(
+                          "h-16 md:h-20 border rounded-lg p-2 md:p-3 transition-colors duration-300 border-l-4",
+                          appointment 
+                            ? "bg-primary/5 hover:bg-primary/10 border-primary cursor-pointer shadow-sm" 
+                            : "bg-muted/10 hover:bg-muted/30 cursor-pointer border-dashed border-border border-l-border"
+                        )}
+                        onClick={() => openNewAppointment(surgeon.id, time, appointment)}
+                      >
+                        {appointment ? (
+                          <div className="h-full flex flex-col justify-center gap-0.5 md:gap-1">
+                            <p className="text-xs md:text-sm font-semibold truncate text-foreground">
+                              {format(new Date(appointment.scheduledAt), 'HH:mm')} • {appointment.patient?.lead?.name || appointment.patient?.name || 'Paciente'}
+                            </p>
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[10px] md:text-xs text-muted-foreground truncate font-medium">{appointment.procedure}</span>
+                              <Badge className={cn("h-4 text-[8px] md:text-[9px] px-1 md:px-1.5 shrink-0", statusColors[appointment.status])}>
+                                {statusLabels[appointment.status]}
+                              </Badge>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            <span className="text-xs text-muted-foreground font-medium flex items-center">
+                              <Plus className="mr-1 h-3 w-3" /> Adicionar
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

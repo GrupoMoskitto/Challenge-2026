@@ -24,7 +24,8 @@ import {
   Loader2, 
   Trash2,
   Info,
-  UploadCloud
+  UploadCloud,
+  ArrowLeft
 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import {
@@ -36,12 +37,7 @@ import {
   CREATE_APPOINTMENT,
   GET_SURGEONS,
 } from "@/lib/queries";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import {
   Select,
   SelectContent,
@@ -473,8 +469,11 @@ const Patients = () => {
 
   return (
     <AppLayout title="Pacientes">
-      <div className="flex gap-6">
-        <div className="w-1/3 space-y-4">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+        <div className={cn(
+          "space-y-4 w-full lg:w-1/3 lg:shrink-0",
+          selectedPatientId && "hidden lg:block"
+        )}>
            <div className="flex items-center justify-between gap-2">
              <div className="relative flex-1">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -529,7 +528,16 @@ const Patients = () => {
           </div>
         </div>
 
-        <div className="flex-1 min-w-0">
+        <div className={cn(
+          "flex-1 min-w-0",
+          !selectedPatientId && "hidden lg:block"
+        )}>
+          {/* Back button — mobile only */}
+          {selectedPatientId && (
+            <Button variant="ghost" size="sm" className="lg:hidden mb-3 -ml-1 gap-1.5 text-muted-foreground" onClick={() => { setSelectedPatientId(null); updateUrl({ patientId: null }); }}>
+              <ArrowLeft className="h-4 w-4" /> Voltar à lista
+            </Button>
+          )}
           {loadingPatient && !patient ? <div className="space-y-4"><Skeleton className="h-64 w-full" /><CardListSkeleton count={3} /></div> : patient ? (
             <div className={cn("space-y-4 transition-opacity", loadingPatient && "opacity-60")}>
               <Card>
@@ -564,7 +572,7 @@ const Patients = () => {
                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground"><span>CPF</span><p className="font-mono">{patient.lead?.cpf}</p></div>
                      </div>
                    </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div><span className="text-muted-foreground">Telefone</span><p>{patient.lead?.phone}</p></div>
                     <div><span className="text-muted-foreground">E-mail</span><p className="truncate">{patient.lead?.email}</p></div>
                     <div><span className="text-muted-foreground">Data de Nascimento</span><p>{patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</p></div>
@@ -580,11 +588,11 @@ const Patients = () => {
               </Card>
 
               <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList className="w-full">
-                  <TabsTrigger value="timeline" className="flex-1">Linha do Tempo</TabsTrigger>
-                  <TabsTrigger value="appointments" className="flex-1">Consultas</TabsTrigger>
-                  <TabsTrigger value="documents" className="flex-1">Documentos</TabsTrigger>
-                  <TabsTrigger value="postop" className="flex-1">Pós-Operatório</TabsTrigger>
+                <TabsList className="w-full flex sm:grid sm:grid-cols-4 overflow-x-auto no-scrollbar justify-start h-auto p-1 bg-muted rounded-md">
+                  <TabsTrigger value="timeline" className="flex-1 whitespace-nowrap px-3">Linha do Tempo</TabsTrigger>
+                  <TabsTrigger value="appointments" className="flex-1 whitespace-nowrap px-3">Consultas</TabsTrigger>
+                  <TabsTrigger value="documents" className="flex-1 whitespace-nowrap px-3">Documentos</TabsTrigger>
+                  <TabsTrigger value="postop" className="flex-1 whitespace-nowrap px-3">Pós-Op</TabsTrigger>
                 </TabsList>
                 <TabsContent value="timeline" className="mt-6">
                   <PatientTimeline patient={patient} />
@@ -696,30 +704,25 @@ const Patients = () => {
         </div>
       </div>
 
-      <Dialog open={editPatientDialogOpen} onOpenChange={setEditPatientDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Editar Paciente</DialogTitle></DialogHeader>
+      <ResponsiveModal open={editPatientDialogOpen} onOpenChange={setEditPatientDialogOpen} title="Editar Paciente">
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Nascimento</Label><HistoricalDatePicker value={editPatientForm.dateOfBirth} onChange={iso => setEditPatientForm(f => ({...f, dateOfBirth: iso}))} minYear={1900} locale={ptBR} /></div>
               <div className="space-y-2"><Label>Prontuário</Label><Input value={editPatientForm.medicalRecord} onChange={e => setEditPatientForm(f => ({...f, medicalRecord: e.target.value}))} /></div>
             </div>
             <div className="space-y-2"><Label>Endereço</Label><Input value={editPatientForm.address} onChange={e => setEditPatientForm(f => ({...f, address: e.target.value}))} /></div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2"><Label>Sexo</Label><Select value={editPatientForm.sex} onValueChange={v => setEditPatientForm(f => ({...f, sex: v}))}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent><SelectItem value="Masculino">Masculino</SelectItem><SelectItem value="Feminino">Feminino</SelectItem></SelectContent></Select></div>
-              <div className="space-y-2"><Label>Peso (kg)</Label><Input type="number" step="0.1" value={editPatientForm.weight} onChange={e => setEditPatientForm(f => ({...f, weight: e.target.value}))} /></div>
-              <div className="space-y-2"><Label>Altura (cm)</Label><Input type="number" step="1" value={editPatientForm.height} onChange={e => setEditPatientForm(f => ({...f, height: e.target.value}))} /></div>
+              <div className="space-y-2"><Label>Peso (kg)</Label><Input type="number" inputMode="decimal" step="0.1" value={editPatientForm.weight} onChange={e => setEditPatientForm(f => ({...f, weight: e.target.value}))} /></div>
+              <div className="space-y-2"><Label>Altura (cm)</Label><Input type="number" inputMode="numeric" step="1" value={editPatientForm.height} onChange={e => setEditPatientForm(f => ({...f, height: e.target.value}))} /></div>
             </div>
             <div className="space-y-2"><Label>Como nos conheceu</Label><Input value={editPatientForm.howMet} onChange={e => setEditPatientForm(f => ({...f, howMet: e.target.value}))} /></div>
             <div className="space-y-2"><Label className="text-primary font-bold">Motivo da Alteração *</Label><Input placeholder="Obrigatório para o histórico" value={editPatientForm.reason} onChange={e => setEditPatientForm(f => ({...f, reason: e.target.value}))} /></div>
           </div>
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditPatientDialogOpen(false)}>Cancelar</Button><Button onClick={handleUpdatePatient} disabled={updatingPatient || !editPatientForm.reason}>Salvar</Button></div>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveModal>
 
-      <Dialog open={newDocDialogOpen} onOpenChange={setNewDocDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Novo Documento</DialogTitle></DialogHeader>
+      <ResponsiveModal open={newDocDialogOpen} onOpenChange={setNewDocDialogOpen} title="Novo Documento">
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label>Nome do Documento *</Label><Input value={newDocForm.name} onChange={e => setNewDocForm(f => ({...f, name: e.target.value}))} /></div>
             
@@ -787,24 +790,18 @@ const Patients = () => {
             <div className="space-y-2"><Label>Emissão *</Label><HistoricalDatePicker value={newDocForm.date} onChange={(iso) => setNewDocForm(f => ({...f, date: iso }))} minYear={2020} locale={ptBR} /></div>
           </div>
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setNewDocDialogOpen(false)}>Cancelar</Button><Button onClick={handleCreateDocument} disabled={creatingDoc} className="min-w-[120px]">{creatingDoc ? <Loader2 className="animate-spin h-4 w-4" /> : "Registrar"}</Button></div>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveModal>
 
-      <Dialog open={newPostOpDialogOpen} onOpenChange={setNewPostOpDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Agendar Pós-Operatório</DialogTitle></DialogHeader>
+      <ResponsiveModal open={newPostOpDialogOpen} onOpenChange={setNewPostOpDialogOpen} title="Agendar Pós-Operatório">
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label>Descrição *</Label><Input value={newPostOpForm.description} onChange={e => setNewPostOpForm(f => ({...f, description: e.target.value}))} /></div>
             <div className="space-y-2"><Label>Tipo *</Label><Select value={newPostOpForm.type} onValueChange={v => setNewPostOpForm(f => ({...f, type: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="RETURN">Retorno</SelectItem><SelectItem value="SURGERY">Cirurgia</SelectItem><SelectItem value="PROCEDURE">Procedimento</SelectItem><SelectItem value="OTHER">Outro</SelectItem></SelectContent></Select></div>
             <div className="space-y-2"><Label>Data Agendada *</Label><HistoricalDatePicker value={newPostOpForm.date} onChange={(iso) => setNewPostOpForm(f => ({...f, date: iso }))} minYear={new Date().getFullYear()} locale={ptBR} /></div>
           </div>
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setNewPostOpDialogOpen(false)}>Cancelar</Button><Button onClick={handleCreatePostOp} disabled={creatingPostOp} className="min-w-[120px]">{creatingPostOp ? <Loader2 className="animate-spin h-4 w-4" /> : "Agendar"}</Button></div>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveModal>
 
-      <Dialog open={newApptDialogOpen} onOpenChange={setNewApptDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Novo Agendamento</DialogTitle></DialogHeader>
+      <ResponsiveModal open={newApptDialogOpen} onOpenChange={setNewApptDialogOpen} title="Novo Agendamento">
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Procedimento *</Label>
@@ -851,8 +848,7 @@ const Patients = () => {
               {creatingAppt ? <Loader2 className="animate-spin h-4 w-4" /> : "Agendar"}
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveModal>
     </AppLayout>
   );
 };
