@@ -46,7 +46,7 @@ const getSexMismatchWarning = (name?: string | null, sex?: string | null) => {
   if (!name || !sex) return null;
   const normalizedSex = normalizeString(sex);
   if (likelyFemaleName(name) && normalizedSex === "masculino") {
-    return "Poss\u00edvel inconsist\u00eancia: nome sugere feminino e sexo est\u00e1 como masculino.";
+    return "Possível inconsistência: nome sugere feminino e sexo está como masculino.";
   }
   return null;
 };
@@ -124,13 +124,13 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (form.weight) {
       const w = parseFloat(form.weight.replace(",", "."));
       if (isNaN(w) || w <= 0 || w > MAX_WEIGHT_KG) {
-        return toast.error(`Por favor, insira um peso v\u00e1lido e realista (at\u00e9 ${MAX_WEIGHT_KG}kg).`);
+        return toast.error(`Por favor, insira um peso válido e realista (até ${MAX_WEIGHT_KG}kg).`);
       }
     }
     if (form.height) {
       const h = parseFloat(form.height.replace(",", "."));
       if (isNaN(h) || h <= 0 || h > MAX_HEIGHT_CM) {
-        return toast.error(`Por favor, insira uma altura v\u00e1lida e realista (em cm, at\u00e9 ${MAX_HEIGHT_CM}cm).`);
+        return toast.error(`Por favor, insira uma altura válida e realista (em cm, até ${MAX_HEIGHT_CM}cm).`);
       }
     }
 
@@ -169,7 +169,7 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
         open={isOpen}
         onOpenChange={handleOpenChange}
         title="Converter Lead em Paciente"
-        description="Selecione um lead n\u00e3o convertido para criar o registro de paciente."
+        description="Selecione um lead não convertido para criar o registro de paciente."
       >
           <div className="space-y-4 py-4">
              <div className="space-y-2">
@@ -204,11 +204,11 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
               />
             </div>
             <div className="space-y-2">
-              <Label>Prontu\u00e1rio</Label>
+              <Label>Prontuário</Label>
               <Input value={form.medicalRecord} onChange={e => setForm(f => ({ ...f, medicalRecord: e.target.value }))} placeholder="Opcional" />
             </div>
             <div className="space-y-2">
-              <Label>Endere\u00e7o</Label>
+              <Label>Endereço</Label>
               <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Opcional" />
             </div>
             <div className="space-y-2">
@@ -265,7 +265,7 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
                   <SelectItem value="Facebook">Facebook</SelectItem>
                   <SelectItem value="Google">Google</SelectItem>
                   <SelectItem value="TikTok">TikTok</SelectItem>
-                  <SelectItem value="Indica\u00e7\u00e3o">Indica\u00e7\u00e3o</SelectItem>
+                  <SelectItem value="Indicação">Indicação</SelectItem>
                   <SelectItem value="Google Ads">Google Ads</SelectItem>
                   <SelectItem value="Facebook Ads">Facebook Ads</SelectItem>
                   <SelectItem value="Outro">Outro</SelectItem>

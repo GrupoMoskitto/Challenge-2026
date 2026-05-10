@@ -21,8 +21,8 @@ export function AppLayout({ children, title }: AppLayoutProps) {
       {/* Mobile/Tablet: off-canvas drawer — OUTSIDE main wrapper to avoid aria-hidden conflicts */}
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent side="left" className="p-0 w-72 border-r-0 [&>button]:hidden">
-          <SheetTitle className="sr-only">Menu de navega\u00e7\u00e3o</SheetTitle>
-          <SheetDescription className="sr-only">Navega\u00e7\u00e3o principal do sistema</SheetDescription>
+          <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
+          <SheetDescription className="sr-only">Navegação principal do sistema</SheetDescription>
           <AppSidebar
             onNavigate={() => setMobileMenuOpen(false)}
             isMobileDrawer
