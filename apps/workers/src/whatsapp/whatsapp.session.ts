@@ -14,7 +14,14 @@ export type ChatStage =
   | 'EXISTING_MENU' 
   | 'EXISTING_FAQ' 
   | 'EXISTING_PROCEDURE' 
-  | 'EXISTING_SCHEDULE';
+  | 'EXISTING_SCHEDULE'
+  | 'CONFIRM_APPOINTMENT'
+  | 'RESCHEDULE_SEARCH'
+  | 'HUMAN_HANDOVER'
+  | 'VERIFY_DOB_ENRICH'
+  | 'VERIFY_DOB_CHALLENGE'
+  | 'APPOINTMENT_LIST'
+  | 'APPOINTMENT_CANCEL_CONFIRM';
 
 export interface ChatState {
   stage: ChatStage;
@@ -22,6 +29,11 @@ export interface ChatState {
   email?: string;
   interest?: string;
   leadId?: string;
+  appointmentId?: string;
+  postOpId?: string;
+  lastInteraction?: number;
+  lastVerificationAt?: number;
+  selectedApptIndex?: number;
 }
 
 export class WhatsappSession {
