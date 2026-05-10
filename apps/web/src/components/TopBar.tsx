@@ -34,10 +34,11 @@ const roleLabels: Record<string, string> = {
 };
 
 const notificationTypeLabels: Record<string, string> = {
-  CONFIRMATION: "Confirmação de consulta",
-  REMINDER_2_DAYS: "Lembrete — 2 dias",
-  REMINDER_1_DAY: "Lembrete — 1 dia",
-  LAST_ATTEMPT: "Última tentativa de contato",
+  REMINDER_30D: "Lembrete — 30 dias",
+  REMINDER_7D: "Lembrete — 7 dias",
+  CONFIRMATION_48H: "Confirmação — 48 horas",
+  POST_OP_CONFIRMATION: "Confirmação Pós-Op",
+  LAST_ATTEMPT: "Última tentativa",
 };
 
 const NOTIFICATIONS_QUERY = gql`

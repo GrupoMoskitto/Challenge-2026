@@ -1558,7 +1558,7 @@ export const resolvers = {
       }
       const appointment = await prisma.appointment.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), scheduledAt }, include: { patient: true, surgeon: true } });
       await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: appointment.id, action: 'CREATED', userId: context.user?.userId, appointmentId: appointment.id } });
-      await prisma.notification.create({ data: { appointmentId: appointment.id, type: 'CONFIRMATION', status: 'PENDING' } });
+      await prisma.notification.create({ data: { appointmentId: appointment.id, type: 'CONFIRMATION_48H', status: 'PENDING' } });
       return appointment;
     },
     updateAppointment: async (_: unknown, { input }: { input: UpdateAppointmentInput }, context: Context) => {

@@ -515,7 +515,7 @@ mutation CreateMessageTemplate($input: CreateMessageTemplateInput!) {
 | `PostOpType` | RETURN, REPAIR |
 | `PostOpStatus` | SCHEDULED, COMPLETED, PENDING |
 | `MessageChannel` | WHATSAPP, SMS, EMAIL |
-| `NotificationType` | CONFIRMATION, REMINDER_2_DAYS, REMINDER_1_DAY, LAST_ATTEMPT |
+| `NotificationType` | REMINDER_30D, REMINDER_7D, CONFIRMATION_48H, POST_OP_CONFIRMATION, LAST_ATTEMPT |
 
 ---
 

@@ -53,6 +53,7 @@ export const typeDefs = gql`
     REMINDER_30D
     REMINDER_7D
     CONFIRMATION_48H
+    POST_OP_CONFIRMATION
     LAST_ATTEMPT
   }
 
