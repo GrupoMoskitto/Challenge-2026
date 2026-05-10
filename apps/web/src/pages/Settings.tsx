@@ -822,7 +822,7 @@ const Settings = () => {
                         </div>
                         <div>
                           {inst.loggedIn ? (
-                            <Badge className="bg-green-500">Pareado e Pronto</Badge>
+                            <Badge className="bg-green-500">Pareado</Badge>
                           ) : inst.connected ? (
                             <div className="flex items-center gap-2">
                               <Badge className="bg-yellow-500 hover:bg-yellow-600">Aguardando QR</Badge>

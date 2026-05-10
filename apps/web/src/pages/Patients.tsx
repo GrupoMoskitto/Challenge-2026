@@ -33,6 +33,8 @@ import {
   UPDATE_PATIENT,
   CREATE_DOCUMENT,
   CREATE_POST_OP,
+  CREATE_APPOINTMENT,
+  GET_SURGEONS,
 } from "@/lib/queries";
 import {
   Dialog,
@@ -297,6 +299,8 @@ const Patients = () => {
     fetchPolicy: 'cache-and-network',
   });
 
+  const { data: surgeonsData } = useQuery(GET_SURGEONS);
+
   const currentPatientRef = useRef<any>(null);
   useEffect(() => { if (patientQueryData?.patient) currentPatientRef.current = patientQueryData.patient; }, [patientQueryData]);
 
@@ -305,6 +309,7 @@ const Patients = () => {
   const [updatePatient, { loading: updatingPatient }] = useMutation(UPDATE_PATIENT);
   const [createDocument, { loading: creatingDoc }] = useMutation(CREATE_DOCUMENT);
   const [createPostOp, { loading: creatingPostOp }] = useMutation(CREATE_POST_OP);
+  const [createAppointment, { loading: creatingAppt }] = useMutation(CREATE_APPOINTMENT);
 
   const [editPatientDialogOpen, setEditPatientDialogOpen] = useState(false);
   const [editPatientForm, setEditPatientForm] = useState({
@@ -317,6 +322,14 @@ const Patients = () => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [newPostOpDialogOpen, setNewPostOpDialogOpen] = useState(false);
   const [newPostOpForm, setNewPostOpForm] = useState({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
+
+  const [newApptDialogOpen, setNewApptDialogOpen] = useState(false);
+  const [newApptForm, setNewApptForm] = useState({ 
+    procedure: "", 
+    surgeonId: "", 
+    date: new Date().toISOString().split('T')[0],
+    time: "09:00"
+  });
 
   const effectivePatientsData = patientsData || prevPatientData;
   const pagination = effectivePatientsData?.patients?.pageInfo;
@@ -421,6 +434,35 @@ const Patients = () => {
       toast.success("Pós-operatório agendado!");
       setNewPostOpDialogOpen(false);
       setNewPostOpForm({ description: "", type: "RETURN", date: new Date().toISOString().split('T')[0] });
+      refetchPatient();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const handleCreateAppointment = async () => {
+    if (!selectedPatientId || !newApptForm.procedure || !newApptForm.surgeonId) {
+      toast.error("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    try {
+      const scheduledAt = new Date(`${newApptForm.date}T${newApptForm.time}:00`);
+      await createAppointment({
+        variables: {
+          input: {
+            patientId: selectedPatientId,
+            surgeonId: newApptForm.surgeonId,
+            procedure: newApptForm.procedure,
+            scheduledAt: scheduledAt.toISOString()
+          }
+        }
+      });
+      toast.success("Consulta agendada!");
+      setNewApptDialogOpen(false);
+      setNewApptForm({ 
+        procedure: "", 
+        surgeonId: "", 
+        date: new Date().toISOString().split('T')[0],
+        time: "09:00"
+      });
       refetchPatient();
     } catch (e: any) { toast.error(e.message); }
   };
@@ -548,6 +590,14 @@ const Patients = () => {
                   <PatientTimeline patient={patient} />
                 </TabsContent>
                 <TabsContent value="appointments" className="mt-4 space-y-4">
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => {
+                      setNewApptForm(prev => ({ ...prev, procedure: patient.lead?.procedure || "" }));
+                      setNewApptDialogOpen(true);
+                    }}>
+                      <Plus className="h-4 w-4 mr-2" /> Novo Agendamento
+                    </Button>
+                  </div>
                   {patient.appointments?.length === 0 ? <div className="py-20 text-center text-sm text-muted-foreground">Nenhuma consulta registrada.</div> : (
                     patient.appointments?.map((apt: any) => (
                       <Card key={apt.id}>
@@ -749,6 +799,58 @@ const Patients = () => {
             <div className="space-y-2"><Label>Data Agendada *</Label><HistoricalDatePicker value={newPostOpForm.date} onChange={(iso) => setNewPostOpForm(f => ({...f, date: iso }))} minYear={new Date().getFullYear()} locale={ptBR} /></div>
           </div>
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setNewPostOpDialogOpen(false)}>Cancelar</Button><Button onClick={handleCreatePostOp} disabled={creatingPostOp} className="min-w-[120px]">{creatingPostOp ? <Loader2 className="animate-spin h-4 w-4" /> : "Agendar"}</Button></div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={newApptDialogOpen} onOpenChange={setNewApptDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Novo Agendamento</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Procedimento *</Label>
+              <Input 
+                placeholder="Ex: Rinoplastia, Consulta de Retorno..." 
+                value={newApptForm.procedure} 
+                onChange={e => setNewApptForm(f => ({...f, procedure: e.target.value}))} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Cirurgião / Médico *</Label>
+              <Select value={newApptForm.surgeonId} onValueChange={v => setNewApptForm(f => ({...f, surgeonId: v}))}>
+                <SelectTrigger><SelectValue placeholder="Selecione o profissional" /></SelectTrigger>
+                <SelectContent>
+                  {surgeonsData?.surgeons?.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name} ({s.specialty})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Data *</Label>
+                <HistoricalDatePicker 
+                  value={newApptForm.date} 
+                  onChange={(iso) => setNewApptForm(f => ({...f, date: iso }))} 
+                  minYear={new Date().getFullYear()} 
+                  locale={ptBR} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Horário *</Label>
+                <Input 
+                  type="time" 
+                  value={newApptForm.time} 
+                  onChange={e => setNewApptForm(f => ({...f, time: e.target.value}))} 
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setNewApptDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateAppointment} disabled={creatingAppt} className="min-w-[120px]">
+              {creatingAppt ? <Loader2 className="animate-spin h-4 w-4" /> : "Agendar"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </AppLayout>
