@@ -78,7 +78,23 @@ function setSurgeonInContext(context: Context, surgeonId: string | null): void {
 const MAX_WEIGHT_KG = 400;
 const MAX_HEIGHT_CM = 300;
 
-function validatePatientData(input: { weight?: number | string | null; height?: number | string | null }) {
+function validatePatientData(input: { weight?: number | string | null; height?: number | string | null; dateOfBirth?: string | Date | null }) {
+  if (input.dateOfBirth) {
+    const birthDate = new Date(input.dateOfBirth);
+    const today = new Date();
+    const ageInYears = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+
+    if (birthDate > today) {
+      throw new Error("A data de nascimento não pode estar no futuro.");
+    }
+    if (ageInYears < 18) {
+      throw new Error("O paciente deve ter pelo menos 18 anos.");
+    }
+    if (ageInYears > 130) {
+      throw new Error("A idade calculada é irreal (mais de 130 anos). Verifique a data.");
+    }
+  }
+
   if (input.weight !== undefined && input.weight !== null) {
     const w = typeof input.weight === 'string' ? parseFloat(input.weight.replace(',', '.')) : input.weight;
     if (isNaN(w) || w <= 0 || w > MAX_WEIGHT_KG) {

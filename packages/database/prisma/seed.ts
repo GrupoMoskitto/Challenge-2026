@@ -94,6 +94,11 @@ async function main() {
                 leadId: lead.id,
                 dateOfBirth: new Date(1980 + Math.floor(Math.random() * 25), Math.floor(Math.random() * 12), 1),
                 medicalRecord: `HSR-26-${100 + i}`,
+                sex: Math.random() > 0.5 ? 'Feminino' : 'Masculino',
+                height: 150 + Math.floor(Math.random() * 40),
+                weight: 50 + Math.floor(Math.random() * 50),
+                howMet: randomItem(origins),
+                address: 'Rua Exemplo, 123',
                 createdAt: lead.updatedAt
             }
         });

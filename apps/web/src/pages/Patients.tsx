@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -235,6 +235,7 @@ const PAGE_SIZE = 20;
 const Patients = () => {
   const { openCreatePatientModal } = usePatientModal();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
@@ -608,7 +609,14 @@ const Patients = () => {
                   </div>
                   {patient.appointments?.length === 0 ? <div className="py-20 text-center text-sm text-muted-foreground">Nenhuma consulta registrada.</div> : (
                     patient.appointments?.map((apt: any) => (
-                      <Card key={apt.id}>
+                      <Card 
+                        key={apt.id} 
+                        className="cursor-pointer hover:border-primary/50 transition-colors hover:shadow-sm"
+                        onClick={() => {
+                          const aptDate = apt.scheduledAt.split('T')[0];
+                          navigate(`/agenda?date=${aptDate}&appointmentId=${apt.id}`);
+                        }}
+                      >
                         <CardContent className="p-3 flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <CalendarIcon className="h-5 w-5 text-muted-foreground" />

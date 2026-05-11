@@ -28,9 +28,22 @@ export const AuditDiff: React.FC<AuditDiffProps> = ({ oldValue, newValue, classN
     return null;
   }
 
-  const formatValue = (v: any) => {
+  const formatValue = (v: any, key: string) => {
     if (v === null || v === undefined) return <span className="italic opacity-30 text-[9px]">vazio</span>;
     if (typeof v === 'boolean') return v ? "Sim" : "Não";
+    
+    if (typeof v === 'string' && v.match(/^\d{4}-\d{2}-\d{2}T/)) {
+      try {
+        const d = new Date(v);
+        if (!isNaN(d.getTime())) {
+          const day = String(d.getUTCDate()).padStart(2, '0');
+          const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const year = d.getUTCFullYear();
+          return `${day}/${month}/${year}`;
+        }
+      } catch(e) {}
+    }
+
     if (typeof v === 'object') return JSON.stringify(v);
     return String(v);
   };
@@ -62,13 +75,13 @@ export const AuditDiff: React.FC<AuditDiffProps> = ({ oldValue, newValue, classN
               {item.fromValue !== undefined && (
                 <>
                   <span className="text-red-500/70 bg-red-500/5 px-1 py-0 rounded border border-red-500/10 line-through">
-                    {formatValue(item.fromValue)}
+                    {formatValue(item.fromValue, item.key)}
                   </span>
                   <ChevronRight className="h-2 w-2 text-muted-foreground/30" />
                 </>
               )}
               <span className="text-green-600 font-bold bg-green-500/5 px-1 py-0 rounded border border-green-500/20">
-                {formatValue(item.toValue)}
+                {formatValue(item.toValue, item.key)}
               </span>
             </div>
           </div>

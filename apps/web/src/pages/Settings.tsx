@@ -278,22 +278,9 @@ const Settings = () => {
 
   const handleDeleteAvail = async (id: string) => {
     try {
-      await deleteAvail({
-        variables: { id },
-        update(cache) {
-          cache.modify({
-            fields: {
-              surgeons(existingSurgeons = []) {
-                return existingSurgeons.map((surgeon: any) => ({
-                  ...surgeon,
-                  availability: (surgeon.availability || []).filter((a: any) => a.id !== id),
-                }));
-              },
-            },
-          });
-        },
-      });
+      await deleteAvail({ variables: { id } });
       toast.success("Horário removido");
+      refetchSchedule();
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -309,22 +296,9 @@ const Settings = () => {
 
   const handleDeleteExtraAvail = async (id: string) => {
     try {
-      await deleteExtra({
-        variables: { id },
-        update(cache) {
-          cache.modify({
-            fields: {
-              surgeons(existingSurgeons = []) {
-                return existingSurgeons.map((surgeon: any) => ({
-                  ...surgeon,
-                  extraAvailability: (surgeon.extraAvailability || []).filter((e: any) => e.id !== id),
-                }));
-              },
-            },
-          });
-        },
-      });
+      await deleteExtra({ variables: { id } });
       toast.success("Removido");
+      refetchSchedule();
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -367,22 +341,9 @@ const Settings = () => {
 
   const handleDeleteBlock = async (id: string) => {
     try {
-      await deleteBlock({
-        variables: { id },
-        update(cache) {
-          cache.modify({
-            fields: {
-              surgeons(existingSurgeons = []) {
-                return existingSurgeons.map((surgeon: any) => ({
-                  ...surgeon,
-                  blocks: (surgeon.blocks || []).filter((b: any) => b.id !== id),
-                }));
-              },
-            },
-          });
-        },
-      });
+      await deleteBlock({ variables: { id } });
       toast.success("Bloqueio removido");
+      refetchSchedule();
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -771,19 +732,19 @@ const Settings = () => {
           {isAdmin && (
             <TabsContent value="integrations">
               <Card>
-                <CardHeader className="flex flex-col sm:flex-row items-start justify-between gap-3">
-                  <div>
-                    <CardTitle>Integrações</CardTitle>
-                    <CardDescription>
-                      Gerencie as conexões ativas com a Evolution API
-                    </CardDescription>
-                  </div>
-                  <Button onClick={() => setCreateInstanceDialogOpen(true)} size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nova Instância
-                  </Button>
+                <CardHeader>
+                  <CardTitle>Integrações</CardTitle>
+                  <CardDescription>
+                    Gerencie as conexões ativas do WhatsApp
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="flex justify-end items-center">
+                    <Button onClick={() => setCreateInstanceDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nova Instância
+                    </Button>
+                  </div>
                   {evoLoading ? (
                     <div className="space-y-3">
                       <Skeleton className="h-20 w-full" />
@@ -791,7 +752,7 @@ const Settings = () => {
                     </div>
                   ) : evolutionInstances.length === 0 ? (
                     <div className="text-center py-6 text-muted-foreground border rounded-lg border-dashed">
-                      Nenhuma instância encontrada na Evolution API.
+                      Nenhuma instância do WhatsApp encontrada.
                     </div>
                   ) : (
                     evolutionInstances.map((inst: any) => (
@@ -868,7 +829,10 @@ const Settings = () => {
                       <p className="text-sm text-muted-foreground">
                         Gerencie os usuários que têm acesso ao sistema
                       </p>
-                      <Button onClick={() => setCreateUserDialogOpen(true)}>Novo Usuário</Button>
+                      <Button onClick={() => setCreateUserDialogOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Novo Usuário
+                      </Button>
                     </div>
                     <div className="border rounded-lg overflow-x-auto">
                       <div className="min-w-[600px]">

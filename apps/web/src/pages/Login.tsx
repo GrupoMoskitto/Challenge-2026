@@ -4,7 +4,7 @@ import { useMutation, gql } from '@apollo/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { validateEmail, sanitizeInput } from '@/lib/validation';
-import { Loader2, Moon, Sun } from 'lucide-react';
+import { Loader2, Moon, Sun, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
 const LOGIN_MUTATION = gql`
@@ -80,6 +80,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { login: authLogin } = useAuth();
   
@@ -196,16 +197,31 @@ export default function Login() {
               <label htmlFor="password" className="text-sm font-medium text-slate-800 dark:text-white/80">
                 Senha
               </label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                className="glass-input h-11 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-white/35"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  className="glass-input h-11 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-white/35 pr-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white/80 transition-colors"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
             <Button
               type="submit"
