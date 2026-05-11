@@ -220,6 +220,8 @@ const Leads = () => {
   
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
 
   const { data, refetch } = useQuery(GET_LEADS, {
     variables: { first: 100, search: debouncedSearch || undefined },
@@ -408,24 +410,76 @@ const Leads = () => {
   const confirmExport = async () => {
     try {
       setExporting(true);
-      const { data: res } = await exportLeads();
-      if (res?.exportLeads) { window.open(res.exportLeads, '_blank'); toast.success("Exportado!"); }
+      const { data: res } = await exportLeads({ 
+        variables: { 
+          search: debouncedSearch || undefined,
+          origins: filterOrigins.length > 0 ? filterOrigins : undefined,
+          procedures: filterProcedures.length > 0 ? filterProcedures : undefined
+        } 
+      });
+      if (res?.exportLeads) { 
+         const apiBase = import.meta.env.VITE_API_URL?.replace('/graphql', '') || 'http://localhost:3001';
+         const fileUrl = `${apiBase}${res.exportLeads}`;
+         
+         const response = await fetch(fileUrl, {
+           credentials: 'include'
+         });
+         
+         if (!response.ok) throw new Error("Falha ao baixar o arquivo");
+         
+         const blob = await response.blob();
+         const downloadUrl = window.URL.createObjectURL(blob);
+         const a = document.createElement('a');
+         a.href = downloadUrl;
+         a.download = res.exportLeads.split('/').pop() || 'leads.csv';
+         document.body.appendChild(a);
+         a.click();
+         a.remove();
+         window.URL.revokeObjectURL(downloadUrl);
+         
+         toast.success("Exportado!"); 
+      }
       setExportDialogOpen(false);
     } catch (e: any) { toast.error(e.message); } finally { setExporting(false); }
   };
 
   const handleImport = async (file: File) => {
     setImporting(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const content = event.target?.result as string;
-      try {
-        const { data: res } = await importLeads({ variables: { csvContent: content } });
-        if (res?.importLeads?.success) { toast.success(`${res.importLeads.imported} leads importados!`); refetch(); setImportDialogOpen(false); }
-        else { toast.error("Erro na importação"); }
-      } catch (err: any) { toast.error(err.message); } finally { setImporting(false); }
-    };
-    reader.readAsText(file);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      
+      const apiBase = import.meta.env.VITE_API_URL?.replace('/graphql', '') || 'http://localhost:3001';
+      const uploadRes = await fetch(`${apiBase}/api/upload`, {
+        method: "POST",
+        body: formData,
+        credentials: 'include'
+      });
+      
+      if (!uploadRes.ok) throw new Error("Falha no upload do arquivo.");
+      
+      const { url } = await uploadRes.json();
+      
+      const { data: res } = await importLeads({ variables: { fileUrl: url } });
+      if (res?.importLeads?.success) { 
+        toast.success(`${res.importLeads.imported} leads importados!`); 
+        if (res.importLeads.errors.length > 0) {
+          const errorMsgs = res.importLeads.errors.slice(0, 3).join('\n');
+          const more = res.importLeads.errors.length > 3 ? `\n...e mais ${res.importLeads.errors.length - 3} erros.` : '';
+          toast.warning(`Atenção (${res.importLeads.errors.length} erros):\n${errorMsgs}${more}`, { duration: 8000 });
+          console.warn("Erros de importação:", res.importLeads.errors);
+        }
+        refetch(); 
+        setImportDialogOpen(false); 
+        setImportFile(null);
+      } else { 
+        toast.error("Erro na importação"); 
+      }
+    } catch (err: any) { 
+      toast.error(err.message); 
+    } finally { 
+      setImporting(false); 
+    }
   };
 
   const allLeadsArr: Lead[] = data?.leads?.edges?.map((e: any) => e.node) || [];
@@ -714,18 +768,94 @@ const Leads = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}><DialogContent className="sm:max-w-[400px]"><DialogHeader><DialogTitle>Exportar Leads</DialogTitle><DialogDescription>Deseja exportar a lista filtrada para CSV?</DialogDescription></DialogHeader>
-        <div className="flex justify-end gap-2 pt-6"><Button variant="outline" onClick={() => setExportDialogOpen(false)}>Cancelar</Button><Button onClick={confirmExport} disabled={exporting} className="shadow-lg">{exporting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />} Exportar</Button></div>
-      </DialogContent></Dialog>
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Exportar Leads</DialogTitle>
+            <DialogDescription>Deseja exportar a lista para CSV?</DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-2">
+             <p className="text-sm font-medium">Filtros atuais aplicados:</p>
+             <ul className="text-xs text-muted-foreground list-disc list-inside pl-2 space-y-1">
+               {debouncedSearch ? <li>Busca: <span className="font-bold">{debouncedSearch}</span></li> : null}
+               {filterOrigins.length > 0 ? <li>Origens: <span className="font-bold">{filterOrigins.join(", ")}</span></li> : null}
+               {filterProcedures.length > 0 ? <li>Procedimentos: <span className="font-bold">{filterProcedures.join(", ")}</span></li> : null}
+               {!debouncedSearch && filterOrigins.length === 0 && filterProcedures.length === 0 && <li>Nenhum filtro. Exportando toda a base.</li>}
+             </ul>
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setExportDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={confirmExport} disabled={exporting} className="shadow-lg min-w-[120px]">
+              {exporting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />} Exportar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}><DialogContent className="sm:max-w-[500px]"><DialogHeader><DialogTitle>Importação</DialogTitle><DialogDescription>Selecione um arquivo CSV estruturado.</DialogDescription></DialogHeader>
-        <div className="py-10 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center space-y-4 bg-muted/30 hover:bg-muted/50 transition-all cursor-pointer border-primary/20 group relative">
-          <Upload className="h-7 w-7 text-primary group-hover:scale-110 transition-transform" />
-          <p className="text-sm font-bold text-muted-foreground text-center px-4">Clique para carregar CSV</p>
-          <input type="file" accept=".csv" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); }} disabled={importing} />
-        </div>
-        <div className="flex justify-end pt-4"><Button variant="outline" onClick={() => setImportDialogOpen(false)}>Fechar</Button></div>
-      </DialogContent></Dialog>
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Importação</DialogTitle>
+            <DialogDescription>Selecione um arquivo CSV estruturado.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div 
+              className={cn(
+                "relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl transition-all text-center",
+                isDraggingFile ? "border-primary bg-primary/5" : "border-muted-foreground/20 bg-muted/20 hover:bg-muted/40",
+                importFile && "border-green-500/50 bg-green-500/5"
+              )}
+              onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+              onDragLeave={() => setIsDraggingFile(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingFile(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) setImportFile(file);
+              }}
+            >
+              <div className="bg-background p-3 rounded-full shadow-sm mb-3 border">
+                {importFile ? <Check className="h-6 w-6 text-green-500" /> : <Upload className="h-6 w-6 text-primary" />}
+              </div>
+              <div className="space-y-1">
+                {importFile ? (
+                  <>
+                    <p className="text-sm font-bold text-foreground">{importFile.name}</p>
+                    <p className="text-xs text-muted-foreground font-medium">{(importFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-foreground">
+                      Arraste um arquivo CSV
+                    </p>
+                    <p className="text-xs text-muted-foreground">ou clique para buscar</p>
+                  </>
+                )}
+              </div>
+              <input 
+                type="file" 
+                accept=".csv"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) setImportFile(file);
+                }} 
+                disabled={importing}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setImportDialogOpen(false); setImportFile(null); }}>Cancelar</Button>
+            <Button 
+              onClick={() => importFile && handleImport(importFile)} 
+              disabled={importing || !importFile} 
+              className="min-w-[120px]"
+            >
+              {importing ? <Loader2 className="animate-spin h-4 w-4" /> : "Importar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={legendDialogOpen} onOpenChange={setLegendDialogOpen}><DialogContent className="sm:max-w-[450px]"><DialogHeader><DialogTitle className="text-lg font-bold">Legenda</DialogTitle></DialogHeader>
         <div className="space-y-8 py-6">

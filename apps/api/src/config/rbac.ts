@@ -63,7 +63,7 @@ export function assertRole(
       role: context.user.role,
       requiredRoles: allowedRoles,
     });
-    throw new Error(`Acesso restrito${actionDesc}. Roles permitidos: ${allowedRoles.join(', ')}`);
+    throw new Error(`Acesso negado. Você não possui as permissões necessárias${actionDesc}.`);
   }
 }
 

@@ -65,6 +65,7 @@ export class WhatsappSession {
         await prisma.whatsappSession.delete({ where: { jid } }).catch(() => {});
       }
     } catch (e) {
+      // ignore errors
     }
 
     return { stage: 'START' };
@@ -111,6 +112,7 @@ export class WhatsappSession {
     try {
       await prisma.whatsappSession.delete({ where: { jid } }).catch(() => {});
     } catch (e) {
+      // ignore errors
     }
   }
 }

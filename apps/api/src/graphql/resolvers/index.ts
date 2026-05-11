@@ -5,6 +5,11 @@ import { hashPassword, comparePassword, generateToken, generateRefreshToken, ver
 import { dispatchLeadWelcome } from '../../services/whatsappQueue';
 import { assertAuthenticated, assertRole, enforceStatusChange, validateEnum } from '../../config/rbac';
 import { logger } from '../../config/logger';
+import fs from 'fs';
+import path from 'path';
+import { pipeline } from 'stream/promises';
+import { parse as csvParse } from 'csv-parse';
+import { stringify as csvStringify } from 'csv-stringify';
 
 interface SafeUser {
   id: string;
@@ -78,7 +83,23 @@ function setSurgeonInContext(context: Context, surgeonId: string | null): void {
 const MAX_WEIGHT_KG = 400;
 const MAX_HEIGHT_CM = 300;
 
-function validatePatientData(input: { weight?: number | string | null; height?: number | string | null }) {
+function validatePatientData(input: { weight?: number | string | null; height?: number | string | null; dateOfBirth?: string | Date | null }) {
+  if (input.dateOfBirth) {
+    const birthDate = new Date(input.dateOfBirth);
+    const today = new Date();
+    const ageInYears = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+
+    if (birthDate > today) {
+      throw new Error("A data de nascimento não pode estar no futuro.");
+    }
+    if (ageInYears < 18) {
+      throw new Error("O paciente deve ter pelo menos 18 anos.");
+    }
+    if (ageInYears > 130) {
+      throw new Error("A idade calculada é irreal (mais de 130 anos). Verifique a data.");
+    }
+  }
+
   if (input.weight !== undefined && input.weight !== null) {
     const w = typeof input.weight === 'string' ? parseFloat(input.weight.replace(',', '.')) : input.weight;
     if (isNaN(w) || w <= 0 || w > MAX_WEIGHT_KG) {
@@ -1454,13 +1475,173 @@ export const resolvers = {
 
       return { success: true, message: 'Dados anonimizados com sucesso (LGPD)' };
     },
-    exportLeads: async (_: unknown, __: unknown, context: Context) => {
+    exportLeads: async (_: unknown, { search, status, origins, procedures }: { search?: string; status?: LeadStatus; origins?: string[]; procedures?: string[] }, context: Context) => {
       assertAuthenticated(context);
-      return "URL_PLACEHOLDER";
+      assertRole(context, ['ADMIN'], 'exportação de leads');
+
+      const whereClause: Prisma.LeadWhereInput = { deletedAt: null };
+      if (status) whereClause.status = status;
+      if (origins && origins.length > 0) whereClause.origin = { in: origins };
+      if (procedures && procedures.length > 0) whereClause.procedure = { in: procedures };
+      if (search) {
+        const sanitizedSearch = search.trim().substring(0, 100);
+        whereClause.OR = [
+          { name: { contains: sanitizedSearch, mode: 'insensitive' } },
+          { cpf: { contains: sanitizedSearch, mode: 'insensitive' } },
+          { phone: { contains: sanitizedSearch, mode: 'insensitive' } },
+          { email: { contains: sanitizedSearch, mode: 'insensitive' } },
+        ];
+      }
+
+      const leads = await prisma.lead.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const filename = `leads_export_${Date.now()}.csv`;
+      const uploadDir = path.join(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filepath = path.join(uploadDir, filename);
+
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(filepath);
+        writeStream.write('\uFEFF'); // Write BOM for UTF-8
+        const stringifier = csvStringify({
+          header: true,
+          columns: ['ID', 'Nome', 'Email', 'Telefone', 'CPF', 'Origem', 'Procedimento', 'Status', 'Data de Criação']
+        });
+        stringifier.on('error', reject);
+        writeStream.on('error', reject);
+        writeStream.on('finish', resolve);
+        
+        stringifier.pipe(writeStream);
+        
+        for (const lead of leads) {
+          stringifier.write([
+            lead.id,
+            lead.name,
+            lead.email,
+            lead.phone,
+            lead.cpf || '',
+            lead.origin || '',
+            lead.procedure || '',
+            lead.status,
+            lead.createdAt.toISOString()
+          ]);
+        }
+        stringifier.end();
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Lead',
+          entityId: 'ALL',
+          action: 'EXPORTED',
+          reason: 'Exportação em massa de leads',
+          userId: context.user?.userId,
+        }
+      });
+
+      return `/api/uploads/${filename}`;
     },
-    importLeads: async (_: unknown, __: unknown, context: Context) => {
+    importLeads: async (_: unknown, { fileUrl }: { fileUrl: string }, context: Context) => {
       assertAuthenticated(context);
-      return { success: true, count: 0 };
+      assertRole(context, ['ADMIN'], 'importação de leads');
+
+      if (!fileUrl.startsWith('/api/uploads/')) {
+        throw new Error('URL de arquivo inválida');
+      }
+
+      const filename = fileUrl.replace('/api/uploads/', '');
+      const filepath = path.join(process.cwd(), 'uploads', filename);
+
+      if (!fs.existsSync(filepath)) {
+        throw new Error('Arquivo não encontrado no servidor');
+      }
+
+      let imported = 0;
+      const errors: string[] = [];
+      const records: any[] = [];
+
+      const parser = csvParse({ 
+        columns: true, 
+        skip_empty_lines: true, 
+        trim: true, 
+        delimiter: [',', ';', '\t', '|'], 
+        bom: true 
+      });
+      
+      parser.on('data', (data: any) => records.push(data));
+
+      try {
+        await pipeline(
+          fs.createReadStream(filepath),
+          parser
+        );
+      } catch (err: any) {
+        throw new Error(`Falha ao processar o arquivo CSV: ${err.message}`);
+      }
+
+      for (const row of records) {
+        try {
+          const email = row.Email || row.email || `no-email-imp-${Date.now()}-${Math.random()}@crmed.com`;
+          let cpf = row.CPF || row.cpf || `00000-${Date.now().toString().slice(-6)}`;
+          if (cpf.length > 14) cpf = cpf.substring(0, 14);
+          
+          const phone = row.Telefone || row.telefone || row.Phone || row.phone;
+          const name = row.Nome || row.nome || row.Name || row.name;
+
+          if (!name || !phone) {
+             errors.push(`Linha ignorada: Nome ou Telefone ausente.`);
+             continue;
+          }
+
+          // Generate a pseudo-unique ID or match existing by CPF if valid
+          let existingLead = null;
+          if (cpf && cpf !== '00000') {
+             existingLead = await prisma.lead.findUnique({ where: { cpf } });
+          }
+          if (!existingLead && email && !email.includes('no-email-imp')) {
+             existingLead = await prisma.lead.findUnique({ where: { email } });
+          }
+
+          if (existingLead) {
+             // update or skip
+             errors.push(`Lead ignorado: Já existe (CPF/Email duplicado) para ${name}`);
+             continue;
+          }
+
+          await prisma.lead.create({
+            data: {
+              name,
+              email,
+              phone,
+              cpf,
+              origin: row.Origem || row.origem || 'Importação',
+              procedure: row.Procedimento || row.procedimento || '',
+              status: LeadStatus.NEW,
+              source: row.Origem || row.origem || 'Importação'
+            }
+          });
+          imported++;
+        } catch (err: any) {
+          errors.push(`Erro na linha: ${err.message}`);
+        }
+      }
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Lead',
+          entityId: 'ALL',
+          action: 'IMPORTED',
+          reason: `Importação em massa: ${imported} leads adicionados/processados`,
+          userId: context.user?.userId,
+        }
+      });
+
+      return { success: true, imported, errors };
     },
     createPatient: async (_: unknown, { input }: { input: CreatePatientInput }, context: Context) => {
       assertAuthenticated(context);
@@ -1730,6 +1911,12 @@ export const resolvers = {
       assertAuthenticated(context);
       validateEnum(status, DocumentStatus, 'DocumentStatus');
       return prisma.document.update({ where: { id: decodeId(id) }, data: { status } });
+    },
+    deleteDocument: async (_: unknown, { id }: { id: string }, context: Context) => {
+      assertAuthenticated(context);
+      assertRole(context, ['ADMIN', 'SURGEON'], 'exclusão de documento');
+      await prisma.document.delete({ where: { id: decodeId(id) } });
+      return { success: true, message: 'Documento excluído com sucesso' };
     },
     createPostOp: async (_: unknown, { input }: { input: CreatePostOpInput }, context: Context) => {
       assertAuthenticated(context);

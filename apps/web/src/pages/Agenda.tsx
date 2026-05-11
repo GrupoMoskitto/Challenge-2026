@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,13 @@ const statusColors: Record<string, string> = {
 };
 
 const Agenda = () => {
-  const [currentDate, setCurrentDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  const [currentDate, setCurrentDate] = useState(() => {
+    const d = searchParams.get("date");
+    if (d && !isNaN(new Date(d).getTime())) return d;
+    return format(new Date(), 'yyyy-MM-dd');
+  });
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [newConsultCalendarOpen, setNewConsultCalendarOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -96,6 +103,22 @@ const Agenda = () => {
   const appointments = appointmentsData?.appointmentsByDate || [];
   const surgeons = surgeonsData?.surgeons || [];
   const patients = patientsData?.patients?.edges?.map((edge: any) => edge.node) || [];
+
+  // Auto-open appointment sheet if linked from another page
+  useEffect(() => {
+    const apptId = searchParams.get("appointmentId");
+    if (apptId && appointments.length > 0 && !sheetOpen) {
+      const appt = appointments.find((a: any) => a.id === apptId);
+      if (appt) {
+        const time = format(new Date(appt.scheduledAt), 'HH:mm');
+        openNewAppointment(appt.surgeonId, time, appt);
+        // Clear the param so it doesn't reopen if closed
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete("appointmentId");
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [appointments, searchParams, setSearchParams, sheetOpen]);
 
   const prevDay = () => {
     const newDate = format(subDays(dateObj, 1), 'yyyy-MM-dd');
@@ -323,17 +346,17 @@ const Agenda = () => {
 
   return (
     <AppLayout title="Agenda Médica">
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-4 sm:mb-6 gap-3">
-        <div className="flex items-center gap-2 sm:gap-4 justify-center sm:justify-start">
+      <div className="flex items-center justify-between mb-4 sm:mb-6 gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Button variant="outline" size="icon" onClick={prevDay} className="shrink-0">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          
+
           <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="flex-1 sm:min-w-[280px] justify-start text-center capitalize font-normal text-xs sm:text-sm truncate">
+              <Button variant="outline" className="w-[260px] sm:w-[340px] justify-start capitalize font-normal text-xs sm:text-sm">
                 <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                <span className="truncate">{dateLabel}</span>
+                <span>{dateLabel}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -346,23 +369,32 @@ const Agenda = () => {
                />
             </PopoverContent>
           </Popover>
-          
+
           <Button variant="outline" size="icon" onClick={nextDay} className="shrink-0">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button onClick={() => setNewConsultDialogOpen(true)} className="w-full sm:w-auto">
+        <Button onClick={() => setNewConsultDialogOpen(true)} className="shrink-0">
           <Plus className="h-4 w-4 mr-2" />
           Nova Consulta
         </Button>
       </div>
 
+      {/* 
+        Layout de dois eixos sticky:
+        - O wrapper externo é `relative` para conter os filhos sticky.
+        - A régua de horários: `sticky left-0 z-30` (maior prioridade) — passa por cima dos cards de médicos.
+        - Os cards de médicos: `sticky top-0 z-10` — grudam no topo ao rolar verticalmente, mas ficam abaixo da régua.
+        - A régua também tem um espaçador `sticky top-0` para alinhar com os cabeçalhos ao rolar.
+      */}
       <div className="bg-card border rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto snap-x snap-mandatory scroll-smooth p-2 md:p-4">
+        <div className="relative overflow-x-auto snap-x snap-mandatory scroll-smooth p-2 md:p-4">
           <div className="flex gap-3 md:gap-4 min-w-max items-start">
-            {/* Time column */}
-            <div className="sticky left-[-8px] md:left-[-16px] z-10 shrink-0 w-[68px] md:w-[96px] bg-card border-r shadow-[2px_0_8px_-2px_rgba(0,0,0,0.1)] -ml-2 md:-ml-4 pl-2 md:pl-4 -my-2 md:-my-4 py-2 md:py-4">
-              <div className="mb-3 md:mb-4 h-[52px] md:h-[60px]" />
+
+            {/* Régua de horários — sticky left E maior z-index */}
+            <div className="sticky left-[-8px] md:left-[-16px] z-30 shrink-0 w-[68px] md:w-[96px] bg-card border-r shadow-[2px_0_8px_-2px_rgba(0,0,0,0.1)] -ml-2 md:-ml-4 pl-2 md:pl-4 -my-2 md:-my-4 py-2 md:py-4">
+              {/* Espaçador sticky no topo que acompanha o cabeçalho dos médicos */}
+              <div className="sticky top-0 z-30 bg-card mb-3 md:mb-4 h-[52px] md:h-[60px]" />
               <div className="space-y-1.5 md:space-y-2">
                 {timeSlots.map((time) => (
                   <div key={time} className="h-16 md:h-20 flex items-center justify-center text-xs md:text-sm font-medium text-muted-foreground border-b">
@@ -374,7 +406,8 @@ const Agenda = () => {
 
             {surgeons.map((surgeon: any) => (
               <div key={surgeon.id} className="min-w-[200px] md:min-w-[220px] flex-1 snap-center">
-                <Card className="mb-3 md:mb-4 sticky top-0 z-20 shadow-sm">
+                {/* Card do médico — sticky top, mas z-index menor que a régua */}
+                <Card className="mb-3 md:mb-4 sticky top-0 z-10 shadow-sm">
                   <CardHeader className="p-2 md:p-3 bg-secondary/50 rounded-t-lg">
                     <CardTitle className="text-xs md:text-sm truncate">{surgeon.name}</CardTitle>
                     <p className="text-[10px] md:text-xs text-muted-foreground truncate">{surgeon.specialty}</p>

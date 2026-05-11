@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { HistoricalDatePicker } from "@/components/ui/historical-date-picker";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ptBR } from "date-fns/locale";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +60,7 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [isOpen, setIsOpen] = useState(false);
   const [callbacks, setCallbacks] = useState<Callbacks | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
+  const [selectedLeadCache, setSelectedLeadCache] = useState<any>(null);
   const [form, setForm] = useState({
     leadId: "",
     dateOfBirth: "",
@@ -89,9 +91,9 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [leadsData]);
 
   const createSexMismatchWarning = useMemo(() => {
-    const selectedLead = availableLeads.find((lead: any) => lead.id === form.leadId);
+    const selectedLead = selectedLeadCache || availableLeads.find((lead: any) => lead.id === form.leadId);
     return getSexMismatchWarning(selectedLead?.name, form.sex);
-  }, [availableLeads, form.leadId, form.sex]);
+  }, [selectedLeadCache, availableLeads, form.leadId, form.sex]);
 
   const openCreatePatientModal = useCallback((leadId?: string, cbs?: Callbacks) => {
     setForm({
@@ -106,6 +108,7 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
     });
     setCallbacks(cbs || null);
     setLeadSearch("");
+    setSelectedLeadCache(null);
     setIsOpen(true);
   }, []);
 
@@ -119,6 +122,20 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const handleCreate = async () => {
     if (!form.leadId || !form.dateOfBirth) {
       return toast.error("Selecione um lead e informe a data de nascimento");
+    }
+
+    const birthDate = new Date(form.dateOfBirth);
+    const today = new Date();
+    const ageInYears = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+
+    if (birthDate > today) {
+      return toast.error("A data de nascimento não pode estar no futuro.");
+    }
+    if (ageInYears < 18) {
+      return toast.error("O paciente deve ter pelo menos 18 anos.");
+    }
+    if (ageInYears > 130) {
+      return toast.error("A idade calculada é irreal (mais de 130 anos). Verifique a data.");
     }
 
     if (form.weight) {
@@ -174,23 +191,81 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
           <div className="space-y-4 py-4">
              <div className="space-y-2">
                <Label>Lead *</Label>
-               <Input
-                 value={leadSearch}
-                 onChange={(e) => setLeadSearch(e.target.value)}
-                 placeholder="Buscar lead por nome..."
-               />
-               <Select value={form.leadId} onValueChange={v => setForm(f => ({ ...f, leadId: v }))}>
-                 <SelectTrigger>
-                   <SelectValue placeholder="Selecione um lead" />
-                 </SelectTrigger>
-                 <SelectContent>
-                   {availableLeads.map((lead: any) => (
-                     <SelectItem key={lead.id} value={lead.id}>
-                       {lead.name} - {lead.cpf}
-                     </SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
+               
+               <Popover open={!form.leadId || leadSearch.trim() !== ""} onOpenChange={() => {}}>
+                 <PopoverTrigger asChild>
+                   <div className="relative w-full">
+                     {form.leadId && leadSearch.trim() === "" ? (() => {
+                       const allLeads = leadsData?.leads?.edges?.map((e: any) => e.node) || [];
+                       const selected = selectedLeadCache 
+                         || allLeads.find((l: any) => l.id === form.leadId)
+                         || availableLeads.find((l: any) => l.id === form.leadId);
+                       return selected ? (
+                         <div className="flex w-full items-center justify-between gap-2 px-3 h-10 rounded-md border border-input bg-background text-sm ring-offset-background">
+                           <div className="flex items-center gap-2 min-w-0">
+                             <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                             <span className="font-medium truncate">{selected.name}</span>
+                             {selected.cpf && (
+                               <span className="text-muted-foreground text-xs shrink-0">— {selected.cpf}</span>
+                             )}
+                           </div>
+                           <button
+                             type="button"
+                             onClick={() => { 
+                               setForm(f => ({ ...f, leadId: "" })); 
+                               setLeadSearch(""); 
+                               setSelectedLeadCache(null);
+                             }}
+                             className="shrink-0 text-muted-foreground hover:text-destructive transition-colors text-xs underline"
+                           >
+                             Trocar
+                           </button>
+                         </div>
+                       ) : (
+                         <div className="flex w-full items-center gap-2 px-3 h-10 rounded-md border border-input bg-muted/20 animate-pulse" />
+                       );
+                     })() : (
+                       <Input
+                         value={leadSearch}
+                         onChange={(e) => setLeadSearch(e.target.value)}
+                         placeholder="Buscar lead por nome..."
+                       />
+                     )}
+                   </div>
+                 </PopoverTrigger>
+                 <PopoverContent 
+                   className="w-[var(--radix-popover-trigger-width)] p-0 z-[100]" 
+                   align="start"
+                   onOpenAutoFocus={(e) => e.preventDefault()}
+                   onCloseAutoFocus={(e) => e.preventDefault()}
+                   onInteractOutside={(e) => e.preventDefault()}
+                   onWheelCapture={(e) => e.stopPropagation()}
+                 >
+                   <div className="divide-y max-h-48 overflow-y-auto">
+                     {availableLeads.length === 0 ? (
+                       <p className="text-sm text-muted-foreground text-center py-4">
+                         {leadSearch.trim() ? "Nenhum lead encontrado para essa busca." : "Nenhum lead disponível."}
+                       </p>
+                     ) : (
+                       availableLeads.map((lead: any) => (
+                         <button
+                           key={lead.id}
+                           type="button"
+                           onClick={() => {
+                             setSelectedLeadCache(lead);
+                             setForm(f => ({ ...f, leadId: lead.id }));
+                             setLeadSearch("");
+                           }}
+                           className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-muted/60 flex items-center gap-2 ${form.leadId === lead.id ? "bg-primary/10 font-medium" : ""}`}
+                         >
+                           <span className="truncate">{lead.name}</span>
+                           {lead.cpf && <span className="text-muted-foreground text-xs shrink-0">— {lead.cpf}</span>}
+                         </button>
+                       ))
+                     )}
+                   </div>
+                 </PopoverContent>
+               </Popover>
              </div>
             <div className="space-y-2">
               <Label>Data de Nascimento *</Label>
@@ -198,7 +273,7 @@ export const PatientModalProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 value={form.dateOfBirth}
                 onChange={(iso) => setForm(f => ({ ...f, dateOfBirth: iso }))}
                 minYear={1900}
-                maxYear={new Date().getFullYear()}
+                maxYear={new Date().getFullYear() - 18}
                 locale={ptBR}
                 placeholder="Selecione a data"
               />

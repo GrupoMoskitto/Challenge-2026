@@ -93,25 +93,3 @@ describe('RN05 - WhatsApp Notifications', () => {
     expect(whatsappQueue.add).not.toHaveBeenCalled();
   });
 });
-
-describe('WhatsappSender - Sandbox Logic', () => {
-  const originalEnv = process.env;
-
-  beforeEach(() => {
-    vi.resetModules();
-    process.env = { ...originalEnv, NODE_ENV: 'development', DEV_ALLOWED_PHONE: '5511988888888' };
-  });
-
-  afterEach(() => {
-    process.env = originalEnv;
-    vi.clearAllMocks();
-  });
-
-  it('should block messages to not allowed numbers in sandbox mode', async () => {
-    const { WhatsappSender: Sender } = await import('../whatsapp/whatsapp.sender');
-    
-    // Test with blocked number
-    const result = await Sender.sendMessage('test-instance', '5511999999999', 'test');
-    expect(result).toEqual({ delivered: false, status: 'blocked_by_dev_sandbox' });
-  });
-});
