@@ -17,6 +17,14 @@
   "license": "ISC",
   "packageManager": "pnpm@10.30.1",
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "@apollo/protobufjs",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "msgpackr-extract",
+      "prisma"
+    ],
     "overrides": {
       "flatted": ">=3.4.2",
       "picomatch": ">=4.0.4",
