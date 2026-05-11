@@ -6,7 +6,7 @@
   "scripts": {
     "infra:up": "cd infra/docker && docker compose --env-file ../../.env up -d postgres redis evolution-api",
     "infra:down": "cd infra/docker && docker compose --env-file ../../.env down",
-    "infra:dev": "pnpm infra:up && pnpm -F @crmed/database db:push && pnpm -F @crmed/database db:seed && pnpm dev",
+    "infra:dev": "pnpm infra:up && pnpm -F @crmed/database db:generate && pnpm -F @crmed/database db:push && pnpm -F @crmed/database db:seed && pnpm dev",
     "dev": "kill-port 3000 3001 2>/dev/null || true && turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
@@ -15,8 +15,19 @@
   "keywords": [],
   "author": "Grupo Moskitto",
   "license": "ISC",
+  "engines": {
+    "pnpm": "10.30.1"
+  },
   "packageManager": "pnpm@10.30.1",
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "@apollo/protobufjs",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "msgpackr-extract",
+      "prisma"
+    ],
     "overrides": {
       "flatted": ">=3.4.2",
       "picomatch": ">=4.0.4",
