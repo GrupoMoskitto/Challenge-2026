@@ -7,6 +7,7 @@ import { assertAuthenticated, assertRole, enforceStatusChange, validateEnum } fr
 import { logger } from '../../config/logger';
 import fs from 'fs';
 import path from 'path';
+import { pipeline } from 'stream/promises';
 import { parse as csvParse } from 'csv-parse';
 import { stringify as csvStringify } from 'csv-stringify';
 
@@ -1564,13 +1565,24 @@ export const resolvers = {
       const errors: string[] = [];
       const records: any[] = [];
 
-      await new Promise<void>((resolve, reject) => {
-        fs.createReadStream(filepath)
-          .pipe(csvParse({ columns: true, skip_empty_lines: true, trim: true, delimiter: [',', ';', '\t', '|'], bom: true }))
-          .on('data', (data: any) => records.push(data))
-          .on('error', reject)
-          .on('end', resolve);
+      const parser = csvParse({ 
+        columns: true, 
+        skip_empty_lines: true, 
+        trim: true, 
+        delimiter: [',', ';', '\t', '|'], 
+        bom: true 
       });
+      
+      parser.on('data', (data: any) => records.push(data));
+
+      try {
+        await pipeline(
+          fs.createReadStream(filepath),
+          parser
+        );
+      } catch (err: any) {
+        throw new Error(`Falha ao processar o arquivo CSV: ${err.message}`);
+      }
 
       for (const row of records) {
         try {
