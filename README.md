@@ -35,7 +35,7 @@ O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado
 - **Gestão de Instâncias WhatsApp** — Criação, conexão via QR Code de forma nativa ao painel com integração direta a Evolution API Go (`EvoGo`).
 - **Conversão Lead → Paciente** — Fluxo completo de conversão com ficha clínica (pós-ops, documentos, histórico)
 - **Inteligência de Dados** — Dashboards de conversão, performance e ociosidade médica
-- **Import/Export** — Importação e exportação de leads via CSV
+- **Import/Export Eficiente em Memória** — Importação via Upload REST e Leitura de Stream, exportação de Leads via CSV com auto-detecção de delimitadores, UTF-8 BOM e suporte a filtros ativos em tela.
 - **Auditoria Completa** — Rastreabilidade total de ações e alterações (RN06)
 - **UX Premium** — Skeletons Anti-CLS, Debounce de busca, animações 60fps e Empty States informativos
 - **Navegação Estável** — Sincronização inteligente URL-Estado para evitar loops e garantir persistência de filtros
@@ -285,6 +285,43 @@ Para subir o sistema em produção com total segurança (evitando vazamentos e i
    As políticas para Lambdas e ECS Workers foram desenhadas em `infra/iam-policies.md`. Forneça apenas as permissões de gravação/leitura de S3 nos diretórios necessários e acesso à VPC para o RDS, não aplique papéis genéricos.
 6. **Secrets Manager**
    As variáveis como `DATABASE_URL`, `JWT_SECRET`, `REFRESH_SECRET`, `WEBHOOK_SECRET` e `EVOLUTION_API_KEY` não devem ficar hardcoded no servidor. Use um gestor de segredos integrado aos seus containers de produção (como o AWS Secrets Manager).
+
+### Importação de Leads via CSV
+
+O sistema suporta a importação em massa de leads através de arquivos CSV ou TSV (separados por vírgula, ponto-e-vírgula, tabulação ou pipe). A validação de duplicação por CPF e E-mail é rigorosa (RN01).
+
+**Colunas Reconhecidas:**
+- `Nome` (Obrigatório)
+- `Telefone` (Obrigatório)
+- `Email` (Opcional - Único)
+- `CPF` (Opcional - Único)
+- `Origem` (Opcional)
+- `Procedimento` (Opcional)
+
+<details>
+<summary><strong>Exemplo de um CSV Válido</strong></summary>
+
+```csv
+Nome,Email,Telefone,CPF,Origem,Procedimento
+Maria Silva,maria@email.com,11999999999,12345678901,Instagram,Rinoplastia
+João Souza,,21988888888,,Indicação,
+Ana Costa,ana@gmail.com,31977777777,98765432100,Google Ads,Lipo HD
+Carlos Dias,carlos@teste.com,41966666666,,,
+```
+
+**Via Terminal (bash):**
+
+```bash
+# Copiar arquivo para o diretório de upload
+cp leads.csv apps/api/uploads/
+
+# Ou importar via GraphQL mutation (via Postman/curl)
+curl -X POST http://localhost:3001/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"mutation { importLeads(csvContent: \"...\") { success imported errors } }"}'
+```
+
+</details>
 
 ---
 

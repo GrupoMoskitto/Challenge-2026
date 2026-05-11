@@ -757,8 +757,8 @@ export const typeDefs = gql`
     updateLead(input: UpdateLeadInput!): Lead!
     updateLeadStatus(input: UpdateLeadStatusInput!): Lead!
     deleteLead(id: ID!): DeleteResult!
-    exportLeads(format: String): String!
-    importLeads(csvContent: String!): ImportResult!
+    exportLeads(search: String, status: LeadStatus, origins: [String!], procedures: [String!]): String!
+    importLeads(fileUrl: String!): ImportResult!
 
     # Patients
     createPatient(input: CreatePatientInput!): Patient!

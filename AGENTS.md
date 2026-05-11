@@ -259,16 +259,9 @@ pnpm --filter @crmed/database db:generate
   );
   ```
 
-### CSV Export
-- Backend returns base64-encoded data URL: `data:text/csv;base64,...`
-- Frontend must decode: 
-  ```typescript
-  const base64Data = csvContent.split(',')[1];
-  const binaryString = atob(base64Data);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-  const csvText = new TextDecoder('utf-8').decode(bytes);
-  ```
+### CSV Export & Import
+- **Export:** Backend streams the CSV to a temporary file in `uploads/` and returns the download URL (`/api/uploads/...`). The frontend must fetch this URL using `credentials: 'include'` (for secure cookies) and trigger a blob download.
+- **Import:** Frontend uploads the file via REST (`/api/upload`) using `FormData` and `credentials: 'include'`. The backend returns the file URL, which is then passed to the `importLeads` GraphQL mutation to be parsed via stream (`csv-parse`), heavily saving memory compared to sending stringified CSVs via GraphQL. Delimiters like commas, semicolons, and tabs are auto-detected.
 
 ### UI Component Imports
 - Always import all needed components from Radix/shadcn:

@@ -490,14 +490,14 @@ export const UPDATE_LEAD = gql`
 `;
 
 export const EXPORT_LEADS = gql`
-  mutation ExportLeads($format: String) {
-    exportLeads(format: $format)
+  mutation ExportLeads($search: String, $status: LeadStatus, $origins: [String!], $procedures: [String!]) {
+    exportLeads(search: $search, status: $status, origins: $origins, procedures: $procedures)
   }
 `;
 
 export const IMPORT_LEADS = gql`
-  mutation ImportLeads($csvContent: String!) {
-    importLeads(csvContent: $csvContent) {
+  mutation ImportLeads($fileUrl: String!) {
+    importLeads(fileUrl: $fileUrl) {
       success
       imported
       errors

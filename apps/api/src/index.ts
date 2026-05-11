@@ -237,21 +237,21 @@ const allowedMimeTypes = [
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv'
 ];
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Tipo de arquivo não permitido. Envie apenas imagens, PDFs, ou documentos Office.') as any, false);
+      cb(new Error('Tipo de arquivo não permitido. Envie apenas imagens, PDFs, CSV, ou documentos Office.') as any, false);
     }
   }
 });
-
 app.post('/api/upload', requireAuth, (req, res) => {
   upload.single('file')(req, res, (err) => {
     if (err) {
