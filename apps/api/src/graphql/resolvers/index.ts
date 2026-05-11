@@ -1900,6 +1900,12 @@ export const resolvers = {
       validateEnum(status, DocumentStatus, 'DocumentStatus');
       return prisma.document.update({ where: { id: decodeId(id) }, data: { status } });
     },
+    deleteDocument: async (_: unknown, { id }: { id: string }, context: Context) => {
+      assertAuthenticated(context);
+      assertRole(context, ['ADMIN', 'SURGEON'], 'exclusão de documento');
+      await prisma.document.delete({ where: { id: decodeId(id) } });
+      return { success: true, message: 'Documento excluído com sucesso' };
+    },
     createPostOp: async (_: unknown, { input }: { input: CreatePostOpInput }, context: Context) => {
       assertAuthenticated(context);
       return prisma.postOp.create({ data: { ...input, type: input.type as any, status: input.status as any, patientId: decodeId(input.patientId), date: new Date(input.date) } });

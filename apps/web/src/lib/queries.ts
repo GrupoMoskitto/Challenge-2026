@@ -310,6 +310,15 @@ export const CREATE_DOCUMENT = gql`
   }
 `;
 
+export const DELETE_DOCUMENT = gql`
+  mutation DeleteDocument($id: ID!) {
+    deleteDocument(id: $id) {
+      success
+      message
+    }
+  }
+`;
+
 export const CREATE_POST_OP = gql`
   mutation CreatePostOp($input: CreatePostOpInput!) {
     createPostOp(input: $input) {

@@ -41,7 +41,9 @@ export const AuditDiff: React.FC<AuditDiffProps> = ({ oldValue, newValue, classN
           const year = d.getUTCFullYear();
           return `${day}/${month}/${year}`;
         }
-      } catch(e) {}
+      } catch (e) {
+        // ignore invalid dates
+      }
     }
 
     if (typeof v === 'object') return JSON.stringify(v);

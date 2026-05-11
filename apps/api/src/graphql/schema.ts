@@ -786,6 +786,7 @@ export const typeDefs = gql`
     # Documents
     createDocument(input: CreateDocumentInput!): Document!
     updateDocumentStatus(id: ID!, status: DocumentStatus!): Document!
+    deleteDocument(id: ID!): MutationResponse!
 
     # PostOps
     createPostOp(input: CreatePostOpInput!): PostOp!

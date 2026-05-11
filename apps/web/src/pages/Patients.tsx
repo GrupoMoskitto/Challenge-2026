@@ -28,11 +28,13 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
+import { useAuth } from "@/lib/auth";
 import {
   GET_PATIENTS,
   GET_PATIENT,
   UPDATE_PATIENT,
   CREATE_DOCUMENT,
+  DELETE_DOCUMENT,
   CREATE_POST_OP,
   CREATE_APPOINTMENT,
   GET_SURGEONS,
@@ -233,6 +235,7 @@ const MAX_HEIGHT_CM = 300;
 const PAGE_SIZE = 20;
 
 const Patients = () => {
+  const { user } = useAuth();
   const { openCreatePatientModal } = usePatientModal();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -305,7 +308,11 @@ const Patients = () => {
 
   const [updatePatient, { loading: updatingPatient }] = useMutation(UPDATE_PATIENT);
   const [createDocument, { loading: creatingDoc }] = useMutation(CREATE_DOCUMENT);
+  const [deleteDocument, { loading: deletingDoc }] = useMutation(DELETE_DOCUMENT);
   const [createPostOp, { loading: creatingPostOp }] = useMutation(CREATE_POST_OP);
+
+  const [deleteDocDialogOpen, setDeleteDocDialogOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<string | null>(null);
   const [createAppointment, { loading: creatingAppt }] = useMutation(CREATE_APPOINTMENT);
 
   const [editPatientDialogOpen, setEditPatientDialogOpen] = useState(false);
@@ -413,6 +420,19 @@ const Patients = () => {
       setNewDocFile(null);
       refetchPatient();
     } catch (e: any) { toast.error(e.message); }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!docToDelete) return;
+    try {
+      await deleteDocument({ variables: { id: docToDelete } });
+      toast.success("Documento excluído com sucesso!");
+      refetchPatient();
+      setDeleteDocDialogOpen(false);
+      setDocToDelete(null);
+    } catch (e: any) { 
+      toast.error(e.message); 
+    }
   };
 
   const handleCreatePostOp = async () => {
@@ -614,7 +634,7 @@ const Patients = () => {
                         className="cursor-pointer hover:border-primary/50 transition-colors hover:shadow-sm"
                         onClick={() => {
                           const aptDate = apt.scheduledAt.split('T')[0];
-                          navigate(`/agenda?date=${aptDate}&appointmentId=${apt.id}`);
+                          navigate(`/schedule?date=${aptDate}&appointmentId=${apt.id}`);
                         }}
                       >
                         <CardContent className="p-3 flex items-center justify-between">
@@ -665,12 +685,24 @@ const Patients = () => {
                               <p className="text-xs text-muted-foreground">{documentTypeLabels[doc.type as keyof typeof documentTypeLabels]} • {format(new Date(doc.date), 'dd/MM/yyyy')}</p>
                             </div>
                           </div>
-                          <Badge 
-                            variant={doc.status === 'SIGNED' ? 'default' : 'outline'}
-                            className={cn(doc.status === 'SIGNED' && "bg-emerald-600 text-white border-none")}
-                          >
-                            {documentStatusLabels[doc.status]}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant={doc.status === 'SIGNED' ? 'default' : 'outline'}
+                              className={cn(doc.status === 'SIGNED' && "bg-emerald-600 text-white border-none")}
+                            >
+                              {documentStatusLabels[doc.status]}
+                            </Badge>
+                            {user && ['ADMIN', 'SURGEON'].includes(user.role) && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8"
+                                onClick={() => { setDocToDelete(doc.id); setDeleteDocDialogOpen(true); }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </CardContent>
                       </Card>
                     ))
@@ -856,6 +888,18 @@ const Patients = () => {
               {creatingAppt ? <Loader2 className="animate-spin h-4 w-4" /> : "Agendar"}
             </Button>
           </div>
+      </ResponsiveModal>
+
+      <ResponsiveModal open={deleteDocDialogOpen} onOpenChange={setDeleteDocDialogOpen} title="Confirmar Exclusão">
+        <div className="py-4 text-sm text-muted-foreground">
+          Tem certeza que deseja excluir este documento permanentemente? Esta ação não pode ser desfeita.
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => { setDeleteDocDialogOpen(false); setDocToDelete(null); }}>Cancelar</Button>
+          <Button variant="destructive" onClick={handleDeleteDocument} disabled={deletingDoc} className="min-w-[100px]">
+            {deletingDoc ? <Loader2 className="animate-spin h-4 w-4" /> : "Excluir"}
+          </Button>
+        </div>
       </ResponsiveModal>
     </AppLayout>
   );
