@@ -98,7 +98,9 @@ async function main() {
             }
         });
 
-        const apptDate = addDays(patient.createdAt, 2 + Math.random() * 10);
+        let apptDate = addDays(patient.createdAt, 2 + Math.floor(Math.random() * 10));
+        apptDate = setHours(setMinutes(apptDate, 0), 9 + Math.floor(Math.random() * 8)); // Entre 09:00 e 16:00
+
         await prisma.appointment.create({
             data: {
                 patientId: patient.id,

@@ -35,6 +35,7 @@ export class AppointmentService {
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 5);
 
+    try {
       await this.clearExpiredLocks();
 
       const existingLock = await prisma.slotLock.findFirst({
