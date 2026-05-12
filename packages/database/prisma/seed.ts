@@ -38,9 +38,18 @@ async function main() {
   ]);
 
   const surgeons = await Promise.all([
-    prisma.surgeon.create({ data: { name: 'Dr. Sérgio Vasconcelos', specialty: 'Cirurgia Plástica', crm: '123456-SP', email: 'sergio.v@hsr.com.br', phone: '5511999991111' } }),
-    prisma.surgeon.create({ data: { name: 'Dra. Helena Mendes', specialty: 'Dermatologia', crm: '654321-SP', email: 'helena.m@hsr.com.br', phone: '5511999992222' } }),
-    prisma.surgeon.create({ data: { name: 'Dra. Beatriz Matos', specialty: 'Cirurgia Geral', crm: '112233-SP', email: 'beatriz.m@hsr.com.br', phone: '5511999993333' } }),
+    prisma.$transaction(async (tx) => {
+      await tx.user.create({ data: { email: 'sergio.v@hsr.com.br', name: 'Dr. Sérgio Vasconcelos', role: UserRole.SURGEON, password: hashedPassword } });
+      return tx.surgeon.create({ data: { name: 'Dr. Sérgio Vasconcelos', specialty: 'Cirurgia Plástica', crm: '123456-SP', email: 'sergio.v@hsr.com.br', phone: '5511999991111', cpf: '111.111.111-11', rg: '11.111.111-1', address: 'Av. Paulista, 1000' } });
+    }),
+    prisma.$transaction(async (tx) => {
+      await tx.user.create({ data: { email: 'helena.m@hsr.com.br', name: 'Dra. Helena Mendes', role: UserRole.SURGEON, password: hashedPassword } });
+      return tx.surgeon.create({ data: { name: 'Dra. Helena Mendes', specialty: 'Dermatologia', crm: '654321-SP', email: 'helena.m@hsr.com.br', phone: '5511999992222', cpf: '222.222.222-22', rg: '22.222.222-2', address: 'Av. Faria Lima, 2000' } });
+    }),
+    prisma.$transaction(async (tx) => {
+      await tx.user.create({ data: { email: 'beatriz.m@hsr.com.br', name: 'Dra. Beatriz Matos', role: UserRole.SURGEON, password: hashedPassword } });
+      return tx.surgeon.create({ data: { name: 'Dra. Beatriz Matos', specialty: 'Cirurgia Geral', crm: '112233-SP', email: 'beatriz.m@hsr.com.br', phone: '5511999993333', cpf: '333.333.333-33', rg: '33.333.333-3', address: 'Rua Augusta, 3000' } });
+    }),
   ]);
 
   const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Facebook'];
@@ -61,7 +70,7 @@ async function main() {
       data: {
         name,
         email: `lead${i + 1}@example.com`,
-        phone: `55119${Math.floor(10000000+Math.random()*89999999)}`,
+        phone: `55119${Math.floor(70000000 + Math.random() * 29999999)}`,
         cpf: generateCpf(),
         source: randomItem(origins),
         origin: randomItem(origins),
@@ -162,10 +171,30 @@ async function main() {
   console.log('📝 Seeding standard message templates...');
   await prisma.messageTemplate.createMany({
     data: [
-      { name: 'REMINDER_30D', channel: 'WHATSAPP', content: 'Olá {{paciente}}, passando para lembrar que sua cirurgia de {{procedimento}} está agendada para o dia {{data}}. Tem alguma dúvida?', triggerDays: 30 },
-      { name: 'REMINDER_7D', channel: 'WHATSAPP', content: 'Oi {{paciente}}! ✨ Falta apenas uma semana para cuidarmos de você em sua {{procedimento}}. Já está com tudo pronto?', triggerDays: 7 },
-      { name: 'CONFIRMATION_48H', channel: 'WHATSAPP', content: '🚨 {{paciente}}, precisamos da sua confirmação final para a {{procedimento}} com o Dr. {{medico}} em {{data}}.', triggerDays: 2 },
-      { name: 'POST_OP_CONFIRMATION', channel: 'WHATSAPP', content: 'Olá {{paciente}}. Seu retorno pós-operatório de *{{procedimento}}* está agendada para o dia *{{data}}*. Sua presença é fundamental para garantirmos sua plena recuperação! ✨', triggerDays: 2 },
+      { 
+        name: '30 Dias - Preparativos e Exames', 
+        channel: 'WHATSAPP', 
+        content: 'Olá, {{paciente}}! Tudo bem? ✨\n\nFaltam 30 dias para a sua cirurgia de *{{procedimento}}*. 🏥\n\nEste é o momento ideal para darmos início aos preparativos! Lembre-se de realizar todos os exames solicitados.\n\nComo podemos te ajudar hoje?\n1️⃣ Já realizei os exames\n2️⃣ Tenho dúvidas sobre o preparo\n3️⃣ Preciso reagendar', 
+        triggerDays: 30 
+      },
+      { 
+        name: '7 Dias - Orientações e Jejum', 
+        channel: 'WHATSAPP', 
+        content: 'Oi, {{paciente}}! Falta apenas uma semana para a sua transformação! ✨\n\nPara que tudo ocorra perfeitamente na sua {{procedimento}}, por favor, atente-se ao jejum e orientações.\n\nEstá tudo pronto?\n1️⃣ Sim, tudo certo!\n2️⃣ Preciso de orientações\n3️⃣ Preciso reagendar', 
+        triggerDays: 7 
+      },
+      { 
+        name: '48 Horas - Confirmação Crítica', 
+        channel: 'WHATSAPP', 
+        content: '🚨 *URGENTE: CONFIRMAÇÃO OBRIGATÓRIA* 🚨\n\nOlá, {{paciente}}. Sua cirurgia de {{procedimento}} com o Dr. {{medico}} é daqui a 48h!\n\nPrecisamos da sua confirmação imediata:\n1️⃣ *SIM, CONFIRMO MINHA PRESENÇA*\n2️⃣ *SOLICITAR REAGENDAMENTO*\n3️⃣ *CANCELAR CIRURGIA*', 
+        triggerDays: 2 
+      },
+      { 
+        name: 'Pós-Operatório - Acompanhamento', 
+        channel: 'WHATSAPP', 
+        content: 'Olá, {{paciente}}! Como está sua recuperação da {{procedimento}}? ✨\n\nLembrete da sua consulta de retorno:\n📅 Data: *{{data}}*\n\nPodemos confirmar?\n1️⃣ Sim, estarei lá!\n2️⃣ Preciso reagendar\n3️⃣ Falar com atendente', 
+        triggerDays: -1 
+      },
     ]
   });
 

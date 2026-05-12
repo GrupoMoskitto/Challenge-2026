@@ -63,6 +63,9 @@ model Surgeon {
   name                String
   specialty           String
   crm                 String                  @unique
+  cpf                 String?                 @unique
+  rg                  String?
+  address             String?
   email               String                  @unique
   phone               String
   isActive            Boolean                 @default(true)
@@ -76,6 +79,7 @@ model Surgeon {
   blocks              ScheduleBlock[]
 
   @@index([crm])
+  @@index([cpf])
 }
 
 model AvailabilitySlot {
@@ -395,6 +399,10 @@ enum NotificationType {
   CONFIRMATION_48H
   POST_OP_CONFIRMATION
   LAST_ATTEMPT
+  NEW_LEAD
+  APPOINTMENT_CONFIRMED
+  SYSTEM_ERROR
+  NO_RESPONSE_48H
 }
 
 enum NotificationStatus {

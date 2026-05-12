@@ -15,7 +15,7 @@ apps/api          → GraphQL backend (Apollo Server, Node.js)
 apps/web          → Internal dashboard (React 18, Vite, Tailwind CSS)
 apps/workers      → BullMQ workers (WhatsApp reminders via Evolution Go)
 functions/        → AWS Lambdas (PDF, webhooks)
-packages/database → Prisma ORM (schema, migrations, shared client)
+packages/database → Prisma ORM, Shared TemplateParser, shared client
 packages/config   → Shared ESLint, Prettier, TSConfig
 packages/types    → Shared TypeScript types
 packages/ui       → Reusable React components
@@ -40,11 +40,13 @@ infra/            → Docker, Evolution Go
 
 | RN | Rule | Impact |
 | --- | --- | --- |
-| **RN01** | **Zero Duplicates** — Use `checkUniqueness()` from `@crmed/database` | Tests break, data corrupts |
-| **RN03** | **Hierarchy** — RECEPTION cannot change status to CONVERTED/LOST | Security violation |
+| **RN01** | **Zero Duplicates** — Use `checkUniqueness()` from `@crmed/database` | Data corruption |
+| **RN03** | **Hierarchy** — Status changes and Physician management require ADMIN role | Security violation |
+| **RN05** | **WhatsApp Cycle** — Reminders at 30d, 7d, and 48h before surgery | Missed procedures |
 | **RN06** | **Audit** — Every status change creates `AuditLog` | Loss of traceability |
 | **RN07** | **LGPD Challenge** — Mandatory DOB validation for sensitive data access | Privacy violation |
-| **RN08** | **Business Hours** — Inactivity timers pause outside 08:00 - 18:00 | Operational noise |
+| **RN08** | **Expediente** — Block scheduling outside 08:00-18:00 unless exception exists | Operational chaos |
+| **RN09** | **SLA Crítico** — 24h business-hour inactivity on confirmations triggers alerts | Process bottleneck |
 
 ---
 
@@ -53,9 +55,10 @@ infra/            → Docker, Evolution Go
 **Never bypass these security and privacy standards:**
 
 1. **Minimalismo de Dados (Data Minimization):** Return only the necessary fields in GraphQL queries. Avoid over-fetching patient data.
-2. **Autorização Rígida (Access Control):** URLs to medical records or uploaded documents MUST be protected by authentication. Anonymous or unauthorized access is strictly forbidden.
-3. **Logs de Auditoria (Audit Trails):** Changes to patient status, complaints, and budgets must always trigger an `AuditLog` via RN06.
-4. **Exclusão Lógica (Soft-Delete):** For database records related to patients or leads, use `deletedAt` for soft-deletion instead of hard-deletes to preserve audit integrity and historical data.
+2. **Timezone Offset (UTC-3):** All scheduling queries MUST apply the `-03:00` offset when calculating day boundaries (startOfDay/endOfDay) to prevent late-night appointments from jumping to the next day.
+3. **Autorização Rígida (Access Control):** Clinical management (Surgeons/Schedule Settings) is restricted to ADMIN users. URLs to medical records or uploaded documents MUST be protected by authentication.
+4. **Logs de Auditoria (Audit Trails):** Changes to patient status, complaints, and budgets must always trigger an `AuditLog` via RN06.
+5. **Exclusão Lógica (Soft-Delete):** For database records related to patients, leads or surgeons, use `isActive` or `deletedAt` for soft-deletion instead of hard-deletes to preserve audit integrity and historical data.
 
 ---
 
@@ -64,6 +67,8 @@ infra/            → Docker, Evolution Go
 ### General
 
 - **TypeScript strict** — no `any` except justified Prisma casts
+- **Single Source of Truth** — Message content MUST come from the database templates. Never hardcode message body or interaction options in backend logic.
+- **Unified Logic** — Always use `TemplateParser` from `@crmed/database` for variable replacement.
 - **Pure functions** — no classes
 - **Workspace imports** — always use `@crmed/database`, `@crmed/types`
 - **Base64 URL-safe IDs** — `Buffer.from(id).toString('base64url')`
@@ -90,7 +95,8 @@ infra/            → Docker, Evolution Go
 
 ### Backend Patterns
 
-- Auth check first: `if (!context.user) throw new Error('Usuário não autenticado')`
+- **Integrated Creation**: Surgeon creation MUST be a transaction creating both `User` (role: SURGEON) and `Surgeon` records.
+- **Auth check first**: `if (!context.user) throw new Error('Usuário não autenticado')`
 - Role check: `if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores')`
 - Use cursor-based pagination with `Connection` types (e.g., `UserConnection`, `LeadConnection`)
 - Always create `AuditLog` on status changes (RN06)
@@ -116,6 +122,11 @@ Frontend must map: `data?.users?.edges?.map((e) => e.node)`
 ---
 
 ## Frontend Patterns
+
+- **TimePicker**: Use the custom `<TimePicker />` component for all time-related selections.
+- **Procedure Sync**: Always use the standard list of procedures (Consulta Inicial, Rinoplastia, etc.) in selection fields across Agenda and Patients.
+- **Dynamic Agenda**: The agenda grid defaults to 18:00 but MUST expand dynamically up to 23:00 if data requires it.
+- **Search-as-you-type**: Listing patients or leads in select fields should include a debounced server-side filter.
 
 ### Tab Navigation
 - Use `useSearchParams` for tab state: `searchParams.get("tab")`
@@ -325,8 +336,9 @@ pnpm --filter @crmed/database db:generate
   4. `APPOINTMENT_LIST`: Autoatendimento para consulta e gestão de horários.
 
 - **Sistema de Templates & Parser:**
-  - O `NotificationService` utiliza o `TemplateParser` para interpolar chaves como `{{paciente}}`, `{{procedimento}}` e `{{medico}}`.
+  - O `NotificationService` utiliza o `TemplateParser` unificado (pacote `@crmed/database`) para interpolar chaves como `{{paciente}}`, `{{procedimento}}` e `{{medico}}`.
+  - Suporta sintaxe de chaves duplas `{{ }}` e formatação nativa do WhatsApp como negrito via asteriscos `*texto*`.
   - **Graceful Degradation:** Tags nulas são substituídas por termos genéricos (ex: "nosso especialista").
-  - **Ações Fixas:** O sufixo de opções (1️⃣ Confirmar...) é injetado programaticamente para proteger a integridade do bot.
+  - **Single Source of Truth:** O conteúdo e as opções de interação (1️⃣, 2️⃣, 3️⃣) vêm exclusivamente do banco de dados. Nunca hardcode opções no backend.
 
 - **Sandbox Environment:** O código no dev bloqueia mensagens enviadas para números aleatórios a menos que correspondam com precisão com a ENVAR `DEV_ALLOWED_PHONE` localizada na raiz do repositório no arquivo `.env`.

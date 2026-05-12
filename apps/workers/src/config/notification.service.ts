@@ -1,8 +1,7 @@
-import { prisma } from '@crmed/database';
+import { prisma, TemplateParser } from '@crmed/database';
 import { logger } from './logger';
 import { WhatsappSender } from '../whatsapp/whatsapp.sender';
 import { WhatsappSession } from '../whatsapp/whatsapp.session';
-import { TemplateParser } from '../services/template-parser.service';
 
 export class NotificationService {
   /**
@@ -28,36 +27,28 @@ export class NotificationService {
     const hourStr = scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const phone = patient.lead.phone;
 
-    // 1. Busca Template no Banco
-    const template = await prisma.messageTemplate.findUnique({ where: { name: type } });
+    // 1. Busca Template no Banco por triggerDays (Single Source of Truth)
+    const triggerDaysMap = {
+      'REMINDER_30D': 30,
+      'REMINDER_7D': 7,
+      'CONFIRMATION_48H': 2
+    };
+    const days = triggerDaysMap[type];
+    const template = await prisma.messageTemplate.findFirst({ where: { triggerDays: days } });
     
-    let body = '';
-    let optionsSuffix = '';
-
-    // 2. Define Fallbacks e Opções da State Machine
-    switch (type) {
-      case 'REMINDER_30D':
-        body = template?.content || `Olá, {{paciente}}. Aqui é do Hospital São Rafael. 🏥\n\nPassando para lembrar que sua cirurgia de *{{procedimento}}* com o Dr. *{{medico}}* está agendada para o dia *{{data}}*.\n\nVocê ainda tem alguma dúvida sobre os preparativos?`;
-        optionsSuffix = `\n\n1️⃣ Está tudo certo!\n2️⃣ Tenho dúvidas\n3️⃣ Preciso reagendar`;
-        break;
-      case 'REMINDER_7D':
-        body = template?.content || `Olá, {{paciente}}. Falta apenas uma semana para sua cirurgia de *{{procedimento}}* em *{{data}}*! ✨\n\nJá está com os exames em mãos e seguiu as orientações?`;
-        optionsSuffix = `\n\n1️⃣ Sim, tudo pronto!\n2️⃣ Preciso de ajuda\n3️⃣ Preciso reagendar`;
-        break;
-      case 'CONFIRMATION_48H':
-        body = template?.content || `🚨 *CONFIRMAÇÃO CRÍTICA*\n\nOlá, {{paciente}}. Sua cirurgia de *{{procedimento}}* em *{{data}}* está confirmada em nosso sistema.\n\nPodemos contar com sua presença?`;
-        optionsSuffix = `\n\n1️⃣ *SIM, CONFIRMAR*\n2️⃣ *REAGENDAR AGORA*\n3️⃣ *CANCELAR*`;
-        break;
+    if (!template) {
+      logger.error('NotificationService', `Template para ${type} (${days} dias) não encontrado no banco de dados. Abortando envio.`);
+      return;
     }
 
-    // 3. Parse das Variáveis (Com Graceful Degradation)
-    const finalMessage = TemplateParser.parse(body, {
+    // 2. Parse das Variáveis (Sem fallbacks hardcoded conforme requisitos)
+    const finalMessage = TemplateParser.parse(template.content, {
       paciente: name,
       procedimento: procedure,
       medico: surgeon.name,
       data: dateStr,
       hora: hourStr
-    }) + optionsSuffix;
+    });
 
     // 4. Registra a notificação no banco
     await prisma.notification.create({
@@ -103,16 +94,18 @@ export class NotificationService {
     const dateStr = date.toLocaleDateString('pt-BR');
     const phone = patient.lead.phone;
 
-    const template = await prisma.messageTemplate.findUnique({ where: { name: 'POST_OP_CONFIRMATION' } });
+    const template = await prisma.messageTemplate.findFirst({ where: { triggerDays: -1 } });
     
-    const body = template?.content || `Olá, {{paciente}}. Seu retorno pós-operatório de *{{procedimento}}* está agendada para o dia *{{data}}*. Sua presença é fundamental para garantirmos sua plena recuperação! ✨\n\nPodemos confirmar?`;
-    const optionsSuffix = `\n\n1️⃣ Sim, confirmado!\n2️⃣ Preciso reagendar\n3️⃣ Falar com atendente`;
+    if (!template) {
+      logger.error('NotificationService', `Template para Pós-Op (-1 dias) não encontrado no banco de dados. Abortando envio.`);
+      return;
+    }
 
-    const finalMessage = TemplateParser.parse(body, {
+    const finalMessage = TemplateParser.parse(template.content, {
       paciente: name,
       procedimento: description,
       data: dateStr
-    }) + optionsSuffix;
+    });
 
     await prisma.notification.create({
       data: {
@@ -205,8 +198,11 @@ export class NotificationService {
 
   /**
    * Verifica inatividade de confirmações críticas (24h de expediente sem resposta)
+   * RN: Monitoramento de SLA de 24 horas úteis (Seg-Sex, 08:00 - 18:00)
    */
   static async checkInactivity() {
+    logger.info('NotificationService', 'Iniciando verificação de SLA de inatividade...');
+    
     const notifications = await prisma.notification.findMany({
         where: {
             type: { in: ['CONFIRMATION_48H', 'POST_OP_CONFIRMATION'] },
@@ -226,44 +222,99 @@ export class NotificationService {
         
         // 24 horas de expediente = 1440 minutos
         if (workMinutes >= 1440) {
+            // Verifica se já existe uma notificação de erro/inatividade para evitar duplicados
+            const alreadyAlerted = await prisma.notification.findFirst({
+              where: {
+                type: 'NO_RESPONSE_48H',
+                appointmentId: notification.appointmentId,
+                postOpId: notification.postOpId,
+              }
+            });
+
+            if (alreadyAlerted) continue;
+
             if (notification.appointmentId) {
                 await prisma.appointment.update({
                     where: { id: notification.appointmentId },
                     data: { status: 'ATTENTION_REQUIRED' }
+                });
+
+                // Cria notificação crítica para o TopBar UI
+                await prisma.notification.create({
+                  data: {
+                    type: 'NO_RESPONSE_48H',
+                    status: 'PENDING',
+                    appointmentId: notification.appointmentId,
+                    sentAt: new Date()
+                  }
                 });
             } else if (notification.postOpId) {
                 await prisma.postOp.update({
                     where: { id: notification.postOpId },
                     data: { status: 'ATTENTION_REQUIRED' }
                 });
+
+                await prisma.notification.create({
+                  data: {
+                    type: 'NO_RESPONSE_48H',
+                    status: 'PENDING',
+                    postOpId: notification.postOpId,
+                    sentAt: new Date()
+                  }
+                });
             }
             
-            logger.warn('NotificationService', `Inatividade detectada (24h úteis): Notificação ${notification.id} marcada como ATTENTION_REQUIRED`);
+            logger.warn('NotificationService', `🚨 SLA VIOLADO (24h úteis): Notificação ${notification.id} gerou alerta crítico NO_RESPONSE_48H`);
         }
     }
   }
 
   /**
    * Calcula minutos de expediente decorridos entre duas datas
-   * Regra: Seg-Sex, 08:00 - 18:00
+   * Regra: Seg-Sex, 08:00 - 18:00 (10 horas por dia = 600 min/dia)
    */
   private static calculateWorkMinutes(start: Date, end: Date): number {
-    let minutes = 0;
+    if (start > end) return 0;
+
+    let totalMinutes = 0;
     const current = new Date(start);
 
-    while (current < end) {
-        const day = current.getDay();
-        const hour = current.getHours();
-
-        // 0 = Domingo, 6 = Sábado
-        const isWeekday = day !== 0 && day !== 6;
-        const isBusinessHour = hour >= 8 && hour < 18;
-
-        if (isWeekday && isBusinessHour) {
-            minutes++;
-        }
-        current.setMinutes(current.getMinutes() + 1);
+    // Ajusta o início para o primeiro minuto válido de expediente se necessário
+    if (current.getHours() >= 18) {
+      current.setDate(current.getDate() + 1);
+      current.setHours(8, 0, 0, 0);
+    } else if (current.getHours() < 8) {
+      current.setHours(8, 0, 0, 0);
     }
-    return minutes;
+
+    while (current < end) {
+      const day = current.getDay();
+      const isWeekend = day === 0 || day === 6;
+
+      if (isWeekend) {
+        current.setDate(current.getDate() + 1);
+        current.setHours(8, 0, 0, 0);
+        continue;
+      }
+
+      const businessEnd = new Date(current);
+      businessEnd.setHours(18, 0, 0, 0);
+
+      const nextStart = new Date(current);
+      nextStart.setDate(nextStart.getDate() + 1);
+      nextStart.setHours(8, 0, 0, 0);
+
+      if (end <= businessEnd) {
+        // O período termina hoje dentro do expediente
+        totalMinutes += Math.floor((end.getTime() - current.getTime()) / 60000);
+        break;
+      } else {
+        // O período ultrapassa o expediente de hoje
+        totalMinutes += Math.floor((businessEnd.getTime() - current.getTime()) / 60000);
+        current.setTime(nextStart.getTime());
+      }
+    }
+
+    return totalMinutes;
   }
 }

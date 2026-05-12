@@ -1,5 +1,3 @@
-import { logger } from '../config/logger';
-
 export interface TemplateData {
   paciente?: string | null;
   procedimento?: string | null;
@@ -37,7 +35,7 @@ export class TemplateParser {
 
       const fallback = DEFAULT_TERMS[key];
       if (fallback) {
-        logger.debug('TemplateParser', `Variável {{${tag}}} nula/vazia. Usando fallback: "${fallback}"`);
+        console.debug(`[TemplateParser] Variável {{${tag}}} nula/vazia. Usando fallback: "${fallback}"`);
         return fallback;
       }
 

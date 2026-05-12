@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import {
   Phone,
   ArrowUpRight,
   ArrowDownRight,
+  Calendar,
 } from "lucide-react";
 import {
   BarChart,
@@ -90,6 +92,7 @@ const getOriginColors = () => {
 
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [themeColors, setThemeColors] = useState(getThemeColors);
   const [originColors, setOriginColors] = useState(getOriginColors);
@@ -737,21 +740,25 @@ const Dashboard = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base font-medium">Últimos Leads</CardTitle>
-              <Badge variant="outline">{filteredLeads.length} total</Badge>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/leads')} className="text-primary text-xs h-8">Ver todos</Button>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {recentLeads.map((lead: any) => (
-                  <div key={lead.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                  <div 
+                    key={lead.id} 
+                    className="flex items-center justify-between p-3 rounded-xl border border-transparent hover:border-primary/20 hover:bg-primary/5 cursor-pointer transition-all group"
+                    onClick={() => navigate(`/leads?search=${encodeURIComponent(lead.name)}`)}
+                  >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{lead.name}</p>
+                      <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">{lead.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{lead.origin} · {lead.procedure || 'Sem procedimento'}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge style={{ backgroundColor: statusColors[lead.status], color: 'white' }} className="text-xs">
+                      <Badge style={{ backgroundColor: statusColors[lead.status], color: 'white' }} className="text-[10px] h-5 px-1.5 border-none">
                         {statusLabels[lead.status]}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[10px] font-bold text-muted-foreground">
                         {format(new Date(lead.createdAt), 'dd/MM')}
                       </span>
                     </div>
@@ -765,35 +772,50 @@ const Dashboard = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base font-medium">Consultas de Hoje</CardTitle>
-              <Badge variant="outline">{todayAppointments.length} consultas</Badge>
+              <Badge variant="outline" className="font-bold text-primary">{todayAppointments.length} consultas</Badge>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {todayAppointments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    Nenhuma consulta agendada para hoje
-                  </p>
+                  <div className="py-10 text-center border-2 border-dashed rounded-xl bg-muted/20">
+                    <Calendar className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-xs text-muted-foreground">Nenhuma consulta agendada para hoje</p>
+                  </div>
                 ) : (
                   todayAppointments.map((apt: any) => (
-                    <div key={apt.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div 
+                      key={apt.id} 
+                      className="flex items-center justify-between p-3 rounded-xl border border-transparent hover:border-primary/20 hover:bg-primary/5 cursor-pointer transition-all group"
+                      onClick={() => {
+                        const date = format(new Date(apt.scheduledAt), 'yyyy-MM-dd');
+                        navigate(`/schedule?date=${date}&appointmentId=${apt.id}`);
+                      }}
+                    >
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
-                          <Clock className="h-4 w-4 text-primary" />
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                          <Clock className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <p className="font-medium text-sm">{apt.patient?.name || 'Paciente'}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(apt.scheduledAt), 'HH:mm')} · {apt.surgeon?.name} · {apt.procedure}
+                          <p className="font-bold text-sm group-hover:text-primary transition-colors">{apt.patient?.name || 'Paciente'}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            <span className="font-bold text-foreground/80">{format(new Date(apt.scheduledAt), 'HH:mm')}</span> · {apt.surgeon?.name} · {apt.procedure}
                           </p>
                         </div>
                       </div>
-                      <Badge className={`text-xs text-white ${appointmentStatusColors[apt.status] || 'bg-gray-500'}`}>
+                      <Badge className={`text-[10px] h-5 text-white ${appointmentStatusColors[apt.status] || 'bg-gray-500'}`}>
                         {appointmentStatusLabels[apt.status] || apt.status}
                       </Badge>
                     </div>
                   ))
                 )}
               </div>
+              <Button 
+                variant="outline" 
+                className="w-full mt-4 text-xs h-9 border-dashed hover:border-primary hover:text-primary transition-all"
+                onClick={() => navigate('/schedule')}
+              >
+                Ver Agenda Completa
+              </Button>
             </CardContent>
           </Card>
         </div>

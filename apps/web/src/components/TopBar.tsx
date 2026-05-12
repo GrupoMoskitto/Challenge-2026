@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus, Trash2, Menu } from "lucide-react";
+import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus, Trash2, Menu, AlertTriangle, MessageSquare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,10 @@ const notificationTypeLabels: Record<string, string> = {
   CONFIRMATION_48H: "Confirmação — 48 horas",
   POST_OP_CONFIRMATION: "Confirmação Pós-Op",
   LAST_ATTEMPT: "Última tentativa",
+  NEW_LEAD: "Novo Lead via WhatsApp",
+  APPOINTMENT_CONFIRMED: "Confirmação de Agendamento",
+  SYSTEM_ERROR: "Erro de Sistema",
+  NO_RESPONSE_48H: "SEM RESPOSTA (CRÍTICO)",
 };
 
 const NOTIFICATIONS_QUERY = gql`
@@ -93,7 +97,11 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
   });
 
   const unreadCount = notifData?.unreadNotificationsCount || 0;
-  const notifications = notifData?.notifications || [];
+  const notifications = [...(notifData?.notifications || [])].sort((a, b) => {
+    if (a.type === 'NO_RESPONSE_48H' && b.type !== 'NO_RESPONSE_48H') return -1;
+    if (a.type !== 'NO_RESPONSE_48H' && b.type === 'NO_RESPONSE_48H') return 1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -326,32 +334,42 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
               <ScrollArea className="h-[380px]">
                 {notifications.map((notif: any) => {
                   const isRead = notif.status === 'READ';
+                  const isCritical = notif.type === 'NO_RESPONSE_48H';
                   const apt = notif.appointment;
+                  
                   return (
                     <div
                       key={notif.id}
-                      className={`flex items-start gap-3 px-3 py-3 border-b last:border-b-0 transition-colors ${
-                        isRead ? 'opacity-55' : 'bg-primary/5 hover:bg-primary/10'
+                      className={`flex items-start gap-3 px-3 py-3 border-b last:border-b-0 transition-all ${
+                        isRead ? 'opacity-55' : 
+                        isCritical ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500 animate-pulse' :
+                        'bg-primary/5 hover:bg-primary/10'
                       }`}
                     >
-                      <div className={`mt-2 h-2 w-2 rounded-full shrink-0 ${isRead ? 'bg-muted-foreground/30' : 'bg-primary'}`} />
+                      <div className={`mt-2 h-2 w-2 rounded-full shrink-0 ${
+                        isRead ? 'bg-muted-foreground/30' : 
+                        isCritical ? 'bg-red-600' : 'bg-primary'
+                      }`} />
                       <div className="flex-1 min-w-0">
                         <div 
-                          className="text-sm font-medium truncate cursor-pointer hover:text-primary hover:underline transition-colors"
+                          className={`text-sm font-bold truncate cursor-pointer hover:underline transition-colors ${
+                            isCritical ? 'text-red-700' : 'hover:text-primary'
+                          }`}
                           onClick={() => {
                             if (apt?.patient?.id) {
                               navigate(`/patients?patientId=${apt.patient.id}`);
                             }
                           }}
                         >
+                          {isCritical && <AlertTriangle className="h-3 w-3 inline mr-1 text-red-600" />}
                           {apt?.patient?.lead?.name || 'Paciente não encontrado'}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className={`text-xs ${isCritical ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
                           {notificationTypeLabels[notif.type] || notif.type}
                           {apt?.procedure && ` • ${apt.procedure}`}
                         </div>
                         {apt?.scheduledAt && (
-                          <div className="text-xs text-primary mt-0.5 font-medium">
+                          <div className={`text-xs mt-0.5 font-medium ${isCritical ? 'text-red-700' : 'text-primary'}`}>
                             {format(new Date(apt.scheduledAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
                           </div>
                         )}
@@ -364,7 +382,7 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            className={`h-7 w-7 shrink-0 ${isCritical ? 'text-red-600 hover:bg-red-200' : 'text-muted-foreground hover:text-primary hover:bg-primary/10'}`}
                             title="Marcar como lida"
                             onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.id); }}
                           >
@@ -374,7 +392,7 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500 hover:bg-red-50"
+                          className={`h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500 hover:bg-red-50`}
                           title="Excluir notificação"
                           onClick={(e) => handleDeleteNotif(notif.id, e)}
                         >

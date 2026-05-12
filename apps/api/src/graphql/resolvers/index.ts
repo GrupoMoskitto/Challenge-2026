@@ -169,8 +169,25 @@ interface CreateSurgeonInput {
   name: string;
   specialty: string;
   crm: string;
+  cpf?: string;
+  rg?: string;
+  address?: string;
   email: string;
   phone: string;
+  password?: string;
+}
+
+interface UpdateSurgeonInput {
+  id: string;
+  name?: string;
+  specialty?: string;
+  crm?: string;
+  cpf?: string;
+  rg?: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  appointmentDuration?: number;
 }
 
 interface CreateUserInput {
@@ -540,7 +557,7 @@ export const resolvers = {
     leads: async (_: unknown, { status, first, after, search }: { status?: LeadStatus; first?: number; after?: string; search?: string }, context: Context) => {
       assertAuthenticated(context);
       
-      const MAX_PAGE_SIZE = 100;
+      const MAX_PAGE_SIZE = 500;
       const limit = Math.min(first || 20, MAX_PAGE_SIZE);
       const cursor = after ? decodeId(after) : undefined;
       
@@ -637,7 +654,7 @@ export const resolvers = {
     }, context: Context) => {
       assertAuthenticated(context);
       
-      const MAX_PAGE_SIZE = 100;
+      const MAX_PAGE_SIZE = 500;
       const limit = Math.min(first || 20, MAX_PAGE_SIZE);
       const cursor = after ? decodeId(after) : undefined;
 
@@ -751,27 +768,30 @@ export const resolvers = {
     },
     appointmentsByDate: async (_: unknown, { date }: { date: string | Date }, context: Context) => {
       assertAuthenticated(context);
-      const dateObj = typeof date === 'string' ? new Date(date) : (date as Date);
-      
-      const year = dateObj.getUTCFullYear();
-      const month = dateObj.getUTCMonth();
-      const day = dateObj.getUTCDate();
-      
-      const startOfDay = Date.UTC(year, month, day, 0, 0, 0, 0);
-      const endOfDay = Date.UTC(year, month, day, 23, 59, 59, 999);
-      
+
+      let dateString = '';
+      if (typeof date === 'string') {
+        dateString = date.split('T')[0];
+      } else {
+        dateString = date.toISOString().split('T')[0];
+      }
+
+      // Considera o fuso horário local do hospital (UTC-3) para evitar que consultas noturnas (ex: 22:00) 
+      // caiam no dia seguinte (01:00 UTC) ao buscar no banco.
+      const startOfDay = new Date(`${dateString}T00:00:00-03:00`);
+      const endOfDay = new Date(`${dateString}T23:59:59.999-03:00`);
+
       return prisma.appointment.findMany({
         where: {
           scheduledAt: {
-            gte: new Date(startOfDay),
-            lte: new Date(endOfDay),
+            gte: startOfDay,
+            lte: endOfDay,
           },
         },
         include: { patient: true, surgeon: true },
         orderBy: { scheduledAt: 'asc' },
       });
-    },
-    appointmentsBySurgeon: async (_: unknown, { surgeonId, startDate, endDate }: { surgeonId: string; startDate?: string; endDate?: string }, context: Context) => {
+    },    appointmentsBySurgeon: async (_: unknown, { surgeonId, startDate, endDate }: { surgeonId: string; startDate?: string; endDate?: string }, context: Context) => {
       assertAuthenticated(context);
       const decodedId = decodeId(surgeonId);
       return prisma.appointment.findMany({
@@ -786,10 +806,10 @@ export const resolvers = {
         orderBy: { scheduledAt: 'asc' },
       });
     },
-    surgeons: async (_: unknown, __: unknown, context: Context) => {
+    surgeons: async (_: unknown, { includeInactive }: { includeInactive?: boolean }, context: Context) => {
       assertAuthenticated(context);
       return prisma.surgeon.findMany({
-        where: { isActive: true },
+        where: includeInactive ? undefined : { isActive: true },
         include: { availability: true, extraAvailability: true, blocks: true },
       });
     },
@@ -801,9 +821,17 @@ export const resolvers = {
         include: { availability: true, extraAvailability: true, blocks: true },
       });
     },
-    availableSurgeons: async (_: unknown, { date }: { date: string }, context: Context) => {
+    availableSurgeons: async (_: unknown, { date }: { date: string | Date }, context: Context) => {
       assertAuthenticated(context);
-      const targetDate = new Date(date);
+      
+      let dateString = '';
+      if (typeof date === 'string') {
+        dateString = date.split('T')[0];
+      } else {
+        dateString = date.toISOString().split('T')[0];
+      }
+
+      const targetDate = new Date(`${dateString}T12:00:00`);
       const dayOfWeek = targetDate.getDay();
       
       const surgeonsWithSlots = await prisma.surgeon.findMany({
@@ -865,7 +893,7 @@ export const resolvers = {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'visualização de logs de auditoria');
 
-      const MAX_PAGE_SIZE = 100;
+      const MAX_PAGE_SIZE = 500;
       const limit = Math.min(first || 50, MAX_PAGE_SIZE);
       const cursor = after ? decodeId(after) : undefined;
 
@@ -1768,12 +1796,113 @@ export const resolvers = {
     createSurgeon: async (_: unknown, { input }: { input: CreateSurgeonInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'cirurgião');
-      const existingSurgeon = await prisma.surgeon.findFirst({ where: { OR: [{ crm: input.crm }, { email: input.email }] } });
+      const existingSurgeon = await prisma.surgeon.findFirst({ where: { OR: [{ crm: input.crm }, { email: input.email }, ...(input.cpf ? [{ cpf: input.cpf }] : [])] } });
       if (existingSurgeon) {
-        const field = existingSurgeon.crm === input.crm ? 'CRM' : 'e-mail';
+        let field = 'CRM';
+        if (existingSurgeon.email === input.email) field = 'e-mail';
+        if (existingSurgeon.cpf === input.cpf) field = 'CPF';
         throw new Error(`RN01_VIOLATION: ${field} já cadastrado para outro cirurgião`);
       }
-      return prisma.surgeon.create({ data: { ...input, appointmentDuration: 30 } });
+
+      // Check if user email already exists
+      const existingUser = await prisma.user.findUnique({ where: { email: input.email } });
+      if (existingUser) {
+        throw new Error(`RN01_VIOLATION: O e-mail ${input.email} já está em uso por outro usuário.`);
+      }
+
+      const hashedPassword = await hashPassword(input.password || 'Mudar123!');
+
+      return prisma.$transaction(async (tx) => {
+        // Create the user first
+        await tx.user.create({
+          data: {
+            name: input.name,
+            email: input.email,
+            password: hashedPassword,
+            role: 'SURGEON',
+          }
+        });
+
+        // Create the surgeon
+        const { password: _pw, ...surgeonData } = input;
+        return tx.surgeon.create({ data: { ...surgeonData, appointmentDuration: 30 } });
+      });
+    },
+    updateSurgeon: async (_: unknown, { input }: { input: UpdateSurgeonInput }, context: Context) => {
+      assertAuthenticated(context);
+      assertRole(context, ['ADMIN'], 'cirurgião');
+      const surgeonId = decodeId(input.id);
+      const current = await prisma.surgeon.findUnique({ where: { id: surgeonId } });
+      if (!current) throw new Error('Cirurgião não encontrado');
+
+      // Check for conflicts
+      const conflicts = await prisma.surgeon.findMany({
+        where: {
+          id: { not: surgeonId },
+          OR: [
+            ...(input.email ? [{ email: input.email }] : []),
+            ...(input.crm ? [{ crm: input.crm }] : []),
+            ...(input.cpf ? [{ cpf: input.cpf }] : []),
+          ]
+        }
+      });
+
+      if (conflicts.length > 0) {
+        const conflict = conflicts[0];
+        let field = 'CRM';
+        if (conflict.email === input.email) field = 'e-mail';
+        if (conflict.cpf === input.cpf) field = 'CPF';
+        throw new Error(`RN01_VIOLATION: ${field} já cadastrado para outro cirurgião`);
+      }
+
+      // If email changed, we should probably update the User email as well, but for simplicity we update Surgeon.
+      // If full sync is needed, we would do a transaction here to update User as well.
+      if (input.email && input.email !== current.email) {
+        const user = await prisma.user.findUnique({ where: { email: current.email } });
+        if (user) {
+          const userConflict = await prisma.user.findUnique({ where: { email: input.email } });
+          if (!userConflict) {
+            await prisma.user.update({ where: { id: user.id }, data: { email: input.email } });
+          } else {
+             throw new Error(`RN01_VIOLATION: O novo e-mail já está em uso por outro usuário.`);
+          }
+        }
+      }
+
+      return prisma.surgeon.update({ where: { id: surgeonId }, data: { ...input, id: undefined } });
+    },
+    toggleSurgeonStatus: async (_: unknown, { id }: { id: string }, context: Context) => {
+      assertAuthenticated(context);
+      assertRole(context, ['ADMIN'], 'cirurgião');
+      const surgeonId = decodeId(id);
+      const surgeon = await prisma.surgeon.findUnique({ where: { id: surgeonId } });
+      if (!surgeon) throw new Error('Cirurgião não encontrado');
+
+      const newStatus = !surgeon.isActive;
+
+      return prisma.$transaction(async (tx) => {
+        // Toggle surgeon status
+        const updatedSurgeon = await tx.surgeon.update({
+          where: { id: surgeonId },
+          data: { isActive: newStatus }
+        });
+
+        // Try to toggle corresponding User account
+        const user = await tx.user.findUnique({ where: { email: surgeon.email } });
+        if (user) {
+          await tx.user.update({
+            where: { id: user.id },
+            data: { isActive: newStatus }
+          });
+          if (!newStatus) {
+            await revokeUserTokens(user.id);
+          } else {
+            await clearTokenRevocation(user.id);
+          }
+        }
+
+        return updatedSurgeon;
+      });
     },
     createUser: async (_: unknown, { input }: { input: CreateUserInput }, context: Context) => {
       assertAuthenticated(context);
@@ -1811,7 +1940,18 @@ export const resolvers = {
     createAvailabilitySlot: async (_: unknown, { input }: { input: CreateAvailabilitySlotInput }, context: Context) => {
       assertAuthenticated(context);
       assertRole(context, ['ADMIN'], 'agenda');
-      return prisma.availabilitySlot.create({ data: { ...input, surgeonId: decodeId(input.surgeonId) } });
+      
+      const surgeonId = decodeId(input.surgeonId);
+      
+      // Exclui qualquer horário existente para o mesmo dia da semana para este médico, garantindo APENAS UM por dia
+      await prisma.availabilitySlot.deleteMany({
+        where: {
+          surgeonId: surgeonId,
+          dayOfWeek: input.dayOfWeek,
+        }
+      });
+      
+      return prisma.availabilitySlot.create({ data: { ...input, surgeonId } });
     },
     deleteAvailabilitySlot: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
@@ -2023,8 +2163,7 @@ export const resolvers = {
       });
       const listText = await listResponse.text();
       let listJson: any = {};
-      try { listJson = JSON.parse(listText); } catch(e) {}
-      
+      try { listJson = JSON.parse(listText); } catch(_e) { /* ignore parse error */ }      
       const instances = listJson.data || listJson || [];
       const instanceData = instances.find((i: any) => i.name === name || i.instance?.instanceName === name);
       
@@ -2051,7 +2190,7 @@ export const resolvers = {
         const text = await resp.text();
         logger.info('EvoGo:fetch', `[${method}] ${path} -> Status: ${resp.status} | Body: ${text.substring(0, 150)}`);
         let json: any = null;
-        try { json = JSON.parse(text); } catch(e) {}
+        try { json = JSON.parse(text); } catch(_e) { /* ignore parse error */ }
         return { status: resp.status, ok: resp.ok, text, json };
       };
 

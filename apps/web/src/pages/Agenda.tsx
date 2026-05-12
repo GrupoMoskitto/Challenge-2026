@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,27 +13,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Trash } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Trash, Search, Loader2, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_PATIENTS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
-import { validatePhone, sanitizeInput } from "@/lib/validation";
+import { validatePhone, sanitizeInput, checkSurgeonAvailability } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { showUndoableToast } from "@/hooks/useUndoableToast";
-import { format, addDays, subDays, parse } from "date-fns";
+import { format, addDays, subDays, parse, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-const generateTimeSlots = () => {
-  const slots: string[] = [];
-  for (let hour = 8; hour <= 18; hour++) {
-    for (let minute = 0; minute < 60; minute += 30) {
-      slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
-    }
-  }
-  return slots;
-};
-
-const timeSlots = generateTimeSlots();
+import { TimePicker } from "@/components/ui/time-picker";
 
 const statusLabels: Record<string, string> = {
   SCHEDULED: "Agendado",
@@ -78,6 +67,15 @@ const Agenda = () => {
     notes: '',
   });
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [debouncedPatientSearch, setDebouncedPatientSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPatientSearch(patientSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [patientSearch]);
 
   const dateObj = new Date(currentDate + "T12:00:00");
   const dateLabel = format(dateObj, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
@@ -91,9 +89,12 @@ const Agenda = () => {
     fetchPolicy: 'cache-first',
   });
 
-  const { data: patientsData } = useQuery(GET_PATIENTS, {
-    variables: { first: 100, where: {} },
-    fetchPolicy: 'cache-first',
+  const { data: patientsData, loading: loadingPatients } = useQuery(GET_PATIENTS, {
+    variables: { 
+      first: 500, 
+      where: { search: debouncedPatientSearch || undefined } 
+    },
+    fetchPolicy: 'cache-and-network',
   });
 
   const [createAppointment] = useMutation(CREATE_APPOINTMENT);
@@ -103,6 +104,44 @@ const Agenda = () => {
   const appointments = appointmentsData?.appointmentsByDate || [];
   const surgeons = surgeonsData?.surgeons || [];
   const patients = patientsData?.patients?.edges?.map((edge: any) => edge.node) || [];
+
+  const timeSlots = React.useMemo(() => {
+    let maxHour = 18; // Default cutoff
+
+    // Check existing appointments on this day
+    appointments.forEach((apt: any) => {
+      const h = new Date(apt.scheduledAt).getHours();
+      if (h > maxHour) maxHour = h;
+    });
+
+    // Check surgeons' schedules
+    const dayOfWeek = dateObj.getDay();
+    surgeons.forEach((surgeon: any) => {
+      surgeon.availability?.forEach((a: any) => {
+        if (a.dayOfWeek === dayOfWeek && a.isActive) {
+          const h = parseInt(a.endTime.split(':')[0], 10);
+          if (h > maxHour) maxHour = h;
+        }
+      });
+      surgeon.extraAvailability?.forEach((ea: any) => {
+        if (format(new Date(ea.date), 'yyyy-MM-dd') === currentDate && ea.isActive) {
+          const h = parseInt(ea.endTime.split(':')[0], 10);
+          if (h > maxHour) maxHour = h;
+        }
+      });
+    });
+
+    if (maxHour > 23) maxHour = 23; // Hard cap
+
+    const slots: string[] = [];
+    for (let hour = 8; hour <= maxHour; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        if (hour === maxHour && minute > 0 && maxHour === 23) continue;
+        slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+      }
+    }
+    return slots;
+  }, [appointments, surgeons, currentDate, dateObj]);
 
   // Auto-open appointment sheet if linked from another page
   useEffect(() => {
@@ -195,6 +234,13 @@ const Agenda = () => {
 
     if (!selectedSlot.time) {
       toast.error('Selecione o horário');
+      return;
+    }
+
+    // RN: Validação de Horário Permitido (Hospital Padrão 18:00)
+    const surgeon = surgeons.find((s: any) => s.id === selectedSlot.doctorId);
+    if (!checkSurgeonAvailability(surgeon, selectedSlot.date, selectedSlot.time)) {
+      toast.error("Horário não permitido: O hospital/médico não atende neste horário (Limite padrão 18:00). Verifique as configurações de agenda.");
       return;
     }
 
@@ -374,7 +420,17 @@ const Agenda = () => {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button onClick={() => setNewConsultDialogOpen(true)} className="shrink-0">
+        <Button 
+          onClick={() => {
+            if (dateObj >= startOfDay(new Date())) {
+              setNewConsultDate(dateObj);
+            } else {
+              setNewConsultDate(new Date());
+            }
+            setNewConsultDialogOpen(true);
+          }} 
+          className="shrink-0"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Nova Consulta
         </Button>
@@ -492,42 +548,10 @@ const Agenda = () => {
               </div>
               <div className="space-y-2">
                 <Label>Horário</Label>
-                <div className="flex gap-2">
-                  <Select 
-                    value={selectedSlot?.time ? selectedSlot.time.split(':')[0] : ''}
-                    onValueChange={(val) => {
-                      const minute = selectedSlot?.time ? selectedSlot.time.split(':')[1] : '00';
-                      setSelectedSlot((prev: any) => ({ ...prev, time: `${val}:${minute}` }));
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Hora" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 11 }, (_, i) => i + 8).map((hour) => (
-                        <SelectItem key={hour} value={hour.toString().padStart(2, '0')}>
-                          {hour.toString().padStart(2, '0')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select 
-                    value={selectedSlot?.time ? selectedSlot.time.split(':')[1] : ''}
-                    onValueChange={(val) => {
-                      const hour = selectedSlot?.time ? selectedSlot.time.split(':')[0] : '08';
-                      setSelectedSlot((prev: any) => ({ ...prev, time: `${hour}:${val}` }));
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Min" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => i * 5).map((minute) => (
-                        <SelectItem key={minute} value={minute.toString().padStart(2, '0')}>{minute.toString().padStart(2, '0')}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <TimePicker 
+                  value={selectedSlot?.time || "08:00"} 
+                  onChange={(val) => setSelectedSlot((prev: any) => ({ ...prev, time: val }))} 
+                />
               </div>
             </div>
 
@@ -547,6 +571,20 @@ const Agenda = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Aviso de Horário não permitido */}
+            {selectedSlot && !checkSurgeonAvailability(surgeons.find((s: any) => s.id === selectedSlot.doctorId), selectedSlot.date, selectedSlot.time) && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 flex gap-2 items-start animate-in fade-in slide-in-from-top-1">
+                <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-red-700">Horário Bloqueado</p>
+                  <p className="text-[10px] text-red-600 leading-tight">
+                    O hospital/médico não atende neste horário (Limite padrão: 18:00). 
+                    Para agendar aqui, você deve liberar este médico em <strong>Configurações → Agenda</strong>.
+                  </p>
+                </div>
+              </div>
+            )}
             
             {editingAppointmentId ? (
               <div className="space-y-2">
@@ -558,7 +596,22 @@ const Agenda = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="patientId">Paciente</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="patientId">Paciente</Label>
+                  {loadingPatients && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                </div>
+                
+                {/* Busca rápida integrada */}
+                <div className="relative mb-2">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Filtrar por nome, CPF ou tel..."
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                    className="pl-8 h-8 text-xs bg-muted/30"
+                  />
+                </div>
+
                 <Select
                   value={selectedPatientId || ""}
                   onValueChange={(val) => {
@@ -573,17 +626,42 @@ const Agenda = () => {
                     }
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o paciente" />
+                  <SelectTrigger className="h-10">
+                    <SelectValue>
+                      {selectedPatientId ? (
+                        newAppointment.patientName
+                      ) : (
+                        <span className="text-muted-foreground">Selecione o paciente...</span>
+                      )}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {patients?.map((patient: any) => (
-                      <SelectItem key={patient.id} value={patient.id}>
-                        {patient.lead?.name || patient.name || 'Paciente'} - {patient.lead?.phone || patient.phone || 'sem telefone'}
+                    {/* Mantém o item selecionado visível mesmo que não bata na busca atual para evitar "vazio" visual */}
+                    {selectedPatientId && !patients.some((p: any) => p.id === selectedPatientId) && (
+                      <SelectItem value={selectedPatientId} className="text-xs opacity-50">
+                        {newAppointment.patientName} (atual)
                       </SelectItem>
-                    ))}
+                    )}
+                    
+                    {patients?.length === 0 && !selectedPatientId ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">
+                        Nenhum paciente encontrado para "{patientSearch}"
+                      </div>
+                    ) : (
+                      patients?.map((patient: any) => (
+                        <SelectItem key={patient.id} value={patient.id} className="text-xs">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{patient.lead?.name || patient.name || 'Paciente'}</span>
+                            <span className="text-[10px] opacity-70">{patient.lead?.phone || 'sem telefone'} • {patient.lead?.cpf || 'sem CPF'}</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                {patients.length >= 500 && !patientSearch && (
+                  <p className="text-[10px] text-muted-foreground mt-1">Exibindo os primeiros 500. Use a busca para filtrar.</p>
+                )}
               </div>
             )}
             <div className="space-y-2">
@@ -596,12 +674,16 @@ const Agenda = () => {
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Primeira Consulta">Primeira Consulta</SelectItem>
+                  <SelectItem value="Consulta Inicial">Consulta Inicial</SelectItem>
                   <SelectItem value="Retorno">Retorno</SelectItem>
                   <SelectItem value="Rinoplastia">Rinoplastia</SelectItem>
                   <SelectItem value="Lipoaspiração">Lipoaspiração</SelectItem>
                   <SelectItem value="Mamoplastia">Mamoplastia</SelectItem>
                   <SelectItem value="Abdominoplastia">Abdominoplastia</SelectItem>
+                  <SelectItem value="Blefaroplastia">Blefaroplastia</SelectItem>
+                  <SelectItem value="Otoplastia">Otoplastia</SelectItem>
+                  <SelectItem value="Lipo HD">Lipo HD</SelectItem>
+                  <SelectItem value="Outro">Outro</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -690,16 +772,10 @@ const Agenda = () => {
             </div>
             <div className="space-y-2">
               <Label>Horário</Label>
-              <Select value={newConsultTime} onValueChange={setNewConsultTime}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {timeSlots.map((time) => (
-                    <SelectItem key={time} value={time}>{time}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <TimePicker 
+                value={newConsultTime} 
+                onChange={setNewConsultTime} 
+              />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setNewConsultDialogOpen(false)}>

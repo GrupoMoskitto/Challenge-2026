@@ -56,6 +56,8 @@ import { ptBR } from "date-fns/locale";
 import { usePatientModal } from "@/components/PatientModalContext";
 import { AuditDiff } from "@/components/AuditDiff";
 import { HistoricalDatePicker } from "@/components/ui/historical-date-picker";
+import { TimePicker } from "@/components/ui/time-picker";
+import { checkSurgeonAvailability } from "@/lib/validation";
 
 const documentTypeLabels: Record<string, string> = {
   CONTRACT: 'Contrato',
@@ -460,6 +462,13 @@ const Patients = () => {
       toast.error("Preencha todos os campos obrigatórios.");
       return;
     }
+
+    const surgeon = surgeonsData?.surgeons?.find((s: any) => s.id === newApptForm.surgeonId);
+    if (!checkSurgeonAvailability(surgeon, newApptForm.date, newApptForm.time)) {
+      toast.error("Horário não permitido: O hospital/médico não atende neste horário (Limite padrão 18:00). Verifique as configurações de agenda.");
+      return;
+    }
+
     try {
       const scheduledAt = new Date(`${newApptForm.date}T${newApptForm.time}:00`);
       await createAppointment({
@@ -633,7 +642,7 @@ const Patients = () => {
                         key={apt.id} 
                         className="cursor-pointer hover:border-primary/50 transition-colors hover:shadow-sm"
                         onClick={() => {
-                          const aptDate = apt.scheduledAt.split('T')[0];
+                          const aptDate = format(new Date(apt.scheduledAt), 'yyyy-MM-dd');
                           navigate(`/schedule?date=${aptDate}&appointmentId=${apt.id}`);
                         }}
                       >
@@ -845,11 +854,23 @@ const Patients = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Procedimento *</Label>
-              <Input 
-                placeholder="Ex: Rinoplastia, Consulta de Retorno..." 
-                value={newApptForm.procedure} 
-                onChange={e => setNewApptForm(f => ({...f, procedure: e.target.value}))} 
-              />
+              <Select value={newApptForm.procedure} onValueChange={v => setNewApptForm(f => ({...f, procedure: v}))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o procedimento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Consulta Inicial">Consulta Inicial</SelectItem>
+                  <SelectItem value="Retorno">Retorno</SelectItem>
+                  <SelectItem value="Rinoplastia">Rinoplastia</SelectItem>
+                  <SelectItem value="Lipoaspiração">Lipoaspiração</SelectItem>
+                  <SelectItem value="Mamoplastia">Mamoplastia</SelectItem>
+                  <SelectItem value="Abdominoplastia">Abdominoplastia</SelectItem>
+                  <SelectItem value="Blefaroplastia">Blefaroplastia</SelectItem>
+                  <SelectItem value="Otoplastia">Otoplastia</SelectItem>
+                  <SelectItem value="Lipo HD">Lipo HD</SelectItem>
+                  <SelectItem value="Outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Cirurgião / Médico *</Label>
@@ -874,10 +895,9 @@ const Patients = () => {
               </div>
               <div className="space-y-2">
                 <Label>Horário *</Label>
-                <Input 
-                  type="time" 
+                <TimePicker 
                   value={newApptForm.time} 
-                  onChange={e => setNewApptForm(f => ({...f, time: e.target.value}))} 
+                  onChange={val => setNewApptForm(f => ({...f, time: val}))} 
                 />
               </div>
             </div>

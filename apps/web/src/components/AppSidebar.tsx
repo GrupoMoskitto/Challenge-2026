@@ -12,6 +12,7 @@ import {
   LogOut,
   Moon,
   Sun,
+  Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { serverLogout } from "@/lib/apollo";
@@ -96,8 +97,12 @@ export function AppSidebar({ onNavigate, isMobileDrawer }: AppSidebarProps) {
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user?.role === 'ADMIN';
+  const isStaff = ['ADMIN', 'SURGEON', 'RECEPTION', 'SALES', 'CALL_CENTER'].includes(user?.role);
   
   const navItems = [...baseNavItems];
+  if (isStaff) {
+    navItems.push({ title: "Corpo Clínico", url: "/surgeons", icon: Stethoscope });
+  }
   if (isAdmin) {
     navItems.push({ title: "Configurações", url: "/settings", icon: Settings });
   }

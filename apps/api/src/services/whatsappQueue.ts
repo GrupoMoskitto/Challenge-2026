@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
+import { TemplateParser } from '@crmed/database';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -21,10 +22,16 @@ export const dispatchLeadWelcome = async (leadId: string, leadName: string, phon
   if (!phone) return;
   const { prisma } = await import('@crmed/database');
   const template = await prisma.messageTemplate.findFirst({ where: { triggerDays: -1 } });
-  if (!template) return;
+  
+  if (!template) {
+    console.error(`[API] Erro: Template de Boas-Vindas (-1 dias) não encontrado.`);
+    return;
+  }
 
-  let content = template.content.replace(/{nome}/g, leadName.split(' ')[0]);
-  content = content.replace(/{procedimento}/g, procedure || 'seu procedimento');
+  const content = TemplateParser.parse(template.content, {
+    paciente: leadName.split(' ')[0],
+    procedimento: procedure,
+  });
 
   await whatsappQueue.add('lead-welcome', {
     leadId,
@@ -41,10 +48,16 @@ export const dispatchLeadFollowup = async (leadId: string, leadName: string, pho
   if (!phone) return;
   const { prisma } = await import('@crmed/database');
   const template = await prisma.messageTemplate.findFirst({ where: { triggerDays: days } });
-  if (!template) return;
+  
+  if (!template) {
+    console.error(`[API] Erro: Template para ${days} dias não encontrado.`);
+    return;
+  }
 
-  let content = template.content.replace(/{nome}/g, leadName.split(' ')[0]);
-  content = content.replace(/{procedimento}/g, procedure || 'seu procedimento');
+  const content = TemplateParser.parse(template.content, {
+    paciente: leadName.split(' ')[0],
+    procedimento: procedure,
+  });
 
   await whatsappQueue.add('lead-followup', {
     leadId,
@@ -67,16 +80,16 @@ export const dispatchTemplateTest = async (templateId: string, instanceName: str
 
   const testPhone = process.env.DEV_ALLOWED_PHONE;
   if (!testPhone) {
-    console.error('[API] Erro: DEV_ALLOWED_PHONE não configurado');
     throw new Error('DEV_ALLOWED_PHONE não configurado no ambiente');
   }
 
-  console.log(`[API] Preparando teste de disparo para template ${template.name} (${templateId}) usando instância ${instanceName}`);
-
-  let content = template.content.replace(/{nome}/g, 'Usuário de Teste');
-  content = content.replace(/{medico}/g, 'Dr. Arnaldo (Teste)');
-  content = content.replace(/{data}/g, new Date().toLocaleDateString('pt-BR'));
-  content = content.replace(/{hora}/g, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+  const content = TemplateParser.parse(template.content, {
+    paciente: 'Usuário de Teste',
+    medico: 'Dr. Arnaldo (Teste)',
+    procedimento: 'Procedimento de Teste',
+    data: new Date().toLocaleDateString('pt-BR'),
+    hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+  });
 
   const jobParameters = {
     leadId: 'test-user',
