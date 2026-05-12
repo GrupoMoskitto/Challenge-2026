@@ -67,7 +67,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, Calendar as CalendarIcon, Clock, AlertTriangle, Mic, Paperclip, Send, Smile, CheckCheck } from "lucide-react";
+import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, Calendar as CalendarIcon, Clock, AlertTriangle, Mic, Paperclip, Smile, CheckCheck } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 

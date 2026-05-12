@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus, Trash2, Menu, AlertTriangle, MessageSquare } from "lucide-react";
+import { Search, Bell, User, LogOut, Settings, ChevronDown, X, Check, CheckCheck, Plus, Trash2, Menu, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

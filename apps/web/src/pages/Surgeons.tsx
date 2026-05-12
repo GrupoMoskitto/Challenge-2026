@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { TopBar } from "@/components/TopBar";
 import { useQuery, useMutation } from "@apollo/client";
 import { useAuth } from "@/lib/auth";
 import { GET_SURGEONS, CREATE_SURGEON, UPDATE_SURGEON, TOGGLE_SURGEON_STATUS, GET_APPOINTMENTS_BY_SURGEON } from "@/lib/queries";
