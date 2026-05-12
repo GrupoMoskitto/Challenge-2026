@@ -269,23 +269,6 @@ O projeto utiliza um arquivo central `.env.example` na raiz do repositório. Cop
 
 ---
 
-### Checklist de Produção (Deploy)
-
-Para subir o sistema em produção com total segurança (evitando vazamentos e instabilidades), garanta os seguintes itens na sua infraestrutura cloud (ex: AWS):
-
-1. **HTTPS Obrigatório (SSL/TLS)**
-   Os cookies de sessão de segurança (`access_token` e `refresh_token`) possuem a flag `Secure: true`. Portanto, eles **só funcionarão em ambientes com HTTPS**. Configure um Load Balancer (ALB) ou CloudFront com certificado ACM para habilitar a comunicação criptografada.
-2. **AWS WAF (Web Application Firewall)**
-   Recomenda-se acoplar o AWS WAF ao seu Load Balancer com regras (Core Rule Set) para barrar SQLi, XSS, e atuar contra DDoS e Botnets antes de atingir os containers Node.js.
-3. **Criptografia de Banco (KMS)**
-   Como um sistema hospitalar lida com dados confidenciais regidos pela LGPD (como dados de paciente e prontuário), garanta que a instância do banco de dados (ex: RDS PostgreSQL) possua criptografia de disco ativa.
-4. **Observabilidade (Tracing e Métricas)**
-   Sistemas de saúde exigem auditoria rigorosa de performance e falhas. Adicione ferramentas de **Distributed Tracing (OpenTelemetry)** e monitoramento de infraestrutura (como **Prometheus + Grafana** ou Datadog) para rastrear todas as requisições que transitam entre a API, Workers e banco de dados.
-5. **Política Least Privilege (IAM)**
-   As políticas para Lambdas e ECS Workers foram desenhadas em `infra/iam-policies.md`. Forneça apenas as permissões de gravação/leitura de S3 nos diretórios necessários e acesso à VPC para o RDS, não aplique papéis genéricos.
-6. **Secrets Manager**
-   As variáveis como `DATABASE_URL`, `JWT_SECRET`, `REFRESH_SECRET`, `WEBHOOK_SECRET` e `EVOLUTION_API_KEY` não devem ficar hardcoded no servidor. Use um gestor de segredos integrado aos seus containers de produção (como o AWS Secrets Manager).
-
 ### Importação de Leads via CSV
 
 O sistema suporta a importação em massa de leads através de arquivos CSV ou TSV (separados por vírgula, ponto-e-vírgula, tabulação ou pipe). A validação de duplicação por CPF e E-mail é rigorosa (RN01).
@@ -322,6 +305,101 @@ curl -X POST http://localhost:3001/graphql \
 ```
 
 </details>
+
+---
+
+### Automação de Confirmação (WhatsApp)
+
+O CRMed utiliza uma régua de relacionamento automatizada para garantir a ocupação da agenda e reduzir o absenteísmo (No-show).
+
+#### 1. Régua de Notificação (Gatilhos)
+- **30 Dias:** Lembrete de preparativos e exames necessários.
+- **7 Dias:** Check-in de orientações pré-operatórias.
+- **48 Horas (Crítico):** Solicitação de confirmação obrigatória.
+
+#### 2. Fluxo do Chatbot
+Ao receber a mensagem de 48h, o paciente interage com uma máquina de estados:
+- **Opção [1]:** Confirmação automática no banco (Status: `CONFIRMED`).
+- **Opção [2]:** Solicitação de reagendamento (Notifica a recepção).
+- **Opção [3]:** Cancelamento imediato e liberação da vaga (Status: `CANCELLED`).
+
+#### 3. SLA de Inatividade e "Deadman Switch"
+Para evitar consultas pendentes sem resposta, o sistema possui uma inteligência de monitoramento de SLA:
+- **Tempo Limite:** 24 horas úteis.
+- **Cálculo de Horas Úteis:** O cronômetro apenas contabiliza tempo dentro do horário de expediente (**Seg-Sex, 08:00 às 18:00**), ignorando noites e finais de semana.
+- **Ação:** Se o paciente não responder em até 24h úteis, a consulta é marcada como **`ATTENTION_REQUIRED`**, sinalizando para a equipe humana intervir.
+
+---
+
+### WhatsApp — Evolution Go (EvoGo)
+
+A automação de mensagens (RN05) usa o [Evolution Go](https://github.com/evolution-foundation/evolution-go) rodando via **Docker** (`evoapicloud/evolution-go:latest`). O container sobe automaticamente com `pnpm infra:up`.
+
+<details>
+<summary><strong>Como conectar via QR Code</strong></summary>
+
+Se `pnpm infra:dev` está rodando, o Evolution Go já está ativo na porta `8080`.
+
+**Via UI do CRMed (recomendado):**
+1. Acesse o menu **Configurações > Integrações** no sistema
+2. Crie uma nova instância ou clique em "Parear Dispositivo"
+3. Escaneie o QR Code exibido na tela
+
+**Via curl:**
+
+```bash
+# Criar instância
+curl -X POST http://localhost:8080/instance/create \
+  -H "apikey: $EVOLUTION_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"instanceName":"crmed-whatsapp","qrcode":true}'
+
+# Verificar conexão
+curl http://localhost:8080/instance/connectionState/crmed-whatsapp \
+  -H "apikey: $EVOLUTION_API_KEY"
+```
+
+</details>
+
+<details>
+<summary><strong>Testando o Fluxo de Onboarding (Chatbot)</strong></summary>
+
+Para testar como se fosse um cliente se cadastrando via WhatsApp sem enviar mensagens reais para seus contatos:
+1. No arquivo `.env` da raiz, certifique-se de preencher `DEV_ALLOWED_PHONE="55[SEUDDD][SEUNUMERO]"`.
+2. Certifique-se de gerar e ler o QR code no painel do Dashboard com outro aparelho (que simulará a clínica).
+3. Do seu número de testes (`DEV_ALLOWED_PHONE`), envie qualquer mensagem para o número da clínica (como "Olá" ou "Quero informações").
+4. O robô deve iniciar a state machine, pedindo como gostaria de ser chamado.
+5. Ele pedirá a confirmação do nome via lista estruturada.
+6. Oferecerá a captação opcional de E-mail (tente mandar algo errado, em seguida use "Pular", ou coloque um e-mail válido).
+7. Finalize selecionando a área do procedimento; verifique no seu Dashboard (aba de Leads) que seu usuário foi perfeitamente criado!
+
+</details>
+
+> [!IMPORTANT]
+> **Sandbox Mode:** A variável `DEV_ALLOWED_PHONE` restringe **todas** as mensagens apenas ao número definido em dev. Mensagens bloqueadas são logadas como `[INFO] [WhatsApp] Mensagem bloqueada para ...XXXX (sandbox ativo)`.
+
+#### Webhook de Mensagens Recebidas
+
+O sistema recebe mensagens de entrada do WhatsApp através de um webhook registrado automaticamente ao parear a instância.
+
+- **Fluxo:** Registro via `POST /instance/connect/{name}` no EvoGo.
+- **Endpoint:** `http://localhost:3002/webhook/evolution` (workers)
+- **Eventos:** `MESSAGES`, `CONNECTION` e `QRCODE`.
+
+> [!NOTE]
+> **Segurança:** O webhook valida HMAC-SHA256 via header `x-webhook-signature`. Em produção, o uso de `WEBHOOK_SECRET` e IP allowlist (`WEBHOOK_ALLOWED_IPS`) é obrigatório.
+
+#### Workers e Logger
+
+Os workers utilizam um **logger estruturado** (`apps/workers/src/config/logger.ts`) para manter o terminal limpo e legível:
+
+```bash
+[12:30:00] [OK] [WhatsApp] Mensagem enviada para 551196325xxxx
+[12:30:01] [INFO] [Worker] Processando job abc123: send-reminder
+[12:30:02] [ERR] [Chatbot] Erro processando mensagem de João
+```
+
+A API do Evolution Go opera em background para que a observabilidade do fluxo fique concentrada nos logs dos workers.
 
 ---
 
@@ -450,75 +528,22 @@ PostOpStatus:      SCHEDULED · COMPLETED · CANCELLED
 
 ---
 
-### WhatsApp — Evolution Go (EvoGo)
+### Checklist de Produção (Deploy)
 
-A automação de mensagens (RN05) usa o [Evolution Go](https://github.com/evolution-foundation/evolution-go) rodando via **Docker** (`evoapicloud/evolution-go:latest`). O container sobe automaticamente com `pnpm infra:up`.
+Para subir o sistema em produção com total segurança (evitando vazamentos e instabilidades), garanta os seguintes itens na sua infraestrutura cloud (ex: AWS):
 
-<details>
-<summary><strong>Como conectar via QR Code</strong></summary>
-
-Se `pnpm infra:dev` está rodando, o Evolution Go já está ativo na porta `8080`.
-
-**Via UI do CRMed (recomendado):**
-1. Acesse o menu **Configurações > Integrações** no sistema
-2. Crie uma nova instância ou clique em "Parear Dispositivo"
-3. Escaneie o QR Code exibido na tela
-
-**Via curl:**
-
-```bash
-# Criar instância
-curl -X POST http://localhost:8080/instance/create \
-  -H "apikey: $EVOLUTION_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"instanceName":"crmed-whatsapp","qrcode":true}'
-
-# Verificar conexão
-curl http://localhost:8080/instance/connectionState/crmed-whatsapp \
-  -H "apikey: $EVOLUTION_API_KEY"
-```
-
-</details>
-
-<details>
-<summary><strong>Testando o Fluxo de Onboarding (Chatbot)</strong></summary>
-
-Para testar como se fosse um cliente se cadastrando via WhatsApp sem enviar mensagens reais para seus contatos:
-1. No arquivo `.env` da raiz, certifique-se de preencher `DEV_ALLOWED_PHONE="55[SEUDDD][SEUNUMERO]"`.
-2. Certifique-se de gerar e ler o QR code no painel do Dashboard com outro aparelho (que simulará a clínica).
-3. Do seu número de testes (`DEV_ALLOWED_PHONE`), envie qualquer mensagem para o número da clínica (como "Olá" ou "Quero informações").
-4. O robô deve iniciar a state machine, pedindo como gostaria de ser chamado.
-5. Ele pedirá a confirmação do nome via lista estruturada.
-6. Oferecerá a captação opcional de E-mail (tente mandar algo errado, em seguida use "Pular", ou coloque um e-mail válido).
-7. Finalize selecionando a área do procedimento; verifique no seu Dashboard (aba de Leads) que seu usuário foi perfeitamente criado!
-
-</details>
-
-> [!IMPORTANT]
-> **Sandbox Mode:** A variável `DEV_ALLOWED_PHONE` restringe **todas** as mensagens apenas ao número definido em dev. Mensagens bloqueadas são logadas como `[INFO] [WhatsApp] Mensagem bloqueada para ...XXXX (sandbox ativo)`.
-
-#### Webhook de Mensagens Recebidas
-
-O sistema recebe mensagens de entrada do WhatsApp através de um webhook registrado automaticamente ao parear a instância.
-
-- **Fluxo:** Registro via `POST /instance/connect/{name}` no EvoGo.
-- **Endpoint:** `http://localhost:3002/webhook/evolution` (workers)
-- **Eventos:** `MESSAGES`, `CONNECTION` e `QRCODE`.
-
-> [!NOTE]
-> **Segurança:** O webhook valida HMAC-SHA256 via header `x-webhook-signature`. Em produção, o uso de `WEBHOOK_SECRET` e IP allowlist (`WEBHOOK_ALLOWED_IPS`) é obrigatório.
-
-#### Workers e Logger
-
-Os workers utilizam um **logger estruturado** (`apps/workers/src/config/logger.ts`) para manter o terminal limpo e legível:
-
-```bash
-[12:30:00] [OK] [WhatsApp] Mensagem enviada para 551196325xxxx
-[12:30:01] [INFO] [Worker] Processando job abc123: send-reminder
-[12:30:02] [ERR] [Chatbot] Erro processando mensagem de João
-```
-
-A API do Evolution Go opera em background para que a observabilidade do fluxo fique concentrada nos logs dos workers.
+1. **HTTPS Obrigatório (SSL/TLS)**
+   Os cookies de sessão de segurança (`access_token` e `refresh_token`) possuem a flag `Secure: true`. Portanto, eles **só funcionarão em ambientes com HTTPS**. Configure um Load Balancer (ALB) ou CloudFront com certificado ACM para habilitar a comunicação criptografada.
+2. **AWS WAF (Web Application Firewall)**
+   Recomenda-se acoplar o AWS WAF ao seu Load Balancer com regras (Core Rule Set) para barrar SQLi, XSS, e atuar contra DDoS e Botnets antes de atingir os containers Node.js.
+3. **Criptografia de Banco (KMS)**
+   Como um sistema hospitalar lida com dados confidenciais regidos pela LGPD (como dados de paciente e prontuário), garanta que a instância do banco de dados (ex: RDS PostgreSQL) possua criptografia de disco ativa.
+4. **Observabilidade (Tracing e Métricas)**
+   Sistemas de saúde exigem auditoria rigorosa de performance e falhas. Adicione ferramentas de **Distributed Tracing (OpenTelemetry)** e monitoramento de infraestrutura (como **Prometheus + Grafana** ou Datadog) para rastrear todas as requisições que transitam entre a API, Workers e banco de dados.
+5. **Política Least Privilege (IAM)**
+   As políticas para Lambdas e ECS Workers foram desenhadas em `infra/iam-policies.md`. Forneça apenas as permissões de gravação/leitura de S3 nos diretórios necessários e acesso à VPC para o RDS, não aplique papéis genéricos.
+6. **Secrets Manager**
+   As variáveis como `DATABASE_URL`, `JWT_SECRET`, `REFRESH_SECRET`, `WEBHOOK_SECRET` e `EVOLUTION_API_KEY` não devem ficar hardcoded no servidor. Use um gestor de segredos integrado aos seus containers de produção (como o AWS Secrets Manager).
 
 ---
 
