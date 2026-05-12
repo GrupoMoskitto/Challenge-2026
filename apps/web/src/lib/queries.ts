@@ -93,6 +93,10 @@ export const GET_LEADS = gql`
           status
           whatsappActive
           createdAt
+          appointments {
+            id
+            scheduledAt
+          }
         }
         cursor
       }

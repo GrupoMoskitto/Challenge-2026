@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -161,7 +161,7 @@ interface Lead {
   status: string;
   createdAt: string;
   patient?: { id: string };
-  appointments?: { id: string }[];
+  appointments?: { id: string; scheduledAt: string }[];
 }
 
 interface NewLeadForm {
@@ -188,6 +188,7 @@ const initialNewLead: NewLeadForm = {
 
 const Leads = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { openCreatePatientModal } = usePatientModal();
   
@@ -632,8 +633,17 @@ const Leads = () => {
                       <div className="mt-4 pt-3 border-t border-border/30 flex items-center justify-between shrink-0">
                         <time className="text-[10px] text-muted-foreground font-semibold">{format(new Date(l.createdAt), "dd/MM/yy")}</time>
                         {(l.appointments && l.appointments.length > 0) ? (
-                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/5 text-primary">
-                            <CalendarCheck className="h-3 w-3" /><span className="text-[10px] font-bold">{l.appointments.length}</span>
+                          <div 
+                            className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors border border-primary/20"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const latest = l.appointments![0];
+                              const date = latest.scheduledAt.split('T')[0];
+                              navigate(`/schedule?date=${date}&appointmentId=${latest.id}`);
+                            }}
+                            data-no-drag="true"
+                          >
+                            <CalendarCheck className="h-3 w-3" /><span className="text-[10px] font-black">{l.appointments.length}</span>
                           </div>
                         ) : <span className="text-[9px] uppercase text-muted-foreground/20 font-black tracking-tighter">Sem agenda</span>}
                       </div>
