@@ -67,8 +67,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, Calendar as CalendarIcon, Clock, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
+import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, Calendar as CalendarIcon, Clock, AlertTriangle, Mic, Paperclip, Smile, CheckCheck } from "lucide-react";
+import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const roleLabels: Record<string, string> = {
@@ -120,12 +120,51 @@ function getTriggerLabel(days: number): string {
   return `${days} dias antes`;
 }
 
-function highlightVariables(content: string) {
-  const parts = content.split(/(\{[^}]+\})/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("{") && part.endsWith("}")) {
+const testValues: Record<string, string> = {
+  paciente: "João Silva",
+  procedimento: "Rinoplastia Estruturada",
+  medico: "Dr. Arnaldo Castro",
+  data: format(addDays(new Date(), 2), "dd/MM/yyyy"),
+  hora: "09:30",
+};
+
+function formatWhatsAppText(content: string) {
+  // First, handle variables with test data and styling
+  const parts = content.split(/(\{\{[^}]+\}\})/g);
+  
+  const populatedParts = parts.map((part, i) => {
+    if (part.startsWith("{{") && part.endsWith("}}")) {
+      const variable = part.replace(/[{}]/g, "").trim();
+      const value = testValues[variable] || part;
       return (
-        <span key={i} className="text-xs font-mono mx-0.5 px-1.5 py-0 bg-secondary text-secondary-foreground rounded">
+        <span key={`var-${i}`} className="font-bold text-primary underline decoration-primary/30">
+          {value}
+        </span>
+      );
+    }
+    
+    // Then, handle *bold* or **bold** syntax within the non-variable text
+    const text = part;
+    const subParts = text.split(/(\*[^*]+\*|\*\*[^*]+\*\*)/g);
+    
+    return subParts.map((subPart, j) => {
+      if ((subPart.startsWith("**") && subPart.endsWith("**")) || (subPart.startsWith("*") && subPart.endsWith("*"))) {
+        const boldText = subPart.replace(/\*/g, "");
+        return <strong key={`bold-${i}-${j}`} className="font-bold">{boldText}</strong>;
+      }
+      return subPart;
+    });
+  });
+
+  return populatedParts;
+}
+
+function highlightVariables(content: string) {
+  const parts = content.split(/(\{\{[^}]+\}\})/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("{{") && part.endsWith("}}")) {
+      return (
+        <span key={i} className="text-xs font-mono mx-0.5 px-1.5 py-0 bg-primary/10 text-primary border border-primary/20 rounded-md font-bold">
           {part}
         </span>
       );
@@ -455,6 +494,13 @@ const Settings = () => {
     if (!form.name.trim()) errors.name = "Nome é obrigatório";
     if (!form.content.trim()) errors.content = "Conteúdo é obrigatório";
     if (!form.channel) errors.channel = "Canal é obrigatório";
+
+    // Strict validation for variables: block {variable} and require {{variable}}
+    const singleBraceRegex = /\{(?!\s*\{)[^}]+\}/g;
+    if (singleBraceRegex.test(form.content)) {
+      errors.content = "Erro de Sintaxe: Use chaves duplas {{variavel}} para variáveis dinâmicas. Chaves simples { } não são permitidas.";
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -600,17 +646,18 @@ const Settings = () => {
           id="template-content"
           value={form.content}
           onChange={(e) => setForm({ ...form, content: e.target.value })}
-          placeholder="Olá {nome}, sua consulta com {medico} está agendada para {data} às {hora}..."
+          placeholder="Olá {{paciente}}, sua consulta de {{procedimento}} com o Dr. {{medico}} está agendada para {{data}} às {{hora}}..."
           rows={5}
           className="resize-none font-mono text-sm"
         />
-        {formErrors.content && <p className="text-xs text-red-500">{formErrors.content}</p>}
-        <p className="text-xs text-muted-foreground">
-          Variáveis disponíveis: <code className="bg-muted px-1 rounded">{"{nome}"}</code>{" "}
-          <code className="bg-muted px-1 rounded">{"{procedimento}"}</code>{" "}
-          <code className="bg-muted px-1 rounded">{"{medico}"}</code>{" "}
-          <code className="bg-muted px-1 rounded">{"{data}"}</code>{" "}
-          <code className="bg-muted px-1 rounded">{"{hora}"}</code>
+        {formErrors.content && <p className="text-xs text-red-500 font-semibold">{formErrors.content}</p>}
+        <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md border border-dashed">
+          Variáveis permitidas (use <code className="font-bold">{"{{ }}"}</code>): <br />
+          <code className="bg-primary/10 text-primary px-1 rounded">{"{{paciente}}"}</code>{" "}
+          <code className="bg-primary/10 text-primary px-1 rounded">{"{{procedimento}}"}</code>{" "}
+          <code className="bg-primary/10 text-primary px-1 rounded">{"{{medico}}"}</code>{" "}
+          <code className="bg-primary/10 text-primary px-1 rounded">{"{{data}}"}</code>{" "}
+          <code className="bg-primary/10 text-primary px-1 rounded">{"{{hora}}"}</code>
         </p>
       </div>
 
@@ -1039,6 +1086,20 @@ const Settings = () => {
 
                   {selectedSurgeon && (
                     <div className="grid gap-8 pt-4">
+                      {selectedSurgeon.availability?.length === 0 && selectedSurgeon.extraAvailability?.length === 0 && (
+                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex gap-3 items-start animate-in fade-in slide-in-from-top-2">
+                          <AlertTriangle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold text-primary">Perfil de Atendimento Padrão Ativo</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              Este cirurgião não possui horários customizados. O sistema aplicará automaticamente o 
+                              <strong className="text-foreground"> Perfil Padrão do Hospital (Segunda a Sexta, 08:00 às 18:00)</strong>. 
+                              Caso precise de horários estendidos ou atendimentos aos fins de semana, adicione-os abaixo.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="border rounded-xl p-6 bg-muted/30">
                         <div className="flex items-center justify-between mb-6">
                           <div>
@@ -1436,30 +1497,55 @@ const Settings = () => {
       </Dialog>
 
       <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {previewTemplate?.name}
-              <Badge
-                variant="outline"
-                className={`text-xs ${channelColors[previewTemplate?.channel || ""] || ""}`}
-              >
-                {channelLabels[previewTemplate?.channel || ""] || previewTemplate?.channel}
-              </Badge>
-            </DialogTitle>
-            <DialogDescription>
-              {previewTemplate ? getTriggerLabel(previewTemplate.triggerDays) : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="bg-muted/50 rounded-lg p-4 mt-2">
-            <div className="text-sm leading-relaxed whitespace-pre-wrap">
-              {previewTemplate ? highlightVariables(previewTemplate.content) : ""}
+        <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden border-none bg-transparent shadow-2xl">
+          <div className="flex flex-col h-[600px] bg-[#efe7de] relative">
+            {/* WhatsApp Header */}
+            <div className="bg-[#075e54] text-white p-3 flex items-center gap-3 shrink-0 shadow-md">
+              <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <User className="h-6 w-6 text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-sm truncate">CRM-ed Atendimento</h3>
+                <p className="text-[10px] opacity-80">visto por último hoje às {format(new Date(), "HH:mm")}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex justify-end pt-2">
-            <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
-              Fechar
-            </Button>
+
+            {/* Chat Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat">
+              <div className="flex justify-center">
+                <span className="bg-[#d1eafe] text-[#128c7e] text-[10px] px-3 py-1 rounded-lg uppercase font-bold tracking-wider shadow-sm">
+                  Criptografia de ponta a ponta
+                </span>
+              </div>
+
+              {previewTemplate && (
+                <div className="flex flex-col items-end animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <div className="bg-[#dcf8c6] p-3 rounded-lg rounded-tr-none shadow-sm max-w-[85%] relative">
+                    <div className="text-sm leading-relaxed whitespace-pre-wrap text-[#303030]">
+                      {formatWhatsAppText(previewTemplate.content)}
+                    </div>
+                    <div className="flex items-center justify-end gap-1 mt-1">
+                      <span className="text-[10px] text-gray-500">{format(new Date(), "HH:mm")}</span>
+                      <CheckCheck className="h-3 w-3 text-[#34b7f1]" />
+                    </div>
+                    {/* Triangle tail */}
+                    <div className="absolute top-0 -right-2 w-0 h-0 border-t-[10px] border-t-[#dcf8c6] border-r-[10px] border-r-transparent" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* WhatsApp Input area (Visual only) */}
+            <div className="p-2 bg-[#f0f0f0] flex items-center gap-2 shrink-0 border-t">
+              <Smile className="h-6 w-6 text-gray-500" />
+              <div className="flex-1 bg-white rounded-full px-4 py-2 flex items-center justify-between border shadow-sm cursor-text">
+                <span className="text-sm text-gray-400">Mensagem</span>
+                <Paperclip className="h-5 w-5 text-gray-500 -rotate-45" />
+              </div>
+              <div className="bg-[#075e54] h-10 w-10 rounded-full flex items-center justify-center shadow-md cursor-pointer hover:bg-[#064e46] transition-colors">
+                <Mic className="h-5 w-5 text-white" />
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -93,6 +93,9 @@ export const GET_LEADS = gql`
           status
           whatsappActive
           createdAt
+          patient {
+            id
+          }
           appointments {
             id
             scheduledAt
@@ -225,12 +228,63 @@ export const GET_PATIENT = gql`
 `;
 
 export const GET_SURGEONS = gql`
-  query GetSurgeons {
-    surgeons {
+  query GetSurgeons($includeInactive: Boolean) {
+    surgeons(includeInactive: $includeInactive) {
       id
       name
       specialty
       crm
+      cpf
+      rg
+      address
+      email
+      phone
+      isActive
+      availability {
+        dayOfWeek
+        startTime
+        endTime
+        isActive
+      }
+      extraAvailability {
+        date
+        startTime
+        endTime
+        isActive
+      }
+      blocks {
+        startDate
+        endDate
+      }
+    }
+  }
+`;
+
+export const CREATE_SURGEON = gql`
+  mutation CreateSurgeon($input: CreateSurgeonInput!) {
+    createSurgeon(input: $input) {
+      id
+      name
+      isActive
+    }
+  }
+`;
+
+export const UPDATE_SURGEON = gql`
+  mutation UpdateSurgeon($input: UpdateSurgeonInput!) {
+    updateSurgeon(input: $input) {
+      id
+      name
+      isActive
+    }
+  }
+`;
+
+export const TOGGLE_SURGEON_STATUS = gql`
+  mutation ToggleSurgeonStatus($id: ID!) {
+    toggleSurgeonStatus(id: $id) {
+      id
+      isActive
     }
   }
 `;
@@ -253,6 +307,25 @@ export const GET_APPOINTMENTS_BY_DATE = gql`
       surgeon {
         id
         name
+      }
+    }
+  }
+`;
+
+export const GET_APPOINTMENTS_BY_SURGEON = gql`
+  query GetAppointmentsBySurgeon($surgeonId: ID!, $startDate: DateTime, $endDate: DateTime) {
+    appointmentsBySurgeon(surgeonId: $surgeonId, startDate: $startDate, endDate: $endDate) {
+      id
+      scheduledAt
+      status
+      procedure
+      patient {
+        id
+        medicalRecord
+        lead {
+          id
+          name
+        }
       }
     }
   }

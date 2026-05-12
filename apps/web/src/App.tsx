@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Leads = lazy(() => import("./pages/Leads"));
 const Agenda = lazy(() => import("./pages/Agenda"));
 const Patients = lazy(() => import("./pages/Patients"));
+const Surgeons = lazy(() => import("./pages/Surgeons"));
 const Settings = lazy(() => import("./pages/Settings"));
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -100,6 +101,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Patients />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/surgeons"
+                  element={
+                    <ProtectedRoute>
+                      <Surgeons />
                     </ProtectedRoute>
                   }
                 />

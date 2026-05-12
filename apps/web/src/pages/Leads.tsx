@@ -29,7 +29,8 @@ import {
   History as HistoryIcon, 
   Check, 
   X,
-  XCircle
+  XCircle,
+  ExternalLink
   } from "lucide-react";
 
 import { useQuery, useMutation } from "@apollo/client";
@@ -608,7 +609,21 @@ const Leads = () => {
                           <DropdownMenuContent align="end" className="w-56 shadow-xl border-primary/5">
                             <DropdownMenuItem onClick={() => handleEditClick(l)} className="cursor-pointer"><Pencil className="h-4 w-4 mr-2" /> Editar Dados</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setActiveTab("timeline"); handleEditClick(l); }} className="cursor-pointer"><HistoryIcon className="h-4 w-4 mr-2" /> Ver Histórico</DropdownMenuItem>
-                            {!l.patient && <DropdownMenuItem onClick={() => openCreatePatientModal(l.id)} className="cursor-pointer text-blue-600 font-bold focus:text-blue-700"><UserCheck className="h-4 w-4 mr-2" /> Converter</DropdownMenuItem>}
+                            {l.patient ? (
+                              <DropdownMenuItem 
+                                onClick={() => navigate(`/patients?patientId=${l.patient!.id}`)} 
+                                className="cursor-pointer text-green-600 font-bold focus:text-green-700"
+                              >
+                                <ExternalLink className="h-4 w-4 mr-2" /> Ver Perfil de Paciente
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem 
+                                onClick={() => openCreatePatientModal(l.id)} 
+                                className="cursor-pointer text-blue-600 font-bold focus:text-blue-700"
+                              >
+                                <UserCheck className="h-4 w-4 mr-2" /> Converter
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => { setDeletingLeadId(l.id); setDeleteDialogOpen(true); }} className="text-destructive cursor-pointer font-medium"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

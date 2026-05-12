@@ -218,6 +218,9 @@ export const typeDefs = gql`
     name: String!
     specialty: String!
     crm: String!
+    cpf: String
+    rg: String
+    address: String
     email: String!
     phone: String!
     isActive: Boolean!
@@ -556,8 +559,25 @@ export const typeDefs = gql`
     name: String!
     specialty: String!
     crm: String!
+    cpf: String
+    rg: String
+    address: String
     email: String!
     phone: String!
+    password: String!
+  }
+
+  input UpdateSurgeonInput {
+    id: ID!
+    name: String
+    specialty: String
+    crm: String
+    cpf: String
+    rg: String
+    address: String
+    email: String
+    phone: String
+    appointmentDuration: Int
   }
 
   input CreateUserInput {
@@ -772,6 +792,8 @@ export const typeDefs = gql`
 
     # Surgeons
     createSurgeon(input: CreateSurgeonInput!): Surgeon!
+    updateSurgeon(input: UpdateSurgeonInput!): Surgeon!
+    toggleSurgeonStatus(id: ID!): Surgeon!
 
     # Users & Profile
     createUser(input: CreateUserInput!): User!
@@ -866,14 +888,14 @@ export const typeDefs = gql`
     patients(first: Int, after: String, where: PatientWhereInput): PatientConnection!
     patient(id: ID!): Patient
 
-    # Appointments
+    # Surgeries & Appointments
     appointments(status: AppointmentStatus): [Appointment!]!
     appointment(id: ID!): Appointment
     appointmentsByDate(date: DateTime!): [Appointment!]!
     appointmentsBySurgeon(surgeonId: ID!, startDate: DateTime, endDate: DateTime): [Appointment!]!
 
     # Surgeons
-    surgeons: [Surgeon!]!
+    surgeons(includeInactive: Boolean): [Surgeon!]!
     surgeon(id: ID!): Surgeon
     availableSurgeons(date: DateTime!): [Surgeon!]!
 

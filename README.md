@@ -17,28 +17,17 @@
 
 ### Sobre
 
-O **CRMed** é o cérebro operacional do **Hospital São Rafael** (especializado em cirurgias eletivas e plásticas). Centraliza a jornada do paciente — da entrada do lead ao acompanhamento pós-operatório — automatizando processos que antes dependiam de múltiplas ferramentas manuais.
+O **CRMed** é uma plataforma integrada de inteligência clínica e gestão de jornada do paciente, desenvolvida sob medida para o **Hospital São Rafael**. O sistema atua como o sistema nervoso central da operação hospitalar, unificando desde a prospecção de leads até o acompanhamento detalhado do pós-operatório.
 
-**Funcionalidades principais:**
+Através de uma arquitetura robusta e escalável, o CRMed elimina silos de informação ao conectar o setor de marketing (Leads), a equipe de atendimento (Recepção/Agenda) e o corpo clínico (Cirurgiões) em um ambiente único e seguro.
 
-- **Centralização de Leads** — Kanban interativo com arrastar e soltar (Drag & Drop) e Optimistic UI
-- **Filtros Avançados de Leads** — Por origem, procedimento, WhatsApp ativo, status de paciente e agendamento
-- **Gestão de Agendas** — Controle em tempo real da disponibilidade dos cirurgiões
-- **Automação WhatsApp & Chatbot Inteligente** — Disparos automáticos para confirmações, lembretes (RN05) e captura de leads através de um bot interativo com UX premium.
-- **Régua de Comunicação 360º** — Gestão proativa de agendamentos e **Pós-Operatório** em ciclos de 30 dias, 7 dias e 48 horas (Confirmação Crítica).
-- **Camada de Segurança LGPD** — Desafio de Identidade (validação de Data de Nascimento) obrigatório para pacientes acessarem dados sensíveis via WhatsApp.
-- **Sistema de Templates Blindado** — Redação dinâmica via Dashboard com injeção automática de opções da State Machine e *Graceful Degradation* (substituição inteligente de tags nulas).
-- **Autoatendimento (Self-Service)** — Consulta, confirmação e solicitação de reagendamento direto pelo WhatsApp sem intervenção humana inicial.
-- **Inatividade Consciente** — Monitoramento de falta de resposta que pausa o timer de 24h fora do horário comercial (Seg-Sex, 08h-18h), protegendo o fluxo da recepção.
-- **Notificações em Tempo Real** — Centro de notificações com marcar como lida individual ou em massa
+**Funcionalidades Estratégicas:**
 
-- **Gestão de Instâncias WhatsApp** — Criação, conexão via QR Code de forma nativa ao painel com integração direta a Evolution API Go (`EvoGo`).
-- **Conversão Lead → Paciente** — Fluxo completo de conversão com ficha clínica (pós-ops, documentos, histórico)
-- **Inteligência de Dados** — Dashboards de conversão, performance e ociosidade médica
-- **Import/Export Eficiente em Memória** — Importação via Upload REST e Leitura de Stream, exportação de Leads via CSV com auto-detecção de delimitadores, UTF-8 BOM e suporte a filtros ativos em tela.
-- **Auditoria Completa** — Rastreabilidade total de ações e alterações (RN06)
-- **UX Premium** — Skeletons Anti-CLS, Debounce de busca, animações 60fps e Empty States informativos
-- **Navegação Estável** — Sincronização inteligente URL-Estado para evitar loops e garantir persistência de filtros
+- **Gestão 360º de Leads e Pacientes:** Fluxo contínuo de conversão, auditoria completa de alterações e ficha clínica centralizada.
+- **Ecossistema de Agenda Inteligente:** Controle dinâmico de disponibilidade, gestão de profissionais de saúde e validação rigorosa de janelas de atendimento.
+- **Automação de Comunicação Crítica:** Integração nativa com WhatsApp para confirmações automáticas, chatbots de autoatendimento e monitoramento proativo de SLA de resposta.
+- **Segurança e Conformidade (LGPD):** Camada de proteção de dados sensíveis e controle de acesso baseado em funções (RBAC).
+- **Visualização e Performance:** Dashboards analíticos de conversão e produtividade, garantindo decisões baseadas em dados reais.
 
 ### Stack
 
@@ -247,7 +236,8 @@ pnpm infra:dev
 | **RN05** | **Ciclo de Notificações** — WhatsApp: 30d, 7d e 48h antes da consulta (inclui Pós-Op) | Crítica |
 | **RN06** | **Auditoria** — Toda tentativa de contato e alteração logada com data/hora/responsável | Alta |
 | **RN07** | **Segurança LGPD** — Validação de identidade (Nascimento) obrigatória para acesso a dados | Crítica |
-| **RN08** | **Expediente** — Timers de inatividade respeitam o horário comercial (08h-18h) | Média |
+| **RN08** | **Expediente** — Bloqueio de agendamentos fora do horário (08h-18h) com suporte a plantões extras até 23h | Alta |
+| **RN09** | **SLA Crítico** — Inatividade de 24h em confirmações obrigatórias gera alertas visuais urgentes | Alta |
 
 ### Variáveis de Ambiente
 
