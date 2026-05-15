@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { RiskPill } from "@crmed/ui";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton, CardListSkeleton } from "@/components/ui/skeleton";
@@ -654,15 +655,22 @@ const Patients = () => {
                               <p className="text-xs text-muted-foreground">{format(new Date(apt.scheduledAt), "dd/MM/yyyy 'às' HH:mm")} • Dr(a). {apt.surgeon?.name}</p>
                             </div>
                           </div>
-                          <Badge 
-                            className={cn(
-                              apt.status === 'COMPLETED' ? "bg-emerald-500 text-white" : 
-                              apt.status === 'SCHEDULED' || apt.status === 'CONFIRMED' ? "bg-blue-500 text-white" : 
-                              "bg-red-500 text-white", "border-none"
-                            )}
-                          >
-                            {apt.status === 'COMPLETED' ? 'Concluído' : apt.status === 'SCHEDULED' ? 'Agendado' : apt.status === 'CONFIRMED' ? 'Confirmado' : apt.status === 'CANCELLED' ? 'Cancelado' : 'Faltou'}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <RiskPill 
+                              score={apt.riskScore} 
+                              level={apt.riskLevel} 
+                              minimal={true}
+                            />
+                            <Badge 
+                              className={cn(
+                                apt.status === 'COMPLETED' ? "bg-emerald-500 text-white" : 
+                                apt.status === 'SCHEDULED' || apt.status === 'CONFIRMED' ? "bg-blue-500 text-white" : 
+                                "bg-red-500 text-white", "border-none"
+                              )}
+                            >
+                              {apt.status === 'COMPLETED' ? 'Concluído' : apt.status === 'SCHEDULED' ? 'Agendado' : apt.status === 'CONFIRMED' ? 'Confirmado' : apt.status === 'CANCELLED' ? 'Cancelado' : 'Faltou'}
+                            </Badge>
+                          </div>
                         </CardContent>
                       </Card>
                     ))

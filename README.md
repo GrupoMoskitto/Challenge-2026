@@ -66,6 +66,17 @@ infra/
 └── docker/           # Dockerfiles, Docker Compose e Evolution Go
 ```
 
+### Documentação
+
+A documentação completa do sistema está centralizada no diretório [`/docs`](./docs/index.md).
+
+- [**Arquitetura**](./docs/architecture.md) — Diagramas de serviços e fluxos de dados de ponta a ponta.
+- [**Banco de Dados**](./docs/database.md) — Diagrama ER completo e decisões de modelagem.
+- [**Regras de Negócio**](./docs/business-rules.md) — Detalhamento das RN01 a RN09 e camadas de enforcement.
+- [**Segurança e LGPD**](./docs/security.md) — Modelo RBAC, criptografia e proteção de dados sensíveis.
+- [**Guia de Funcionalidades**](./docs/index.md#funcionalidades) — Automação de WhatsApp, Leads e **Score de Risco**.
+- [**API Reference**](./docs/api.md) — Referência técnica de Queries, Mutations e Enums.
+
 ### Documentação Visual
 
 #### Diagrama ER do Banco de Dados

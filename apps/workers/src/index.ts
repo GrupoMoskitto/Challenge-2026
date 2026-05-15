@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '../../.env' });
 import { processDailyAppointments } from './jobs/dailyCron';
 import './queues/whatsapp.processor';
+import './queues/risk-score.processor';
 import { CronJob } from 'cron';
 import { logger } from './config/logger';
 import { NotificationService } from './config/notification.service';

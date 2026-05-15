@@ -1,6 +1,7 @@
 import { format, differenceInDays, startOfDay, addDays } from 'date-fns';
 import { prisma, TemplateParser } from '@crmed/database';
 import { whatsappQueue } from '../queues/whatsapp.processor';
+import { riskScoreQueue } from '../queues/risk-score.processor';
 import { logger } from '../config/logger';
 
 /**
@@ -42,6 +43,9 @@ export async function processDailyAppointments() {
     logger.info('Cron', `${appointments.length} consultas encontradas nos próximos 30 dias`);
 
     for (const appointment of appointments) {
+      // Recalculate risk score for every appointment found
+      await riskScoreQueue.add('recalculate-daily', { appointmentId: appointment.id });
+
       const leadData = appointment.patient?.lead;
       if (!leadData || !leadData.phone) continue;
 

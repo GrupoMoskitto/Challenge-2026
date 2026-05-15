@@ -133,6 +133,9 @@ model Appointment {
   procedure     String
   scheduledAt   DateTime
   status        AppointmentStatus @default(SCHEDULED)
+  riskScore     Int               @default(100)
+  riskLevel     RiskLevel         @default(LOW)
+  riskUpdatedAt DateTime?
   notes         String?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
@@ -145,6 +148,12 @@ model Appointment {
   @@index([surgeonId])
   @@index([scheduledAt])
   @@index([status])
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 model User {

@@ -2,7 +2,7 @@
   "name": "@crmed/ui",
   "version": "1.0.0",
   "private": true,
-  "main": "./src/index.ts",
+  "main": "./src/index.tsx",
   "scripts": {
     "lint": "eslint src/"
   },

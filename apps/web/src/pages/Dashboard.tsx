@@ -34,9 +34,11 @@ import {
   Funnel,
 } from "recharts";
 import { useQuery } from "@apollo/client";
-import { GET_DASHBOARD_STATS, GET_LEADS, GET_APPOINTMENTS, GET_PERFORMANCE_METRICS } from "@/lib/queries";
-import { format, subDays, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
+import { GET_DASHBOARD_STATS, GET_LEADS, GET_APPOINTMENTS, GET_PERFORMANCE_METRICS, GET_NO_SHOW_RISK_SUMMARY } from "@/lib/queries";
+import { NoShowRiskSection } from "@/components/dashboard/NoShowRiskSection";
+import { format, subDays, startOfWeek, endOfWeek, isWithinInterval, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 const TREND_CHART_DAYS = 14;
 
@@ -127,6 +129,15 @@ const Dashboard = () => {
     fetchPolicy: 'network-only',
   });
   const { data: appointmentsData, loading: appointmentsLoading } = useQuery(GET_APPOINTMENTS);
+
+  const riskVars = useMemo(() => ({
+    today: new Date().toISOString(),
+    sevenDaysFromNow: addDays(new Date(), 7).toISOString(),
+  }), []);
+
+  const { data: riskData, loading: riskLoading, error: riskError, refetch: refetchRisk } = useQuery(GET_NO_SHOW_RISK_SUMMARY, {
+    variables: riskVars,
+  });
 
   const leads = useMemo(() => leadsData?.leads?.edges?.map((e: any) => e.node) || [], [leadsData]);
   const appointments = appointmentsData?.appointments || [];
@@ -268,6 +279,7 @@ const Dashboard = () => {
       icon: TrendingUp, 
       trend: conversionRate >= 20 ? "up" : conversionRate >= 10 ? "neutral" : "down",
       color: "bg-green-500",
+      progress: conversionRate
     },
     { 
       label: "Taxa de Perda", 
@@ -276,6 +288,7 @@ const Dashboard = () => {
       icon: TrendingDown, 
       trend: lostRate <= 15 ? "up" : "down",
       color: "bg-red-500",
+      progress: lostRate
     },
     { 
       label: "Consultas Hoje", 
@@ -284,6 +297,9 @@ const Dashboard = () => {
       icon: CalendarCheck, 
       trend: "neutral",
       color: "bg-purple-500",
+      progress: todayAppointments.length > 0 
+        ? Math.round((todayAppointments.filter((a: any) => ['CONFIRMED', 'COMPLETED'].includes(a.status)).length / todayAppointments.length) * 100)
+        : 0
     },
     { 
       label: "Leads Qualificados", 
@@ -292,6 +308,7 @@ const Dashboard = () => {
       icon: Phone, 
       trend: "up",
       color: "bg-yellow-500",
+      progress: qualifiedRate
     },
     { 
       label: "Cirurgiões Ativos", 
@@ -387,74 +404,94 @@ const Dashboard = () => {
           {kpis.map((kpi) => (
             <Card key={kpi.label} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
-                <div className={`h-10 w-10 rounded-lg ${kpi.color} flex items-center justify-center mb-3`}>
+                <div className={`h-10 w-10 rounded-lg ${kpi.color} flex items-center justify-center mb-3 shadow-lg ${kpi.color.replace('bg-', 'shadow-')}/20`}>
                   <kpi.icon className="h-5 w-5 text-white" />
                 </div>
                 <div className="flex items-center gap-1 mb-1">
-                  <p className="text-2xl font-bold">{kpi.value}</p>
+                  <p className="text-2xl font-bold tracking-tighter tabular-nums">{kpi.value}</p>
                   {kpi.trend === 'up' && <ArrowUpRight className="h-4 w-4 text-green-500" />}
                   {kpi.trend === 'down' && <ArrowDownRight className="h-4 w-4 text-red-500" />}
                 </div>
-                <p className="text-sm text-muted-foreground">{kpi.label}</p>
-                <p className="text-xs text-muted-foreground mt-1">{kpi.subValue}</p>
+                <p className="text-sm font-bold text-foreground/90">{kpi.label}</p>
+                {kpi.progress !== undefined ? (
+                  <div className="mt-3 space-y-1.5">
+                    <div className="h-1.5 w-full bg-muted/40 rounded-full overflow-hidden">
+                      <div 
+                        className={cn("h-full transition-all duration-1000", kpi.color)}
+                        style={{ width: `${kpi.progress}%` }}
+                      />
+                    </div>
+                    <p className="text-[9px] font-black uppercase tracking-tighter text-muted-foreground/60">
+                      {kpi.progress}% concluído
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1 font-medium">{kpi.subValue}</p>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Performance Metrics */}
+        {/* Performance Metrics & Risk */}
         {performanceData?.performanceMetrics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <NoShowRiskSection 
+              appointments={riskData?.appointments || []} 
+              isLoading={riskLoading} 
+              error={riskError}
+              onRetry={refetchRisk}
+            />
+            <Card className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
-                <div className="h-10 w-10 rounded-lg bg-blue-500 flex items-center justify-center mb-3">
+                <div className="h-10 w-10 rounded-lg bg-blue-500 flex items-center justify-center mb-3 shadow-lg shadow-blue-500/20">
                   <Clock className="h-5 w-5 text-white" />
                 </div>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold tracking-tighter tabular-nums">
                   {performanceData.performanceMetrics.avgFirstContactTime 
                     ? `${performanceData.performanceMetrics.avgFirstContactTime.toFixed(1)}h` 
                     : '-'}
                 </p>
-                <p className="text-sm text-muted-foreground">Tempo até 1º contato</p>
+                <p className="text-sm font-bold text-foreground/90">Tempo até 1º contato</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
-                <div className="h-10 w-10 rounded-lg bg-green-500 flex items-center justify-center mb-3">
+                <div className="h-10 w-10 rounded-lg bg-green-500 flex items-center justify-center mb-3 shadow-lg shadow-green-500/20">
                   <TrendingUp className="h-5 w-5 text-white" />
                 </div>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold tracking-tighter tabular-nums">
                   {performanceData.performanceMetrics.avgConversionTime 
                     ? `${performanceData.performanceMetrics.avgConversionTime.toFixed(1)} dias` 
                     : '-'}
                 </p>
-                <p className="text-sm text-muted-foreground">Tempo até conversão</p>
+                <p className="text-sm font-bold text-foreground/90">Tempo até conversão</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
-                <div className="h-10 w-10 rounded-lg bg-purple-500 flex items-center justify-center mb-3">
+                <div className="h-10 w-10 rounded-lg bg-purple-500 flex items-center justify-center mb-3 shadow-lg shadow-purple-500/20">
                   <CalendarCheck className="h-5 w-5 text-white" />
                 </div>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold tracking-tighter tabular-nums">
                   {performanceData.performanceMetrics.avgSchedulingTime 
                     ? `${performanceData.performanceMetrics.avgSchedulingTime.toFixed(1)} dias` 
                     : '-'}
                 </p>
-                <p className="text-sm text-muted-foreground">Tempo até agendamento</p>
+                <p className="text-sm font-bold text-foreground/90">Tempo até agendamento</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
-                <div className="h-10 w-10 rounded-lg bg-yellow-500 flex items-center justify-center mb-3">
+                <div className="h-10 w-10 rounded-lg bg-yellow-500 flex items-center justify-center mb-3 shadow-lg shadow-yellow-500/20">
                   <Phone className="h-5 w-5 text-white" />
                 </div>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold tracking-tighter tabular-nums">
                   {performanceData.performanceMetrics.responseRate 
                     ? `${performanceData.performanceMetrics.responseRate.toFixed(1)}%` 
                     : '-'}
                 </p>
-                <p className="text-sm text-muted-foreground">Taxa de resposta</p>
+                <p className="text-sm font-bold text-foreground/90">Taxa de resposta</p>
               </CardContent>
             </Card>
           </div>
@@ -769,53 +806,69 @@ const Dashboard = () => {
           </Card>
 
           {/* Today's Appointments */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-medium">Consultas de Hoje</CardTitle>
-              <Badge variant="outline" className="font-bold text-primary">{todayAppointments.length} consultas</Badge>
+          <Card 
+            className="shadow-sm hover:shadow-md transition-all cursor-pointer group/card border-zinc-800 hover:border-primary/20"
+            onClick={() => navigate('/schedule')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <div>
+                <CardTitle className="text-base font-semibold group-hover/card:text-primary transition-colors">Consultas de Hoje</CardTitle>
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+                  {format(today, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                </p>
+              </div>
+              {todayAppointments.length > 0 && (
+                <Badge variant="secondary" className="font-bold bg-primary/10 text-primary border-none">
+                  {todayAppointments.length} agendadas
+                </Badge>
+              )}
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {todayAppointments.length === 0 ? (
-                  <div className="py-10 text-center border-2 border-dashed rounded-xl bg-muted/20">
-                    <Calendar className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                    <p className="text-xs text-muted-foreground">Nenhuma consulta agendada para hoje</p>
+                  <div className="py-24 flex flex-col items-center justify-center text-center px-6 rounded-3xl bg-muted/[0.02] border-2 border-dashed border-muted-foreground/10 group-hover/card:border-primary/30 transition-all duration-500 shadow-inner">
+                    <div className="relative mb-4">
+                      <div className="h-16 w-16 rounded-full bg-primary/5 flex items-center justify-center relative z-10 group-hover/card:rotate-12 transition-transform duration-300">
+                        <CalendarCheck className="h-8 w-8 text-primary/40" />
+                      </div>
+                    </div>
+                    <h3 className="text-sm font-bold text-foreground mb-1">Tudo em ordem por aqui!</h3>
+                    <p className="text-xs text-muted-foreground max-w-[200px] leading-relaxed">
+                      Não há consultas agendadas para hoje. Clique em qualquer lugar para ver a agenda completa.
+                    </p>
                   </div>
                 ) : (
-                  todayAppointments.map((apt: any) => (
-                    <div 
-                      key={apt.id} 
-                      className="flex items-center justify-between p-3 rounded-xl border border-transparent hover:border-primary/20 hover:bg-primary/5 cursor-pointer transition-all group"
-                      onClick={() => {
-                        const date = format(new Date(apt.scheduledAt), 'yyyy-MM-dd');
-                        navigate(`/schedule?date=${date}&appointmentId=${apt.id}`);
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                          <Clock className="h-5 w-5 text-primary" />
+                  <div className="space-y-3">
+                    {todayAppointments.map((apt: any) => (
+                      <div 
+                        key={apt.id} 
+                        className="flex items-center justify-between p-3.5 rounded-xl border border-border/50 bg-card group-hover/card:border-primary/30 transition-all shadow-sm"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Still allow clicking specific appointment
+                          const date = format(new Date(apt.scheduledAt), 'yyyy-MM-dd');
+                          navigate(`/schedule?date=${date}&appointmentId=${apt.id}`);
+                        }}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex flex-col items-center justify-center h-12 w-12 rounded-xl bg-muted/30 group-hover/card:bg-primary/10 transition-colors border border-transparent group-hover/card:border-primary/20">
+                            <span className="text-[10px] font-black text-muted-foreground group-hover/card:text-primary uppercase tracking-tighter">HOJE</span>
+                            <span className="text-sm font-black text-foreground group-hover/card:text-primary leading-none -mt-1">{format(new Date(apt.scheduledAt), 'HH:mm')}</span>
+                          </div>
+                          <div>
+                            <p className="font-bold text-sm text-foreground group-hover/card:text-primary transition-colors">{apt.patient?.lead?.name || 'Paciente'}</p>
+                            <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                              <span className="text-foreground/70 font-semibold">{apt.surgeon?.name}</span> • {apt.procedure}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-sm group-hover:text-primary transition-colors">{apt.patient?.name || 'Paciente'}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            <span className="font-bold text-foreground/80">{format(new Date(apt.scheduledAt), 'HH:mm')}</span> · {apt.surgeon?.name} · {apt.procedure}
-                          </p>
-                        </div>
+                        <Badge className={cn("text-[10px] font-bold h-6 px-2.5 rounded-md shadow-none", appointmentStatusColors[apt.status] || 'bg-gray-500')}>
+                          {appointmentStatusLabels[apt.status] || apt.status}
+                        </Badge>
                       </div>
-                      <Badge className={`text-[10px] h-5 text-white ${appointmentStatusColors[apt.status] || 'bg-gray-500'}`}>
-                        {appointmentStatusLabels[apt.status] || apt.status}
-                      </Badge>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
-              <Button 
-                variant="outline" 
-                className="w-full mt-4 text-xs h-9 border-dashed hover:border-primary hover:text-primary transition-all"
-                onClick={() => navigate('/schedule')}
-              >
-                Ver Agenda Completa
-              </Button>
             </CardContent>
           </Card>
         </div>

@@ -1,3 +1,23 @@
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface RiskSignal {
+  key: string;
+  delta: number;
+  applied: boolean;
+}
+
+export interface AppointmentRiskContext {
+  appointmentId: string;
+  scheduledAt: Date;
+  status: string;
+  patientPreviousAppointments: Array<{ status: string; scheduledAt: Date }>;
+  confirmationNotificationSentAt?: Date;
+  confirmationRespondedAt?: Date;
+  slaBreached: boolean;
+  leadStatus: string;
+  lastOutboundContactAt?: Date;
+}
+
 export interface Lead {
   id: string;
   name: string;

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { RiskPill } from "@crmed/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -490,9 +491,16 @@ const Agenda = () => {
                             </p>
                             <div className="flex items-center justify-between gap-1">
                               <span className="text-[10px] md:text-xs text-muted-foreground truncate font-medium">{appointment.procedure}</span>
-                              <Badge className={cn("h-4 text-[8px] md:text-[9px] px-1 md:px-1.5 shrink-0", statusColors[appointment.status])}>
-                                {statusLabels[appointment.status]}
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <RiskPill 
+                                  score={appointment.riskScore} 
+                                  level={appointment.riskLevel} 
+                                  minimal={true}
+                                />
+                                <Badge className={cn("h-4 text-[8px] md:text-[9px] px-1 md:px-1.5 shrink-0", statusColors[appointment.status])}>
+                                  {statusLabels[appointment.status]}
+                                </Badge>
+                              </div>
                             </div>
                           </div>
                         ) : (

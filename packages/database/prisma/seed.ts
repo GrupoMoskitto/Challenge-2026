@@ -5,7 +5,7 @@ import { subDays, addDays, setHours, setMinutes } from 'date-fns';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🚀 Starting MEGA-RICH seed process (30-day timeline)...');
+  console.log('🚀 Starting seed process...');
 
   await prisma.whatsappSession.deleteMany();
   await prisma.notification.deleteMany();
@@ -57,7 +57,7 @@ async function main() {
   const generateCpf = () => `${Math.floor(100+Math.random()*899)}.${Math.floor(100+Math.random()*899)}.${Math.floor(100+Math.random()*899)}-${Math.floor(10+Math.random()*89)}`;
   const randomItem = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
 
-  console.log('📈 Seeding 60 leads with historical data...');
+  console.log('📈 Seeding 60 leads...');
   for (let i = 0; i < 60; i++) {
     const creationDate = subDays(new Date(), Math.floor(Math.random() * 30));
     const status = i < 10 ? LeadStatus.CONVERTED : 
@@ -65,10 +65,9 @@ async function main() {
                    i < 45 ? LeadStatus.CONTACTED :
                    i < 55 ? LeadStatus.NEW : LeadStatus.LOST;
     
-    const name = `Lead ${i + 1}`;
     const lead = await prisma.lead.create({
       data: {
-        name,
+        name: `Lead ${i + 1}`,
         email: `lead${i + 1}@example.com`,
         phone: `55119${Math.floor(70000000 + Math.random() * 29999999)}`,
         cpf: generateCpf(),
@@ -103,17 +102,15 @@ async function main() {
                 leadId: lead.id,
                 dateOfBirth: new Date(1980 + Math.floor(Math.random() * 25), Math.floor(Math.random() * 12), 1),
                 medicalRecord: `HSR-26-${100 + i}`,
-                sex: Math.random() > 0.5 ? 'Feminino' : 'Masculino',
-                height: 150 + Math.floor(Math.random() * 40),
-                weight: 50 + Math.floor(Math.random() * 50),
-                howMet: randomItem(origins),
-                address: 'Rua Exemplo, 123',
                 createdAt: lead.updatedAt
             }
         });
 
         let apptDate = addDays(patient.createdAt, 2 + Math.floor(Math.random() * 10));
-        apptDate = setHours(setMinutes(apptDate, 0), 9 + Math.floor(Math.random() * 8)); // Entre 09:00 e 16:00
+        apptDate = setHours(setMinutes(apptDate, 0), 9 + Math.floor(Math.random() * 8));
+
+        // Simplified risk distribution for demo
+        const apptStatus = i % 3 === 0 ? 'ATTENTION_REQUIRED' : (i % 2 === 0 ? 'CONFIRMED' : 'SCHEDULED');
 
         await prisma.appointment.create({
             data: {
@@ -121,20 +118,9 @@ async function main() {
                 surgeonId: randomItem(surgeons).id,
                 procedure: lead.procedure!,
                 scheduledAt: apptDate,
-                status: apptDate < new Date() ? 'COMPLETED' : 'SCHEDULED',
-                createdAt: patient.createdAt
-            }
-        });
-
-        await prisma.auditLog.create({
-            data: {
-                entityType: 'Lead',
-                entityId: lead.id,
-                action: 'STATUS_CHANGE',
-                oldValue: 'QUALIFIED',
-                newValue: 'CONVERTED',
-                reason: 'Paciente aceitou o orçamento',
-                userId: randomItem(users).id,
+                status: apptStatus as any,
+                riskScore: apptStatus === 'ATTENTION_REQUIRED' ? 40 : (apptStatus === 'CONFIRMED' ? 100 : 80),
+                riskLevel: apptStatus === 'ATTENTION_REQUIRED' ? 'HIGH' : (apptStatus === 'CONFIRMED' ? 'LOW' : 'LOW'),
                 createdAt: patient.createdAt
             }
         });
@@ -143,63 +129,29 @@ async function main() {
 
   console.log('🎯 Seeding special dashboard scenarios...');
   
-  const patientVip = await prisma.patient.findFirst({ include: { lead: true } });
-  if (patientVip) {
-      await prisma.appointment.create({
-          data: {
-              patientId: patientVip.id,
-              surgeonId: surgeons[0].id,
-              procedure: 'Lipo HD Premium',
-              scheduledAt: setHours(setMinutes(addDays(new Date(), 1), 0), 9),
-              status: 'CONFIRMED'
-          }
-      });
-  }
-
   const patients = await prisma.patient.findMany({ take: 3 });
   for (const p of patients) {
       await prisma.complaint.create({
           data: {
               patientId: p.id,
               area: 'Financeiro',
-              description: 'Dúvida sobre parcelamento no boleto',
+              description: 'Dúvida sobre parcelamento',
               status: 'OPEN'
           }
       });
   }
 
-  console.log('📝 Seeding standard message templates...');
+  console.log('📝 Seeding message templates...');
   await prisma.messageTemplate.createMany({
     data: [
-      { 
-        name: '30 Dias - Preparativos e Exames', 
-        channel: 'WHATSAPP', 
-        content: 'Olá, {{paciente}}! Tudo bem? ✨\n\nFaltam 30 dias para a sua cirurgia de *{{procedimento}}*. 🏥\n\nEste é o momento ideal para darmos início aos preparativos! Lembre-se de realizar todos os exames solicitados.\n\nComo podemos te ajudar hoje?\n1️⃣ Já realizei os exames\n2️⃣ Tenho dúvidas sobre o preparo\n3️⃣ Preciso reagendar', 
-        triggerDays: 30 
-      },
-      { 
-        name: '7 Dias - Orientações e Jejum', 
-        channel: 'WHATSAPP', 
-        content: 'Oi, {{paciente}}! Falta apenas uma semana para a sua transformação! ✨\n\nPara que tudo ocorra perfeitamente na sua {{procedimento}}, por favor, atente-se ao jejum e orientações.\n\nEstá tudo pronto?\n1️⃣ Sim, tudo certo!\n2️⃣ Preciso de orientações\n3️⃣ Preciso reagendar', 
-        triggerDays: 7 
-      },
-      { 
-        name: '48 Horas - Confirmação Crítica', 
-        channel: 'WHATSAPP', 
-        content: '🚨 *URGENTE: CONFIRMAÇÃO OBRIGATÓRIA* 🚨\n\nOlá, {{paciente}}. Sua cirurgia de {{procedimento}} com o Dr. {{medico}} é daqui a 48h!\n\nPrecisamos da sua confirmação imediata:\n1️⃣ *SIM, CONFIRMO MINHA PRESENÇA*\n2️⃣ *SOLICITAR REAGENDAMENTO*\n3️⃣ *CANCELAR CIRURGIA*', 
-        triggerDays: 2 
-      },
-      { 
-        name: 'Pós-Operatório - Acompanhamento', 
-        channel: 'WHATSAPP', 
-        content: 'Olá, {{paciente}}! Como está sua recuperação da {{procedimento}}? ✨\n\nLembrete da sua consulta de retorno:\n📅 Data: *{{data}}*\n\nPodemos confirmar?\n1️⃣ Sim, estarei lá!\n2️⃣ Preciso reagendar\n3️⃣ Falar com atendente', 
-        triggerDays: -1 
-      },
+      { name: '30 Dias - Preparativos', channel: 'WHATSAPP', content: 'Olá, {{paciente}}! Faltam 30 dias...', triggerDays: 30 },
+      { name: '7 Dias - Orientações', channel: 'WHATSAPP', content: 'Oi, {{paciente}}! Falta apenas uma semana...', triggerDays: 7 },
+      { name: '48 Horas - Confirmação', channel: 'WHATSAPP', content: '🚨 CONFIRMAÇÃO OBRIGATÓRIA 🚨...', triggerDays: 2 },
+      { name: 'Pós-Op - Acompanhamento', channel: 'WHATSAPP', content: 'Olá, {{paciente}}! Como está sua recuperação...', triggerDays: -1 },
     ]
   });
 
-  console.log('✅ MEGA-RICH dataset generated successfully.');
-  console.log('🚀 Seed finished!');
+  console.log('✅ Seed finished!');
 }
 
 main()

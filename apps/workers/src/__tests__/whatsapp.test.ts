@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, MockInstance } from 'v
 import { processDailyAppointments } from '../jobs/dailyCron';
 import { WhatsappSender } from '../whatsapp/whatsapp.sender';
 import { whatsappQueue } from '../queues/whatsapp.processor';
+import { riskScoreQueue } from '../queues/risk-score.processor';
 import { prisma } from '@crmed/database';
 
 vi.mock('../whatsapp/whatsapp.sender', () => ({
@@ -14,6 +15,13 @@ vi.mock('../queues/whatsapp.processor', () => ({
   whatsappQueue: {
     add: vi.fn(),
   }
+}));
+
+vi.mock('../queues/risk-score.processor', () => ({
+  riskScoreQueue: {
+    add: vi.fn(),
+  },
+  riskScoreWorker: {}
 }));
 
 describe('RN05 - WhatsApp Notifications', () => {
@@ -50,7 +58,10 @@ describe('RN05 - WhatsApp Notifications', () => {
         scheduledAt: futureDate,
         status: 'SCHEDULED',
         procedure: 'Consulta',
-        patient: { id: 'lead-1', name: 'Teste 1', phone: '11999999999' },
+        patient: { 
+          id: 'p-1',
+          lead: { id: 'lead-1', name: 'Teste 1', phone: '11999999999' }
+        },
         surgeon: { name: 'Dr. Teste' }
       }
     ]);
@@ -81,7 +92,10 @@ describe('RN05 - WhatsApp Notifications', () => {
       {
         id: 'apt-1',
         scheduledAt: futureDate,
-        patient: { id: 'lead-1', name: 'Teste', phone: '11999999999' },
+        patient: { 
+          id: 'p-1',
+          lead: { id: 'lead-1', name: 'Teste', phone: '11999999999' }
+        },
       }
     ]);
 
