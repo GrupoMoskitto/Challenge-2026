@@ -16,9 +16,16 @@ export const typeDefs = gql`
   enum AppointmentStatus {
     SCHEDULED
     CONFIRMED
+    ATTENTION_REQUIRED
     COMPLETED
     CANCELLED
     NO_SHOW
+  }
+
+  enum RiskLevel {
+    LOW
+    MEDIUM
+    HIGH
   }
 
   enum BudgetStatus {
@@ -266,6 +273,10 @@ export const typeDefs = gql`
     procedure: String!
     scheduledAt: DateTime!
     status: AppointmentStatus!
+    riskScore: Int!
+    riskLevel: RiskLevel!
+    riskUpdatedAt: DateTime
+    riskSignals: [RiskSignal!]!
     notes: String
     patient: Patient!
     surgeon: Surgeon!
@@ -273,6 +284,12 @@ export const typeDefs = gql`
     notifications: [Notification!]!
     createdAt: DateTime!
     updatedAt: DateTime!
+  }
+
+  type RiskSignal {
+    key: String!
+    delta: Int!
+    applied: Boolean!
   }
 
   type User {
@@ -789,6 +806,7 @@ export const typeDefs = gql`
     updateAppointment(input: UpdateAppointmentInput!): Appointment!
     updateAppointmentStatus(input: UpdateAppointmentStatusInput!): Appointment!
     deleteAppointment(input: DeleteAppointmentInput!): DeleteResult!
+    recalculateRiskScore(appointmentId: ID!): Appointment!
 
     # Surgeons
     createSurgeon(input: CreateSurgeonInput!): Surgeon!
@@ -889,7 +907,13 @@ export const typeDefs = gql`
     patient(id: ID!): Patient
 
     # Surgeries & Appointments
-    appointments(status: AppointmentStatus): [Appointment!]!
+    appointments(
+      status: AppointmentStatus, 
+      status_in: [AppointmentStatus!],
+      riskLevel: RiskLevel,
+      scheduledAt_gte: DateTime,
+      scheduledAt_lte: DateTime
+    ): [Appointment!]!
     appointment(id: ID!): Appointment
     appointmentsByDate(date: DateTime!): [Appointment!]!
     appointmentsBySurgeon(surgeonId: ID!, startDate: DateTime, endDate: DateTime): [Appointment!]!

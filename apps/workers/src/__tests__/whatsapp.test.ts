@@ -16,6 +16,13 @@ vi.mock('../queues/whatsapp.processor', () => ({
   }
 }));
 
+vi.mock('../queues/risk-score.processor', () => ({
+  riskScoreQueue: {
+    add: vi.fn(),
+  },
+  riskScoreWorker: {}
+}));
+
 describe('RN05 - WhatsApp Notifications', () => {
   let findManyAppointmentsSpy: MockInstance;
   let findManyTemplatesSpy: MockInstance;
@@ -50,7 +57,10 @@ describe('RN05 - WhatsApp Notifications', () => {
         scheduledAt: futureDate,
         status: 'SCHEDULED',
         procedure: 'Consulta',
-        patient: { id: 'lead-1', name: 'Teste 1', phone: '11999999999' },
+        patient: { 
+          id: 'p-1',
+          lead: { id: 'lead-1', name: 'Teste 1', phone: '11999999999' }
+        },
         surgeon: { name: 'Dr. Teste' }
       }
     ]);
@@ -81,7 +91,10 @@ describe('RN05 - WhatsApp Notifications', () => {
       {
         id: 'apt-1',
         scheduledAt: futureDate,
-        patient: { id: 'lead-1', name: 'Teste', phone: '11999999999' },
+        patient: { 
+          id: 'p-1',
+          lead: { id: 'lead-1', name: 'Teste', phone: '11999999999' }
+        },
       }
     ]);
 

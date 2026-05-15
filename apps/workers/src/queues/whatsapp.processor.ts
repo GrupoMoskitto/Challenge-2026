@@ -2,6 +2,7 @@ import { Queue, Worker, Job, ConnectionOptions } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import { WhatsappSender } from '../whatsapp/whatsapp.sender';
 import { prisma } from '@crmed/database';
+import { riskScoreQueue } from './risk-score.processor';
 import { logger } from '../config/logger';
 
 export const WHATSAPP_QUEUE_NAME = 'whatsapp-reminders';
@@ -48,6 +49,13 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
 
       if (result.status === 'blocked_by_dev_sandbox') {
          logger.info('Worker', `Job ${job.id} processado (bloqueado pelo Sandbox)`);
+      }
+
+      // TRIGGER: Recalculate risk score if it's an appointment notification
+      if (appointmentId) {
+        await riskScoreQueue.add('recalculate', { appointmentId }, {
+          delay: 5000, // Small delay to ensure DB is updated with WHATSAPP_SENT log
+        });
       }
 
       // RN06: Successful delivery audit

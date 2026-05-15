@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { RiskPill } from "@crmed/ui";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -647,20 +648,30 @@ const Leads = () => {
 
                       <div className="mt-4 pt-3 border-t border-border/30 flex items-center justify-between shrink-0">
                         <time className="text-[10px] text-muted-foreground font-semibold">{format(new Date(l.createdAt), "dd/MM/yy")}</time>
-                        {(l.appointments && l.appointments.length > 0) ? (
-                          <div 
-                            className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors border border-primary/20"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const latest = l.appointments![0];
-                              const date = latest.scheduledAt.split('T')[0];
-                              navigate(`/schedule?date=${date}&appointmentId=${latest.id}`);
-                            }}
-                            data-no-drag="true"
-                          >
-                            <CalendarCheck className="h-3 w-3" /><span className="text-[10px] font-black">{l.appointments.length}</span>
-                          </div>
-                        ) : <span className="text-[9px] uppercase text-muted-foreground/20 font-black tracking-tighter">Sem agenda</span>}
+                        <div className="flex items-center gap-1.5">
+                          {(l.appointments && l.appointments.length > 0) && (
+                            <div className="flex items-center gap-1">
+                               <RiskPill 
+                                 score={l.appointments[0].riskScore} 
+                                 level={l.appointments[0].riskLevel as any} 
+                                 minimal={true}
+                               />
+                               <div 
+                                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors border border-primary/20"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const latest = l.appointments![0];
+                                  const date = latest.scheduledAt.split('T')[0];
+                                  navigate(`/schedule?date=${date}&appointmentId=${latest.id}`);
+                                }}
+                                data-no-drag="true"
+                              >
+                                <CalendarCheck className="h-3 w-3" /><span className="text-[10px] font-black">{l.appointments.length}</span>
+                              </div>
+                            </div>
+                          )}
+                          {(!l.appointments || l.appointments.length === 0) && <span className="text-[9px] uppercase text-muted-foreground/20 font-black tracking-tighter">Sem agenda</span>}
+                        </div>
                       </div>
                     </Card>
                   ))}
@@ -889,10 +900,18 @@ const Leads = () => {
             <div className="grid gap-3">{statusColumns.map(c => <div key={c.status} className="flex items-center gap-4"><div className={cn("w-4 h-4 rounded-full border shadow-sm", c.color.replace('border-t-', 'bg-'))} /><span className="text-sm font-bold">{c.label}</span></div>)}</div>
           </div>
           <div className="space-y-4 pt-6 border-t">
+            <h4 className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Níveis de Risco</h4>
+            <div className="grid gap-3">
+              <div className="flex items-center gap-4"><div className="w-3 h-3 rounded-full bg-red-500 shadow-sm" /><span className="text-sm font-bold">Risco Alto</span></div>
+              <div className="flex items-center gap-4"><div className="w-3 h-3 rounded-full bg-amber-500 shadow-sm" /><span className="text-sm font-bold">Risco Médio</span></div>
+              <div className="flex items-center gap-4"><div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm" /><span className="text-sm font-bold">Risco Baixo</span></div>
+            </div>
+          </div>
+          <div className="space-y-4 pt-6 border-t">
             <h4 className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Ícones</h4>
             <div className="grid gap-4">
-              <div className="flex items-center gap-4 text-sm font-medium"><CalendarCheck className="h-5 w-5 text-primary" /><span>Lead com agendamento</span></div>
-              <div className="flex items-center gap-4 text-sm font-medium"><MessageCircle className="h-5 w-5 text-green-500" /><span>WhatsApp ativo</span></div>
+              <div className="flex items-center gap-4 text-sm font-bold"><CalendarCheck className="h-5 w-5 text-primary" /><span>Lead com agendamento</span></div>
+              <div className="flex items-center gap-4 text-sm font-bold"><MessageCircle className="h-5 w-5 text-green-500" /><span>WhatsApp ativo</span></div>
             </div>
           </div>
         </div>

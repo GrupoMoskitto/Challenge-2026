@@ -40,7 +40,31 @@ const encodeBase64 = (id: string): string => {
 };
 
 const decodeBase64 = (encoded: string): string => {
-  return Buffer.from(encoded, 'base64url').toString('utf-8');
+  if (!encoded || typeof encoded !== 'string') return encoded;
+  
+  // Heuristics for already decoded IDs (cuids, uuids, or prefixed test IDs)
+  if (encoded.startsWith('c') && encoded.length >= 20) return encoded; // cuid
+  if (encoded.includes('-') && encoded.length >= 8) return encoded;    // uuid or lead-123
+  if (encoded.length < 8) return encoded;                         // too short for base64url-cuid
+
+  try {
+    const decoded = Buffer.from(encoded, 'base64url').toString('utf-8');
+    
+    // Check if the decoded string looks like a cuid (starts with c) or has a prefix-id format
+    const isLikelyCuid = decoded.startsWith('c') && decoded.length >= 20;
+    const isPrefixed = (decoded.includes(':') || decoded.includes('-')) && decoded.length > 5;
+    
+    // eslint-disable-next-line no-control-regex
+    const hasControlChars = /[\u0000-\u0008\u000E-\u001F\u007F]/.test(decoded);
+    
+    if ((isLikelyCuid || isPrefixed) && !hasControlChars) {
+      return decoded;
+    }
+    
+    return encoded;
+  } catch {
+    return encoded;
+  }
 };
 
 export const IDScalar = new GraphQLScalarType({

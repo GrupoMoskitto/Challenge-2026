@@ -3,6 +3,8 @@ import { format, subDays } from 'date-fns';
 import { DateTimeScalar, IDScalar, JSONScalar } from '../scalars';
 import { hashPassword, comparePassword, generateToken, generateRefreshToken, verifyRefreshToken, checkRateLimit, resetRateLimit, COOKIE_OPTIONS, isTokenRevoked, revokeUserTokens, clearTokenRevocation } from '../../auth';
 import { dispatchLeadWelcome } from '../../services/whatsappQueue';
+import { RiskScoreService } from '../../services/risk-score.service';
+import { RiskLevel } from '@crmed/types';
 import { assertAuthenticated, assertRole, enforceStatusChange, validateEnum } from '../../config/rbac';
 import { logger } from '../../config/logger';
 import fs from 'fs';
@@ -493,6 +495,17 @@ export const resolvers = {
     surgeon: async (parent: { surgeonId: string }) => {
       return prisma.surgeon.findUnique({ where: { id: parent.surgeonId } });
     },
+    riskSignals: async (parent: { id: string }) => {
+      const auditLog = await prisma.auditLog.findFirst({
+        where: { entityId: parent.id, action: 'RISK_SCORE_UPDATED' },
+        orderBy: { createdAt: 'desc' }
+      });
+      if (auditLog && auditLog.newValue) {
+        const newValue = auditLog.newValue as any;
+        return newValue.signals || [];
+      }
+      return [];
+    },
   },
   Budget: {
     patient: async (parent: { patientId: string }) => {
@@ -731,11 +744,26 @@ export const resolvers = {
         },
       });
     },
-    appointments: async (_: unknown, { status }: { status?: AppointmentStatus }, context: Context) => {
+    appointments: async (_: unknown, { status, status_in, riskLevel, scheduledAt_gte, scheduledAt_lte }: { 
+      status?: AppointmentStatus, 
+      status_in?: AppointmentStatus[],
+      riskLevel?: RiskLevel,
+      scheduledAt_gte?: string | Date,
+      scheduledAt_lte?: string | Date
+    }, context: Context) => {
       assertAuthenticated(context);
-      
-      const whereClause: Prisma.AppointmentWhereInput = status ? { status } : {};
-      
+
+      const whereClause: Prisma.AppointmentWhereInput = {
+        ...(status ? { status } : {}),
+        ...(status_in ? { status: { in: status_in } } : {}),
+        ...(riskLevel ? { riskLevel: riskLevel as any } : {}),
+        ...(scheduledAt_gte || scheduledAt_lte ? {
+          scheduledAt: {
+            ...(scheduledAt_gte ? { gte: new Date(scheduledAt_gte) } : {}),
+            ...(scheduledAt_lte ? { lte: new Date(scheduledAt_lte) } : {}),
+          }
+        } : {}),
+      };      
       if (context.user?.role === 'SURGEON') {
         let surgeonId = getSurgeonFromContext(context);
         if (!surgeonId) {
@@ -1786,12 +1814,29 @@ export const resolvers = {
       if (current.status !== input.status) {
         await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: apptId, action: 'STATUS_CHANGE', oldValue: current.status, newValue: input.status, userId: context.user?.userId, appointmentId: apptId } });
       }
-      return prisma.appointment.update({ where: { id: apptId }, data: { status: input.status } });
+      const updated = await prisma.appointment.update({ where: { id: apptId }, data: { status: input.status } });
+      
+      // TRIGGER: Recalculate risk score
+      await RiskScoreService.updateRiskScore(apptId).catch(err => {
+        logger.error('RiskScoreTrigger', `Failed to update risk score for appointment ${apptId}`, err);
+      });
+      
+      return updated;
     },
     deleteAppointment: async (_: unknown, { input }: { input: { id: string } }, context: Context) => {
       assertAuthenticated(context);
       await prisma.appointment.deleteMany({ where: { id: decodeId(input.id) } });
       return { success: true };
+    },
+    recalculateRiskScore: async (_: unknown, { appointmentId }: { appointmentId: string }, context: Context) => {
+      assertAuthenticated(context);
+      assertRole(context, ['ADMIN', 'RECEPTION', 'CALL_CENTER'], 'recalculo de score de risco');
+      const apptId = decodeId(appointmentId);
+      await RiskScoreService.updateRiskScore(apptId);
+      return prisma.appointment.findUnique({
+        where: { id: apptId },
+        include: { patient: true, surgeon: true }
+      });
     },
     createSurgeon: async (_: unknown, { input }: { input: CreateSurgeonInput }, context: Context) => {
       assertAuthenticated(context);
@@ -1990,7 +2035,26 @@ export const resolvers = {
     },
     createContact: async (_: unknown, { input }: { input: CreateContactInput }, context: Context) => {
       assertAuthenticated(context);
-      return prisma.contact.create({ data: { ...input, type: input.type as any, direction: input.direction as any, status: input.status as any, leadId: decodeId(input.leadId), date: new Date(input.date) } });
+      const contact = await prisma.contact.create({ data: { ...input, type: input.type as any, direction: input.direction as any, status: input.status as any, leadId: decodeId(input.leadId), date: new Date(input.date) } });
+      
+      // TRIGGER: If contact is WHATSAPP and belongs to a lead with SCHEDULED appointment, recalculate.
+      if (input.type === 'WHATSAPP') {
+        const leadId = decodeId(input.leadId);
+        const lead = await prisma.lead.findUnique({
+          where: { id: leadId },
+          include: { patient: { include: { appointments: { where: { status: 'SCHEDULED' } } } } }
+        });
+        
+        if (lead?.patient?.appointments) {
+          for (const appt of lead.patient.appointments) {
+            await RiskScoreService.updateRiskScore(appt.id).catch(err => {
+              logger.error('RiskScoreTrigger', `Failed to update risk score for appointment ${appt.id} after contact`, err);
+            });
+          }
+        }
+      }
+      
+      return contact;
     },
     createBudget: async (_: unknown, { input }: { input: CreateBudgetInput }, context: Context) => {
       assertAuthenticated(context);

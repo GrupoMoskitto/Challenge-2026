@@ -2,6 +2,27 @@ import { gql } from '@apollo/client';
 
 export type { User } from '@crmed/types';
 
+export const GET_NO_SHOW_RISK_SUMMARY = gql`
+  query GetNoShowRiskSummary($today: DateTime!, $sevenDaysFromNow: DateTime!) {
+    appointments(
+      status_in: [SCHEDULED, CONFIRMED]
+      scheduledAt_gte: $today
+      scheduledAt_lte: $sevenDaysFromNow
+    ) {
+      id
+      scheduledAt
+      procedure
+      status
+      riskScore
+      riskLevel
+      patient {
+        lead { name }
+      }
+      surgeon { name }
+    }
+  }
+`;
+
 export const GET_PERFORMANCE_METRICS = gql`
   query GetPerformanceMetrics($startDate: DateTime, $endDate: DateTime) {
     performanceMetrics(startDate: $startDate, endDate: $endDate) {
@@ -59,6 +80,8 @@ export const GET_APPOINTMENTS = gql`
       scheduledAt
       status
       procedure
+      riskScore
+      riskLevel
       patient {
         id
         medicalRecord
@@ -99,6 +122,8 @@ export const GET_LEADS = gql`
           appointments {
             id
             scheduledAt
+            riskScore
+            riskLevel
           }
         }
         cursor
@@ -192,6 +217,8 @@ export const GET_PATIENT = gql`
         scheduledAt
         status
         procedure
+        riskScore
+        riskLevel
         surgeon {
           name
         }
@@ -296,6 +323,8 @@ export const GET_APPOINTMENTS_BY_DATE = gql`
       scheduledAt
       status
       procedure
+      riskScore
+      riskLevel
       patient {
         id
         medicalRecord

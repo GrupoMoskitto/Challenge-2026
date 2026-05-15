@@ -11,3 +11,5 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 export function Card({ children }: { children: React.ReactNode }) {
   return <div>{children}</div>;
 }
+
+export * from './components/RiskPill';
