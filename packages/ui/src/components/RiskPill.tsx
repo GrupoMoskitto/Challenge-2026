@@ -17,13 +17,6 @@ export const RiskPill: React.FC<RiskPillProps> = ({ score, level, customLabel, h
     ? `Risco moderado, score ${score}` 
     : `Risco alto, score ${score} — requer atenção`);
 
-  const colors = {
-    LOW: { bg: '#F0FDF4', text: '#166534', border: '#BBF7D0', dot: '#22C55E' },
-    MEDIUM: { bg: '#FFFBEB', text: '#92400E', border: '#FEF3C7', dot: '#F59E0B' },
-    HIGH: { bg: '#FEF2F2', text: '#991B1B', border: '#FECACA', dot: '#EF4444' }
-  };
-
-  const currentColors = colors[level];
 
   if (minimal) {
     const label = level === 'LOW' ? 'BAIXO' : level === 'MEDIUM' ? 'MÉDIO' : 'ALTO';

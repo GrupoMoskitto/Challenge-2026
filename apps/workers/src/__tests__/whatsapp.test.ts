@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach, MockInstance } from 'v
 import { processDailyAppointments } from '../jobs/dailyCron';
 import { WhatsappSender } from '../whatsapp/whatsapp.sender';
 import { whatsappQueue } from '../queues/whatsapp.processor';
-import { riskScoreQueue } from '../queues/risk-score.processor';
 import { prisma } from '@crmed/database';
 
 vi.mock('../whatsapp/whatsapp.sender', () => ({

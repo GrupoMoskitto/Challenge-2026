@@ -1,5 +1,5 @@
 import React from 'react';
-import { Info, CheckCircle2, XCircle, Clock, Activity, ArrowUpRight, ArrowDownRight, CircleX } from 'lucide-react';
+import { Info, Clock, Activity, ArrowUpRight, ArrowDownRight, CircleX } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';

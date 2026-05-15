@@ -1,6 +1,6 @@
-import { prisma, AuditLog, Prisma } from '@crmed/database';
+import { prisma, Prisma } from '@crmed/database';
 import { calculateRiskScore } from '../lib/risk-score';
-import { AppointmentRiskContext, RiskLevel, RiskSignal } from '@crmed/types';
+import { AppointmentRiskContext } from '@crmed/types';
 import { logger } from '../config/logger';
 
 export class RiskScoreService {
@@ -121,7 +121,6 @@ export class RiskScoreService {
 
       if (isWorkDay) {
         const hour = current.getHours();
-        const minute = current.getMinutes();
 
         // Work hours: 08:00 to 18:00
         if (hour >= 8 && hour < 18) {
