@@ -663,12 +663,22 @@ const Patients = () => {
                             />
                             <Badge 
                               className={cn(
-                                apt.status === 'COMPLETED' ? "bg-emerald-500 text-white" : 
-                                apt.status === 'SCHEDULED' || apt.status === 'CONFIRMED' ? "bg-blue-500 text-white" : 
-                                "bg-red-500 text-white", "border-none"
+                                "border",
+                                apt.status === 'SCHEDULED' ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" :
+                                apt.status === 'CONFIRMED' ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800" :
+                                apt.status === 'ATTENTION_REQUIRED' ? "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800" :
+                                apt.status === 'COMPLETED' ? "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800" :
+                                apt.status === 'CANCELLED' ? "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" :
+                                apt.status === 'NO_SHOW' ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800" :
+                                "bg-muted text-muted-foreground border-transparent"
                               )}
                             >
-                              {apt.status === 'COMPLETED' ? 'Concluído' : apt.status === 'SCHEDULED' ? 'Agendado' : apt.status === 'CONFIRMED' ? 'Confirmado' : apt.status === 'CANCELLED' ? 'Cancelado' : 'Faltou'}
+                              {apt.status === 'SCHEDULED' ? 'Agendado' :
+                               apt.status === 'CONFIRMED' ? 'Confirmado' :
+                               apt.status === 'ATTENTION_REQUIRED' ? 'Requer Atenção' :
+                               apt.status === 'COMPLETED' ? 'Concluído' :
+                               apt.status === 'CANCELLED' ? 'Cancelado' :
+                               apt.status === 'NO_SHOW' ? 'Não Compareceu' : apt.status}
                             </Badge>
                           </div>
                         </CardContent>

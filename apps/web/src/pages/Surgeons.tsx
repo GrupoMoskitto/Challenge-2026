@@ -31,12 +31,12 @@ import { ptBR } from "date-fns/locale";
 const daysOfWeek = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 const statusColors: Record<string, string> = {
-  SCHEDULED: "bg-blue-500/10 text-blue-700 border-blue-200",
-  CONFIRMED: "bg-green-500/10 text-green-700 border-green-200",
-  ATTENTION_REQUIRED: "bg-orange-500/10 text-orange-700 border-orange-200",
-  COMPLETED: "bg-gray-500/10 text-gray-700 border-gray-200",
-  CANCELLED: "bg-red-500/10 text-red-700 border-red-200",
-  NO_SHOW: "bg-yellow-500/10 text-yellow-700 border-yellow-200",
+  SCHEDULED: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+  CONFIRMED: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
+  ATTENTION_REQUIRED: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+  COMPLETED: "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800",
+  CANCELLED: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
+  NO_SHOW: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
 };
 
 const statusLabels: Record<string, string> = {

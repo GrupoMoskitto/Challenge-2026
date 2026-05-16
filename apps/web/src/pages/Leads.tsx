@@ -650,12 +650,31 @@ const Leads = () => {
                         <time className="text-[10px] text-muted-foreground font-semibold">{format(new Date(l.createdAt), "dd/MM/yy")}</time>
                         <div className="flex items-center gap-1.5">
                           {(l.appointments && l.appointments.length > 0) && (
-                            <div className="flex items-center gap-1">
+                             <div className="flex items-center gap-1">
                                <RiskPill 
                                  score={l.appointments[0].riskScore} 
                                  level={l.appointments[0].riskLevel as any} 
                                  minimal={true}
                                />
+                                 <Badge 
+                                   className={cn(
+                                     "border text-[9px] px-1.5 h-4 cursor-default",
+                                     l.appointments[0].status === 'SCHEDULED' ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" :
+                                     l.appointments[0].status === 'CONFIRMED' ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800" :
+                                     l.appointments[0].status === 'ATTENTION_REQUIRED' ? "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800" :
+                                     l.appointments[0].status === 'COMPLETED' ? "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800" :
+                                     l.appointments[0].status === 'CANCELLED' ? "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" :
+                                     l.appointments[0].status === 'NO_SHOW' ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800" :
+                                     "bg-muted text-muted-foreground border-transparent"
+                                   )}
+                                 >
+                                 {l.appointments[0].status === 'SCHEDULED' ? 'Agendado' :
+                                  l.appointments[0].status === 'CONFIRMED' ? 'Confirmado' :
+                                  l.appointments[0].status === 'ATTENTION_REQUIRED' ? 'Atenção' :
+                                  l.appointments[0].status === 'COMPLETED' ? 'Concluído' :
+                                  l.appointments[0].status === 'CANCELLED' ? 'Cancelado' :
+                                  l.appointments[0].status === 'NO_SHOW' ? 'Faltou' : l.appointments[0].status}
+                               </Badge>
                                <div 
                                 className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors border border-primary/20"
                                 onClick={(e) => {

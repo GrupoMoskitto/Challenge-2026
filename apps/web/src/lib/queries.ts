@@ -122,6 +122,7 @@ export const GET_LEADS = gql`
           appointments {
             id
             scheduledAt
+            status
             riskScore
             riskLevel
           }
