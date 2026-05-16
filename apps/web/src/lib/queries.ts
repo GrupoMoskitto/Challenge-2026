@@ -383,7 +383,8 @@ export const UPDATE_LEAD_STATUS = gql`
 export const DELETE_LEAD = gql`
   mutation DeleteLead($id: ID!) {
     deleteLead(id: $id) {
-      id
+      success
+      message
     }
   }
 `;
@@ -494,7 +495,8 @@ export const UPDATE_MESSAGE_TEMPLATE = gql`
 export const DELETE_MESSAGE_TEMPLATE = gql`
   mutation DeleteMessageTemplate($id: ID!) {
     deleteMessageTemplate(id: $id) {
-      id
+      success
+      message
     }
   }
 `;

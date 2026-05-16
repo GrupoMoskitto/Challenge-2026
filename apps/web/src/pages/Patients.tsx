@@ -39,6 +39,7 @@ import {
   CREATE_POST_OP,
   CREATE_APPOINTMENT,
   GET_SURGEONS,
+  DELETE_LEAD,
 } from "@/lib/queries";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import {
@@ -290,7 +291,7 @@ const Patients = () => {
     }
   }, [searchParams, openCreatePatientModal, setSearchParams]);
 
-  const { data: patientsData, previousData: prevPatientData, loading: loadingPatients, fetchMore } = useQuery(GET_PATIENTS, {
+  const { data: patientsData, previousData: prevPatientData, loading: loadingPatients, fetchMore, refetch: refetchPatients } = useQuery(GET_PATIENTS, {
     variables: { first: PAGE_SIZE, where: { search: debouncedSearch || undefined, status: statusFilter || undefined } },
     notifyOnNetworkStatusChange: true,
     fetchPolicy: 'cache-and-network',
@@ -323,6 +324,10 @@ const Patients = () => {
     dateOfBirth: "", medicalRecord: "", address: "", sex: "", weight: "", height: "", howMet: "", reason: ""
   });
 
+  const [deleteLead, { loading: deletingPatient }] = useMutation(DELETE_LEAD);
+  const [deletePatientDialogOpen, setDeletePatientDialogOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
   const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
@@ -343,6 +348,25 @@ const Patients = () => {
   const patientList = effectivePatientsData?.patients?.edges?.map((e: any) => e.node) || [];
 
   const handleTabChange = useCallback((v: string) => { setActiveTab(v); updateUrl({ tab: v }); }, [updateUrl]);
+
+  const handleDeletePatient = async () => {
+    if (!selectedPatientId || !patient?.lead?.id) return;
+    if (deleteConfirmText.toLowerCase() !== 'deletar') {
+      toast.error("Digite 'deletar' para confirmar");
+      return;
+    }
+    try {
+      await deleteLead({ variables: { id: patient.lead.id } });
+      toast.success("Paciente excluído (anonimizado) com sucesso!");
+      setDeletePatientDialogOpen(false);
+      setDeleteConfirmText("");
+      setSelectedPatientId(null);
+      updateUrl({ patientId: null });
+      refetchPatients();
+    } catch (e: any) { 
+      toast.error(e.message); 
+    }
+  };
 
   const handleUpdatePatient = async () => {
     if (!selectedPatientId) return;
@@ -574,19 +598,26 @@ const Patients = () => {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-base">Dados Pessoais</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={() => {
-                    setEditPatientForm({
-                      dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
-                      medicalRecord: patient.medicalRecord || "",
-                      address: patient.address || "",
-                      sex: patient.sex || "",
-                      weight: patient.weight?.toString() || "",
-                      height: patient.height?.toString() || "",
-                      howMet: patient.howMet || "",
-                      reason: ""
-                    });
-                    setEditPatientDialogOpen(true);
-                  }}><Pencil className="h-4 w-4 mr-2" />Editar</Button>
+                  <div className="flex items-center gap-2">
+                    {user?.role === 'ADMIN' && (
+                      <Button variant="ghost" size="sm" onClick={() => setDeletePatientDialogOpen(true)} className="text-red-500 hover:text-red-700 hover:bg-red-500/10">
+                        <Trash2 className="h-4 w-4 mr-2" />Deletar
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      setEditPatientForm({
+                        dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
+                        medicalRecord: patient.medicalRecord || "",
+                        address: patient.address || "",
+                        sex: patient.sex || "",
+                        weight: patient.weight?.toString() || "",
+                        height: patient.height?.toString() || "",
+                        howMet: patient.howMet || "",
+                        reason: ""
+                      });
+                      setEditPatientDialogOpen(true);
+                    }}><Pencil className="h-4 w-4 mr-2" />Editar</Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                    <div className="flex items-center gap-3 mb-4">
@@ -936,6 +967,30 @@ const Patients = () => {
           <Button variant="outline" onClick={() => { setDeleteDocDialogOpen(false); setDocToDelete(null); }}>Cancelar</Button>
           <Button variant="destructive" onClick={handleDeleteDocument} disabled={deletingDoc} className="min-w-[100px]">
             {deletingDoc ? <Loader2 className="animate-spin h-4 w-4" /> : "Excluir"}
+          </Button>
+        </div>
+      </ResponsiveModal>
+
+      <ResponsiveModal open={deletePatientDialogOpen} onOpenChange={setDeletePatientDialogOpen} title="Excluir Paciente (LGPD)">
+        <div className="py-4 space-y-4">
+          <div className="p-3 bg-red-50 text-red-900 border border-red-200 rounded-md text-sm">
+            <strong>Atenção:</strong> Ao excluir este paciente, todos os dados pessoais (nome, CPF, telefone) dele e do Lead original serão permanentemente anonimizados para cumprimento da LGPD. Históricos financeiros e agendamentos serão preservados mas desvinculados do indivíduo.
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="delete-confirm">Para confirmar a anonimização, digite <strong>deletar</strong> abaixo:</Label>
+            <Input 
+              id="delete-confirm"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Digite deletar..."
+              className="border-red-200 focus-visible:ring-red-500"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => { setDeletePatientDialogOpen(false); setDeleteConfirmText(""); }}>Cancelar</Button>
+          <Button variant="destructive" onClick={handleDeletePatient} disabled={deletingPatient || deleteConfirmText.toLowerCase() !== 'deletar'} className="min-w-[100px]">
+            {deletingPatient ? <Loader2 className="animate-spin h-4 w-4" /> : "Excluir"}
           </Button>
         </div>
       </ResponsiveModal>

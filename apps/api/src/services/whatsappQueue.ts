@@ -21,10 +21,10 @@ export const whatsappQueue = new Queue(WHATSAPP_QUEUE_NAME, {
 export const dispatchLeadWelcome = async (leadId: string, leadName: string, phone: string, procedure?: string) => {
   if (!phone) return;
   const { prisma } = await import('@crmed/database');
-  const template = await prisma.messageTemplate.findFirst({ where: { triggerDays: -1 } });
+  const template = await prisma.messageTemplate.findFirst({ where: { name: 'Boas-Vindas' } });
   
   if (!template) {
-    console.error(`[API] Erro: Template de Boas-Vindas (-1 dias) não encontrado.`);
+    console.warn(`[API] Aviso: Template de Boas-Vindas não encontrado. Nenhuma mensagem de boas-vindas enviada para o lead ${leadId}.`);
     return;
   }
 

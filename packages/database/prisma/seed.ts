@@ -220,6 +220,12 @@ Lembre-se de seguir todas as orientações médicas e comparecer às consultas d
 
 _Hospital São Rafael — Cuidando de você._`
       },
+      {
+        name: 'Boas-Vindas',
+        channel: 'WHATSAPP',
+        triggerDays: 0,
+        content: `Olá, *{{paciente}}*! 👋\n\nBem-vindo(a) ao Hospital São Rafael. Recebemos o seu contato com sucesso!\n\nEm breve, um de nossos especialistas de atendimento falará com você por aqui para tirar todas as suas dúvidas e auxiliar no seu agendamento.\n\n_Hospital São Rafael — Cuidando de você._`
+      },
     ]
   });
 

@@ -496,8 +496,8 @@ const Settings = () => {
     if (!form.channel) errors.channel = "Canal é obrigatório";
 
     // Strict validation for variables: block {variable} and require {{variable}}
-    const singleBraceRegex = /\{(?!\s*\{)[^}]+\}/g;
-    if (singleBraceRegex.test(form.content)) {
+    const contentWithoutDoubleBraces = form.content.replace(/\{\{[^}]+\}\}/g, "");
+    if (contentWithoutDoubleBraces.includes("{") || contentWithoutDoubleBraces.includes("}")) {
       errors.content = "Erro de Sintaxe: Use chaves duplas {{variavel}} para variáveis dinâmicas. Chaves simples { } não são permitidas.";
     }
 
