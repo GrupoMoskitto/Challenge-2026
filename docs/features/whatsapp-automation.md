@@ -19,36 +19,62 @@ Os jobs são enfileirados no **BullMQ (Redis)** no momento do agendamento e exec
 
 ```mermaid
 stateDiagram-v2
-    [*] --> IDLE
+    [*] --> START
 
-    IDLE --> NEW_ASK_NAME: Novo contato desconhecido
-    NEW_ASK_NAME --> NEW_ASK_EMAIL: Nome recebido
-    NEW_ASK_EMAIL --> IDLE: Lead criado no CRM
+    state "Fluxo Novo Contato" as new_flow {
+        START --> NEW_ASK_NAME: Contato desconhecido
+        NEW_ASK_NAME --> NEW_CONFIRM_NAME: Nome informado
+        NEW_CONFIRM_NAME --> NEW_ASK_EMAIL: Confirmado
+        NEW_CONFIRM_NAME --> NEW_ASK_NAME: Quer alterar
+        NEW_ASK_EMAIL --> NEW_ASK_INTEREST: Email ou Pular
+        NEW_ASK_INTEREST --> EXISTING_MENU: Lead criado no CRM
+    }
 
-    IDLE --> VERIFY_DOB_CHALLENGE: Paciente pede agendamentos
-    VERIFY_DOB_CHALLENGE --> APPOINTMENT_LIST: Data de nascimento correta (LGPD)
-    VERIFY_DOB_CHALLENGE --> IDLE: Falha na verificação
+    state "Fluxo Paciente Existente" as existing_flow {
+        START --> EXISTING_MENU: Lead encontrado no banco
+        EXISTING_MENU --> VERIFY_DOB_CHALLENGE: Agendamentos (com DOB)
+        EXISTING_MENU --> VERIFY_DOB_ENRICH: Agendamentos (sem DOB)
+        EXISTING_MENU --> EXISTING_SCHEDULE: Reagendamento
+        EXISTING_MENU --> EXISTING_PROCEDURE: Info Procedimentos
+        EXISTING_MENU --> EXISTING_FAQ: Dúvidas Frequentes
+    }
 
-    IDLE --> AWAITING_CONFIRMATION: Confirmação 48h enviada
-    AWAITING_CONFIRMATION --> CONFIRMED: Paciente responde "Sim"
-    AWAITING_CONFIRMATION --> RESCHEDULING: Paciente responde "Não"
-    AWAITING_CONFIRMATION --> IDLE: Timeout → RN09 → ATTENTION_REQUIRED
+    state "Autoatendimento LGPD" as lgpd_flow {
+        VERIFY_DOB_CHALLENGE --> APPOINTMENT_LIST: DOB validada (LGPD)
+        VERIFY_DOB_ENRICH --> APPOINTMENT_LIST: DOB salva (Progressive Profiling)
+        VERIFY_DOB_CHALLENGE --> EXISTING_MENU: Falha na verificação
+        APPOINTMENT_LIST --> APPOINTMENT_CANCEL_CONFIRM: Seleciona consulta
+        APPOINTMENT_CANCEL_CONFIRM --> [*]: Confirma / Cancela
+        APPOINTMENT_CANCEL_CONFIRM --> EXISTING_SCHEDULE: Reagenda
+    }
 
-    CONFIRMED --> [*]
-    RESCHEDULING --> IDLE: Call Center assume
-    APPOINTMENT_LIST --> [*]: Autoatendimento concluído
+    state "Confirmação 48h (RN05)" as confirm_flow {
+        START --> CONFIRM_APPOINTMENT: NotificationService envia 48h
+        CONFIRM_APPOINTMENT --> [*]: Paciente responde 1 (Confirmar)
+        CONFIRM_APPOINTMENT --> EXISTING_SCHEDULE: Paciente responde 2 (Reagendar)
+        CONFIRM_APPOINTMENT --> [*]: Paciente responde 3 (Cancelar)
+        CONFIRM_APPOINTMENT --> START: Timeout 24h úteis → ATTENTION_REQUIRED (RN09)
+    }
 ```
 
 ### Estados do Chatbot
 
 | Estado | Descrição |
 | :--- | :--- |
+| `START` | Estado inicial: identifica se o contato é novo ou existente no banco. |
 | `NEW_ASK_NAME` | Captação de leads: solicita nome ao contato desconhecido. |
-| `NEW_ASK_EMAIL` | Captação de leads: solicita email e cria `Lead` no CRM. |
+| `NEW_CONFIRM_NAME` | Confirmação do nome informado antes de prosseguir. |
+| `NEW_ASK_EMAIL` | Captação de leads: solicita email (opcional, pode pular). |
+| `NEW_ASK_INTEREST` | Triagem: lista áreas de interesse para direcionar o lead. |
+| `EXISTING_MENU` | Menu principal para pacientes/leads já cadastrados. |
+| `EXISTING_FAQ` | Exibe FAQ do Hospital (aguardando `0` para voltar ao menu). |
+| `EXISTING_PROCEDURE` | Informações sobre procedimentos (aguardando `0`). |
+| `EXISTING_SCHEDULE` | Handover para equipe humana (reagendamento/agendamento). |
 | `VERIFY_DOB_CHALLENGE` | Desafio LGPD: valida data de nascimento antes de exibir dados clínicos. |
-| `VERIFY_DOB_ENRICH` | Progressive Profiling: captura data de nascimento ausente no perfil do paciente. |
-| `AWAITING_CONFIRMATION` | Aguardando resposta à confirmação de 48h do agendamento. |
-| `APPOINTMENT_LIST` | Autoatendimento: lista e permite gerenciar agendamentos do paciente. |
+| `VERIFY_DOB_ENRICH` | Progressive Profiling: captura DOB ausente no perfil do paciente. |
+| `CONFIRM_APPOINTMENT` | Aguardando resposta à confirmação de 48h (disparado pelo `NotificationService`). |
+| `APPOINTMENT_LIST` | Autoatendimento: lista agendamentos futuros do paciente. |
+| `APPOINTMENT_CANCEL_CONFIRM` | Gestão de agendamento selecionado (confirmar/reagendar/cancelar). |
 
 ---
 

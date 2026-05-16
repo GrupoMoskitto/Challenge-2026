@@ -47,7 +47,8 @@ export class NotificationService {
       procedimento: procedure,
       medico: surgeon.name,
       data: dateStr,
-      hora: hourStr
+      hora: hourStr,
+      horario: hourStr,
     });
 
     // 4. Registra a notificação no banco
@@ -60,10 +61,13 @@ export class NotificationService {
       }
     });
 
-    // 5. Atualiza a sessão do WhatsApp
-    await WhatsappSession.save(phone, {
+    // 5. Atualiza a sessão do WhatsApp (JID completo para matching correto no webhook)
+    const sanitizedPhone = phone.replace(/[^0-9]/g, '');
+    const jid = `${sanitizedPhone.startsWith('55') ? sanitizedPhone : `55${sanitizedPhone}`}@s.whatsapp.net`;
+    await WhatsappSession.save(jid, {
       stage: 'CONFIRM_APPOINTMENT',
       appointmentId,
+      leadId: patient.lead.id,
       userName: name,
       lastInteraction: Date.now()
     });
@@ -104,7 +108,7 @@ export class NotificationService {
     const finalMessage = TemplateParser.parse(template.content, {
       paciente: name,
       procedimento: description,
-      data: dateStr
+      data: dateStr,
     });
 
     await prisma.notification.create({
@@ -116,9 +120,13 @@ export class NotificationService {
       }
     });
 
-    await WhatsappSession.save(phone, {
-      stage: 'CONFIRM_APPOINTMENT', // Reutiliza estágio mas com flag postOpId
+    // JID completo para matching correto no webhook
+    const sanitizedPhone = phone.replace(/[^0-9]/g, '');
+    const jid = `${sanitizedPhone.startsWith('55') ? sanitizedPhone : `55${sanitizedPhone}`}@s.whatsapp.net`;
+    await WhatsappSession.save(jid, {
+      stage: 'CONFIRM_APPOINTMENT',
       postOpId,
+      leadId: patient.lead.id,
       userName: name,
       lastInteraction: Date.now()
     });

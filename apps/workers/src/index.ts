@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: '../../.env' });
-import { processDailyAppointments } from './jobs/dailyCron';
 import './queues/whatsapp.processor';
 import './queues/risk-score.processor';
 import { CronJob } from 'cron';
@@ -25,7 +24,6 @@ logger.success('System', 'WhatsApp BullMQ Worker iniciado');
 
 const job = new CronJob('0 8 * * *', async () => {
     logger.info('Cron', 'Executando tarefa agendada de agendamentos diários...');
-    await processDailyAppointments();
     await NotificationService.processDailyReminders();
     await NotificationService.checkInactivity();
 }, null, true, 'America/Sao_Paulo');
@@ -36,7 +34,7 @@ logger.success('System', 'Cronjob diário agendado para 08:00 AM');
 if (process.env.NODE_ENV !== 'production') {
     setTimeout(() => {
         logger.info('Dev', 'Executando agendamentos diários iniciais...');
-        processDailyAppointments();
+        NotificationService.processDailyReminders();
     }, 5000);
 }
 

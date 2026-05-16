@@ -4,14 +4,16 @@ export interface TemplateData {
   medico?: string | null;
   data?: string | null;
   hora?: string | null;
+  horario?: string | null;
 }
 
-const DEFAULT_TERMS: Record<keyof TemplateData, string> = {
+const DEFAULT_TERMS: Record<string, string> = {
   paciente: 'nosso paciente',
   procedimento: 'seu procedimento',
   medico: 'nosso especialista',
   data: 'a data agendada',
-  hora: 'o horário marcado'
+  hora: 'o horário marcado',
+  horario: 'o horário marcado',
 };
 
 export class TemplateParser {

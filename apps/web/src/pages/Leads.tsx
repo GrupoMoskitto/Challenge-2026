@@ -406,6 +406,7 @@ const Leads = () => {
       });
       refetch();
       setNewLead(initialNewLead);
+      setDialogOpen(false);
       toast.success("Lead criado!");
     } catch (e: any) { toast.error(e.message); }
   };

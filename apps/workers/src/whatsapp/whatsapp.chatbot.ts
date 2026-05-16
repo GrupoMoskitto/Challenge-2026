@@ -4,6 +4,7 @@ import { WhatsappSession, ChatState } from './whatsapp.session';
 import { WhatsappSender } from './whatsapp.sender';
 import { IdentityService } from '../services/identity.service';
 import { AppointmentService } from '../services/appointment.service';
+import { riskScoreQueue } from '../queues/risk-score.processor';
 
 const recentMessages = new Set<string>();
 
@@ -130,6 +131,17 @@ export class WhatsappChatbot {
               where: { id: state.appointmentId },
               data: { status: 'CONFIRMED' }
             });
+            await prisma.auditLog.create({
+              data: {
+                entityType: 'Appointment',
+                entityId: state.appointmentId,
+                action: 'STATUS_CHANGE',
+                oldValue: JSON.stringify({ status: 'SCHEDULED' }),
+                newValue: JSON.stringify({ status: 'CONFIRMED' }),
+                reason: 'Confirmação via WhatsApp Chatbot (48h)',
+              }
+            });
+            await riskScoreQueue.add('recalculate', { appointmentId: state.appointmentId });
           } else if (state.postOpId) {
             await prisma.postOp.update({
               where: { id: state.postOpId },
@@ -148,15 +160,22 @@ export class WhatsappChatbot {
               where: { id: state.appointmentId },
               data: { status: 'CANCELLED' }
             });
-          } else if (state.postOpId) {
-             // Nota: PostOp não tem status CANCELLED no enum original, 
-             // mas podemos manter como SCHEDULED ou adicionar se necessário.
-             // Para o MVP de PostOp, apenas notificamos a recepção via inatividade se não confirmar.
+            await prisma.auditLog.create({
+              data: {
+                entityType: 'Appointment',
+                entityId: state.appointmentId,
+                action: 'STATUS_CHANGE',
+                oldValue: JSON.stringify({ status: 'SCHEDULED' }),
+                newValue: JSON.stringify({ status: 'CANCELLED' }),
+                reason: 'Cancelamento via WhatsApp Chatbot',
+              }
+            });
+            await riskScoreQueue.add('recalculate', { appointmentId: state.appointmentId });
           }
           await WhatsappSender.sendMessage(instanceId, remoteJid, `Compreendemos. Sua solicitação foi registrada em nosso sistema. Caso mude de ideia, sinta-se à vontade para nos procurar novamente. O Hospital São Rafael agradece.`);
           await WhatsappSession.clear(remoteJid);
         } else {
-          await WhatsappSender.sendMessage(instanceId, remoteJid, `⚠️ Desculpe, não entendi. Por favor, digite *1* para confirmar, *2* para reagendar ou *3* para falar com um atendente.`);
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `⚠️ Desculpe, não entendi. Por favor, digite *1* para confirmar, *2* para reagendar ou *3* para cancelar.`);
         }
         break;
 
@@ -249,14 +268,36 @@ export class WhatsappChatbot {
             where: { id: state.appointmentId },
             data: { status: 'CONFIRMED' }
           });
-          await WhatsappSender.sendMessage(instanceId, remoteJid, `✅ *Confirmado!* Sua presença para o dia ${new Date().toLocaleDateString('pt-BR')} foi registrada com sucesso. Estamos te aguardando! ✨`);
+          await prisma.auditLog.create({
+            data: {
+              entityType: 'Appointment',
+              entityId: state.appointmentId!,
+              action: 'STATUS_CHANGE',
+              oldValue: JSON.stringify({ status: 'SCHEDULED' }),
+              newValue: JSON.stringify({ status: 'CONFIRMED' }),
+              reason: 'Confirmação via WhatsApp Chatbot (Autoatendimento)',
+            }
+          });
+          await riskScoreQueue.add('recalculate', { appointmentId: state.appointmentId });
+          await WhatsappSender.sendMessage(instanceId, remoteJid, `✅ *Confirmado!* Sua presença foi registrada com sucesso. Estamos te aguardando! ✨`);
           await WhatsappSession.clear(remoteJid);
         } else if (textMessage === '2' || textMessage.toLowerCase().includes('reagendar')) {
           state.stage = 'EXISTING_SCHEDULE';
           await WhatsappSession.save(remoteJid, state);
           await WhatsappSender.sendMessage(instanceId, remoteJid, `🔄 *Solicitação de Reagendamento*\n\nEntendido. Um de nossos atendentes entrará em contato em instantes para buscar uma nova data que seja ideal para você.`);
         } else if (textMessage === '3' || textMessage.toLowerCase().includes('cancelar')) {
-           await AppointmentService.cancelAppointment(state.appointmentId!);
+          await AppointmentService.cancelAppointment(state.appointmentId!);
+          await prisma.auditLog.create({
+            data: {
+              entityType: 'Appointment',
+              entityId: state.appointmentId!,
+              action: 'STATUS_CHANGE',
+              oldValue: JSON.stringify({ status: 'SCHEDULED' }),
+              newValue: JSON.stringify({ status: 'CANCELLED' }),
+              reason: 'Cancelamento via WhatsApp Chatbot (Autoatendimento)',
+            }
+          });
+          await riskScoreQueue.add('recalculate', { appointmentId: state.appointmentId });
           await WhatsappSender.sendMessage(instanceId, remoteJid, `A sua consulta foi cancelada conforme solicitado. Caso precise agendar novamente no futuro, estaremos à disposição. 🏥`);
           await WhatsappSession.clear(remoteJid);
         } else {
