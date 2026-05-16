@@ -144,10 +144,82 @@ async function main() {
   console.log('📝 Seeding message templates...');
   await prisma.messageTemplate.createMany({
     data: [
-      { name: '30 Dias - Preparativos', channel: 'WHATSAPP', content: 'Olá, {{paciente}}! Faltam 30 dias...', triggerDays: 30 },
-      { name: '7 Dias - Orientações', channel: 'WHATSAPP', content: 'Oi, {{paciente}}! Falta apenas uma semana...', triggerDays: 7 },
-      { name: '48 Horas - Confirmação', channel: 'WHATSAPP', content: '🚨 CONFIRMAÇÃO OBRIGATÓRIA 🚨...', triggerDays: 2 },
-      { name: 'Pós-Op - Acompanhamento', channel: 'WHATSAPP', content: 'Olá, {{paciente}}! Como está sua recuperação...', triggerDays: -1 },
+      {
+        name: '30 Dias - Preparativos',
+        channel: 'WHATSAPP',
+        triggerDays: 30,
+        content: `Olá, *{{paciente}}*! 👋
+
+Estamos entrando em contato para lembrar que seu procedimento de *{{procedimento}}* com o *{{medico}}* está agendado para o dia *{{data}}* às *{{horario}}*.
+
+Faltam *30 dias*! Seguem algumas orientações iniciais:
+
+📋 *Preparativos gerais:*
+• Agende seus exames pré-operatórios o quanto antes
+• Informe-nos sobre qualquer medicação de uso contínuo
+• Mantenha uma alimentação equilibrada
+
+Em caso de dúvidas, estamos à disposição! 😊
+
+_Hospital São Rafael — Cuidando de você._`
+      },
+      {
+        name: '7 Dias - Orientações',
+        channel: 'WHATSAPP',
+        triggerDays: 7,
+        content: `Oi, *{{paciente}}*! Falta apenas *1 semana* para o seu procedimento de *{{procedimento}}* com o *{{medico}}* no dia *{{data}}*. 🗓️
+
+📋 *Checklist pré-operatório:*
+• Confirme que todos os exames foram entregues à recepção
+• Suspenda medicações conforme orientação médica
+• Organize um acompanhante para o dia do procedimento
+• Mantenha jejum de *8 horas* antes do horário agendado
+
+⏰ Seu horário: *{{horario}}*
+📍 Local: Hospital São Rafael — Recepção Cirúrgica
+
+Precisa de algo? Responda esta mensagem! 💬
+
+_Hospital São Rafael — Cuidando de você._`
+      },
+      {
+        name: '48 Horas - Confirmação',
+        channel: 'WHATSAPP',
+        triggerDays: 2,
+        content: `🚨 *CONFIRMAÇÃO OBRIGATÓRIA* 🚨
+
+Olá, *{{paciente}}*!
+
+Seu procedimento de *{{procedimento}}* com o *{{medico}}* está agendado para *{{data}}* às *{{horario}}*.
+
+Por favor, confirme sua presença respondendo com uma das opções abaixo:
+
+1️⃣ *Confirmo* minha presença
+2️⃣ *Preciso remarcar* o procedimento
+3️⃣ *Desejo cancelar*
+
+⚠️ _Caso não responda em até 24 horas, nossa equipe entrará em contato por telefone._
+
+_Hospital São Rafael — Cuidando de você._`
+      },
+      {
+        name: 'Pós-Op - Acompanhamento',
+        channel: 'WHATSAPP',
+        triggerDays: -1,
+        content: `Olá, *{{paciente}}*! 💚
+
+Esperamos que sua recuperação após o procedimento de *{{procedimento}}* esteja indo bem!
+
+Gostaríamos de saber como você está. Por favor, responda com uma das opções:
+
+1️⃣ Estou *bem*, recuperação normal
+2️⃣ Tenho *dúvidas* sobre a recuperação
+3️⃣ Preciso de *ajuda urgente*
+
+Lembre-se de seguir todas as orientações médicas e comparecer às consultas de retorno agendadas. 🩺
+
+_Hospital São Rafael — Cuidando de você._`
+      },
     ]
   });
 

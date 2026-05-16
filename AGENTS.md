@@ -230,10 +230,12 @@ pnpm --filter @crmed/database db:generate
 ## Common Issues
 
 ### Rate Limiting
-- Login: 5 attempts per 15 min per IP
-- GraphQL API: 200 requests per 15 min per IP
+- `apiLimiter`: **100 req / 1 min / IP** (all routes)
+- `mutationLimiter`: **20 mutations / 1 min / IP** (GraphQL mutations only)
+- `loginLimiter`: **10 attempts / 15 min / IP** (`/auth/refresh` only)
 - Rate limiting is distributed via **Redis** (`rate-limit-redis` in `apps/api/src/index.ts`). Limits persist across API restarts.
-- If you get 429 errors in dev, you must flush the Redis instance: `redis-cli flushall`
+- Limiters **skip localhost** automatically in non-production (`NODE_ENV !== 'production' && ip === '127.0.0.1'`).
+- If you get 429 errors in dev, flush Redis: `redis-cli flushall`
 
 ### TypeScript Strict Mode (no `any`)
 - All `response.json()` calls **must** be explicitly typed: `as Record<string, unknown>` or a specific interface
@@ -293,8 +295,30 @@ pnpm --filter @crmed/database db:generate
 - **RBAC**: Always use centralized helpers (`assertAuthenticated`, `assertRole`, `enforceStatusChange`) from `apps/api/src/config/rbac.ts` at the beginning of sensitive resolvers.
 - **Enum Validation**: Do not trust client inputs for enums. Always validate on the server using `validateEnum()`.
 - **Webhooks**: External endpoints (like Evolution Go callbacks) must use `webhookSecurityMiddleware` for HMAC-SHA256 signature validation and IP allowlists.
-- Use `hashPassword()` from `src/auth.ts` for passwords
-- `DEV_ALLOWED_PHONE` must be respected in message sending
+- Use `hashPassword()` from `src/auth.ts` for passwords (bcrypt, 12 rounds)
+- `DEV_ALLOWED_PHONE` must be respected in message sending — must be empty in production
+
+### XSS Protection
+- Cookies are `HttpOnly; SameSite=Strict; Secure` (production). JavaScript **never** has access to tokens.
+- `helmet()` middleware is applied to both `apps/api` and `apps/workers` for security headers (CSP, X-Frame-Options, etc.).
+- CORS is restricted to an explicit `allowedOrigins` list — unauthorized origins are logged and rejected.
+
+### GraphQL Security (apps/api/src/config/graphql-security.ts)
+Three Apollo plugins run on every request, in order:
+1. **Query Size Limit** — max `5,000` characters per query string
+2. **Depth Limit** — max `7` levels of field nesting
+3. **Complexity Analysis** — max `1,000` cost points (expensive list fields cost 10 pts × 5× multiplier for children)
+4. **Introspection** — disabled in production (`NODE_ENV === 'production'`)
+
+### Rate Limiting (apps/api/src/index.ts)
+Three independent limiters backed by Redis (`rate-limit-redis`):
+- `apiLimiter`: 100 req / 1 min / IP — all routes
+- `mutationLimiter`: 20 mutations / 1 min / IP — GraphQL mutations only
+- `loginLimiter`: 10 attempts / 15 min / IP — `/auth/refresh` only
+All limiters skip localhost in non-production. On limit exceeded: HTTP 429 with `{ errors: [{ extensions: { code: 'RATE_LIMITED' } }] }`.
+
+### Token Revocation
+When `toggleUserStatus` deactivates a user, `revokeUserTokens(userId)` writes to Redis (`token_blacklist:{userId}`, TTL 7d). Every request checks this key. In production, Redis failures result in deny-by-default (fail closed).
 
 ---
 
@@ -310,6 +334,22 @@ pnpm --filter @crmed/database db:generate
 2. Run `pnpm --filter @crmed/web build` to validate TypeScript
 3. If schema changed: `pnpm --filter @crmed/database db:setup`
 4. Run `pnpm lint`
+
+---
+
+## Documentation
+
+All technical documentation lives in `docs/`. Keep it updated when making significant changes:
+
+| File | When to Update |
+| --- | --- |
+| `docs/architecture.md` | New services, infrastructure changes, or new communication flows |
+| `docs/security.md` | New security layers, rate limit changes, or OWASP mitigations |
+| `docs/api.md` | New queries, mutations, or error codes |
+| `docs/business-rules.md` | Changes to RN01–RN09 logic or enforcement layer |
+| `docs/database.md` | New entities, relationships, or indexing decisions |
+| `docs/development.md` | New env vars, scripts, ports, or troubleshooting steps |
+| `docs/features/*.md` | Feature-level behavioral changes (WhatsApp, Risk Score, etc.) |
 
 ---
 

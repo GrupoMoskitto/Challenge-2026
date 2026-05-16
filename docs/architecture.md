@@ -1,41 +1,134 @@
 # Arquitetura do Sistema
 
-O CRMed utiliza uma arquitetura baseada em microsserviços dentro de um monorepo, utilizando **Turborepo** para gerenciamento de dependências e builds.
+O CRMed utiliza uma arquitetura orientada a serviços dentro de um **monorepo Turborepo**, com separação clara de responsabilidades entre API, Workers e Frontend.
 
-## Diagrama de Serviços
+## Visão Geral dos Serviços
 
 ```mermaid
 graph TD
-    User([Usuário]) --> Web[Web App - React]
-    Web --> API[API Gateway - Node.js/GraphQL]
-    API --> DB[(PostgreSQL)]
-    API --> Redis[(Redis)]
-    
-    Workers[Workers - Node.js/BullMQ] --> Redis
-    Workers --> DB
-    Workers --> EvolutionGo[Evolution Go - WhatsApp API]
-    
-    EvolutionGo --> WhatsApp([WhatsApp Network])
-    WhatsApp -- Webhook --> Workers
+    subgraph Client ["Cliente"]
+        User([Usuário / Browser])
+    end
+
+    subgraph Monorepo ["Monorepo — apps/"]
+        Web["apps/web\nReact 18 + Vite\n:5173"]
+        API["apps/api\nApollo Server / GraphQL\n:3001"]
+        Workers["apps/workers\nBullMQ + Express\n:3002"]
+    end
+
+    subgraph Infra ["Infraestrutura"]
+        PG[(PostgreSQL\n:5432)]
+        Redis[(Redis\n:6379)]
+    end
+
+    subgraph External ["Externos"]
+        EvoGo["Evolution Go\nWhatsApp API"]
+        WhatsApp([WhatsApp Network])
+    end
+
+    User -->|HTTPS + Cookies HttpOnly| Web
+    Web -->|GraphQL + credentials:include| API
+    API -->|Prisma ORM| PG
+    API -->|Rate Limit / Token Blacklist| Redis
+    Workers -->|BullMQ Queues| Redis
+    Workers -->|Prisma ORM| PG
+    Workers -->|REST HTTP| EvoGo
+    EvoGo <-->|Protocolo WhatsApp| WhatsApp
+    WhatsApp -->|Webhook POST /webhook/evolution| Workers
+    Workers -->|X-Internal-Key| API
 ```
 
 ## Apps e Packages
 
-| Nome | Tipo | Responsabilidade |
-| :--- | :--- | :--- |
-| `apps/api` | App | Servidor GraphQL principal, lógica de negócio e autenticação. |
-| `apps/web` | App | Interface do usuário em React com Tailwind CSS. |
-| `apps/workers` | App | Processamento de filas (WhatsApp), Webhooks e Cron Jobs. |
-| `packages/database` | Package | Schema Prisma, Migrations e Cliente de banco de dados. |
-| `packages/types` | Package | Interfaces TypeScript compartilhadas entre todos os apps. |
-| `packages/ui` | Package | Componentes React compartilhados (Design System). |
-| `packages/config` | Package | Configurações compartilhadas (ESLint, etc). |
+| Nome | Tipo | Porta | Responsabilidade |
+| :--- | :--- | :--- | :--- |
+| `apps/api` | App | 3001 | Servidor GraphQL, lógica de negócio, autenticação e RBAC. |
+| `apps/web` | App | 5173 | Dashboard interno em React 18 com Tailwind CSS e Radix UI. |
+| `apps/workers` | App | 3002 | Filas BullMQ (WhatsApp), Cron Jobs e receptor de Webhooks. |
+| `packages/database` | Package | — | Schema Prisma, Migrations, Cliente e `TemplateParser`. |
+| `packages/types` | Package | — | Interfaces TypeScript compartilhadas entre todos os apps. |
+| `packages/ui` | Package | — | Componentes React reutilizáveis (Design System interno). |
+| `packages/config` | Package | — | Configurações compartilhadas (ESLint, Prettier, TSConfig). |
+
+## Ciclo de Vida de uma Requisição (Request Lifecycle)
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant W as Web (React)
+    participant A as API (GraphQL)
+    participant R as Redis
+    participant D as PostgreSQL
+
+    B->>W: Ação do usuário
+    W->>A: POST /graphql (cookie: access_token)
+    A->>A: Rate Limit (apiLimiter / mutationLimiter)
+    A->>A: Extrai JWT do cookie HttpOnly
+    A->>R: isTokenRevoked(userId)?
+    R-->>A: false (token válido)
+    A->>D: prisma.user.findUnique()
+    D-->>A: User {id, role, isActive}
+    A->>A: RBAC: assertAuthenticated() + assertRole()
+    A->>A: GraphQL: Depth + Complexity + Size check
+    A->>D: Query / Mutation de negócio
+    D-->>A: Dados
+    A-->>W: JSON Response
+    W-->>B: UI atualizada
+```
+
+## Comunicação Interna (Workers → API)
+
+Os Workers precisam realizar operações no banco de dados (como atualizar status de agendamentos) que passam pelos resolvers da API. Para isso, usam uma chave de autenticação interna:
+
+```
+Workers → POST /graphql
+  Header: x-internal-key: <INTERNAL_API_KEY>
+
+API Context:
+  if (internalKey === validInternalKey) {
+    user = { userId: 'system', role: 'ADMIN' }
+  }
+```
+
+Isso garante que o fluxo de auditoria e regras de negócio da API sejam sempre respeitados, mesmo para operações automatizadas.
 
 ## Fluxo de Dados End-to-End
 
-1. **Lead**: Um novo lead é criado via importação CSV ou Mutation GraphQL na `API`.
-2. **Paciente**: Após qualificação, o lead é convertido em `Paciente`. Os dados sensíveis são protegidos conforme RN07.
-3. **Agendamento**: Um `Appointment` é criado para o paciente vinculado a um `Surgeon`.
-4. **Notificação**: O sistema cria notificações pendentes. O `Daily Cron` nos `Workers` identifica agendamentos próximos e adiciona jobs à fila do Redis.
-5. **WhatsApp**: O `Worker` processa a fila, consome a `Evolution Go API` para enviar a mensagem e registra o status no banco de dados.
-6. **Risco**: Eventos de confirmação ou inatividade disparam o recálculo do **No-Show Risk Score**.
+```mermaid
+flowchart LR
+    A[Importação CSV / Lead Manual] --> B[Lead: status NEW]
+    B --> C{Qualificação}
+    C -->|QUALIFIED| D[Conversão: Patient criado]
+    C -->|LOST| Z([Fim])
+    D --> E[Appointment agendado]
+    E --> F[Jobs BullMQ: 30d / 7d / 48h]
+    F --> G[Worker processa fila]
+    G --> H[Evolution Go envia WhatsApp]
+    H --> I{Paciente responde?}
+    I -->|Sim| J[Status: CONFIRMED]
+    I -->|Não em 24h úteis| K[Status: ATTENTION_REQUIRED - RN09]
+    J --> L[Risk Score recalculado]
+    K --> L
+    L --> M[Dashboard atualizado]
+```
+
+## Infraestrutura de Filas (BullMQ + Redis)
+
+O Redis atua em dois papéis distintos no sistema:
+
+| Papel | Descrição |
+| :--- | :--- |
+| **Filas BullMQ** | Jobs de envio de WhatsApp (reminders 30d/7d/48h, pós-op) |
+| **Token Blacklist** | Revogação imediata de sessões via `token_blacklist:{userId}` |
+| **Rate Limit Store** | Persistência distribuída dos contadores de Rate Limiting |
+
+## Decisões Arquiteturais
+
+| # | Decisão | Motivo |
+| :--- | :--- | :--- |
+| 1 | **Monorepo com Turborepo** | Compartilhamento de tipos, schemas e componentes sem duplicação. Build incremental via cache. |
+| 2 | **GraphQL (Apollo Server)** | API flexível e auto-documentada. Permite que o frontend peça exatamente os campos necessários (data minimization — LGPD). |
+| 3 | **Prisma ORM** | Migrações versionadas, type-safety total no acesso ao banco e proteção contra SQL Injection nativa. |
+| 4 | **BullMQ sobre Redis** | Filas persistentes com retry automático, prioridade e dead-letter queue para notificações críticas. |
+| 5 | **Soft Delete + Audit Log** | Conformidade com LGPD (rastreabilidade e direito à recuperação de dados). |
+| 6 | **Cookies HttpOnly** | Tokens JWT nunca acessíveis via JavaScript — proteção contra XSS por design. |

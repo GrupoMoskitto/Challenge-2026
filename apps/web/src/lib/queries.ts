@@ -5,7 +5,7 @@ export type { User } from '@crmed/types';
 export const GET_NO_SHOW_RISK_SUMMARY = gql`
   query GetNoShowRiskSummary($today: DateTime!, $sevenDaysFromNow: DateTime!) {
     appointments(
-      status_in: [SCHEDULED, CONFIRMED]
+      status_in: [SCHEDULED, CONFIRMED, ATTENTION_REQUIRED]
       scheduledAt_gte: $today
       scheduledAt_lte: $sevenDaysFromNow
     ) {

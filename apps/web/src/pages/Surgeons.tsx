@@ -33,6 +33,7 @@ const daysOfWeek = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta',
 const statusColors: Record<string, string> = {
   SCHEDULED: "bg-blue-500/10 text-blue-700 border-blue-200",
   CONFIRMED: "bg-green-500/10 text-green-700 border-green-200",
+  ATTENTION_REQUIRED: "bg-orange-500/10 text-orange-700 border-orange-200",
   COMPLETED: "bg-gray-500/10 text-gray-700 border-gray-200",
   CANCELLED: "bg-red-500/10 text-red-700 border-red-200",
   NO_SHOW: "bg-yellow-500/10 text-yellow-700 border-yellow-200",
@@ -41,6 +42,7 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   SCHEDULED: "Agendado",
   CONFIRMED: "Confirmado",
+  ATTENTION_REQUIRED: "Requer Atenção",
   COMPLETED: "Concluído",
   CANCELLED: "Cancelado",
   NO_SHOW: "Não Compareceu",
