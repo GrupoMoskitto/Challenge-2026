@@ -1022,7 +1022,7 @@ export const resolvers = {
     unreadNotificationsCount: async (_: unknown, __: unknown, context: Context) => {
       if (!context.user) return 0;
       return prisma.notification.count({
-        where: { status: 'PENDING' },
+        where: { status: 'SENT' },
       });
     },
     messageTemplates: async (_: unknown, __: unknown, context: Context) => {

@@ -47,32 +47,36 @@ export class NotificationService {
       procedimento: procedure,
       medico: surgeon.name,
       data: dateStr,
-      hora: hourStr
+      hora: hourStr,
+      horario: hourStr,
     });
 
-    // 4. Registra a notificação no banco
-    await prisma.notification.create({
-      data: {
-        appointmentId,
-        type,
-        status: 'SENT',
-        sentAt: new Date()
-      }
-    });
-
-    // 5. Atualiza a sessão do WhatsApp
-    await WhatsappSession.save(phone, {
+    // 4. Atualiza a sessão do WhatsApp (JID completo para matching correto no webhook)
+    const sanitizedPhone = phone.replace(/[^0-9]/g, '');
+    const jid = `${sanitizedPhone.startsWith('55') ? sanitizedPhone : `55${sanitizedPhone}`}@s.whatsapp.net`;
+    await WhatsappSession.save(jid, {
       stage: 'CONFIRM_APPOINTMENT',
       appointmentId,
+      leadId: patient.lead.id,
       userName: name,
       lastInteraction: Date.now()
     });
 
-    // 6. Envia a mensagem
-    const instanceId = process.env.EVOLUTION_INSTANCE_ID || '';
-    await WhatsappSender.sendMessage(instanceId, phone, finalMessage);
-    
-    logger.info('NotificationService', `Lembrete ${type} enviado para ${name} (${phone}) ${template ? '(Usando Template DB)' : '(Usando Padrão)'}`);
+    // 5. Enfileira o envio de mensagem para o BullMQ (Robustez e Retries)
+    try {
+      const { whatsappQueue } = require('../queues/whatsapp.processor');
+      await whatsappQueue.add('send-reminder', {
+        appointmentId,
+        leadId: patient.lead.id,
+        patientName: name,
+        phone,
+        message: finalMessage,
+        triggerDays: days,
+      });
+      logger.info('NotificationService', `Lembrete ${type} enfileirado para ${name} (${phone}) - BullMQ`);
+    } catch (error) {
+      logger.error('NotificationService', `Falha ao enfileirar lembrete ${type} para ${appointmentId}`, error);
+    }
   }
 
   /**
@@ -104,29 +108,34 @@ export class NotificationService {
     const finalMessage = TemplateParser.parse(template.content, {
       paciente: name,
       procedimento: description,
-      data: dateStr
+      data: dateStr,
     });
 
-    await prisma.notification.create({
-      data: {
-        postOpId,
-        type: 'POST_OP_CONFIRMATION',
-        status: 'SENT',
-        sentAt: new Date()
-      }
-    });
-
-    await WhatsappSession.save(phone, {
-      stage: 'CONFIRM_APPOINTMENT', // Reutiliza estágio mas com flag postOpId
+    // JID completo para matching correto no webhook
+    const sanitizedPhone = phone.replace(/[^0-9]/g, '');
+    const jid = `${sanitizedPhone.startsWith('55') ? sanitizedPhone : `55${sanitizedPhone}`}@s.whatsapp.net`;
+    await WhatsappSession.save(jid, {
+      stage: 'CONFIRM_APPOINTMENT',
       postOpId,
+      leadId: patient.lead.id,
       userName: name,
       lastInteraction: Date.now()
     });
 
-    const instanceId = process.env.EVOLUTION_INSTANCE_ID || '';
-    await WhatsappSender.sendMessage(instanceId, phone, finalMessage);
-    
-    logger.info('NotificationService', `Lembrete Pós-Op enviado para ${name} (${phone})`);
+    try {
+      const { whatsappQueue } = require('../queues/whatsapp.processor');
+      await whatsappQueue.add('send-post-op', {
+        postOpId,
+        leadId: patient.lead.id,
+        patientName: name,
+        phone,
+        message: finalMessage,
+        triggerDays: -1,
+      });
+      logger.info('NotificationService', `Lembrete Pós-Op enfileirado para ${name} (${phone}) - BullMQ`);
+    } catch (error) {
+      logger.error('NotificationService', `Falha ao enfileirar lembrete Pós-Op para ${postOpId}`, error);
+    }
   }
 
   /**
@@ -134,6 +143,7 @@ export class NotificationService {
    */
   static async processDailyReminders() {
     const now = new Date();
+    logger.info('NotificationService', 'Iniciando processamento diário de lembretes...');
     
     // 30 dias: exatos 30 dias a partir de amanhã
     const t30 = new Date(now);
@@ -151,17 +161,26 @@ export class NotificationService {
         const startOfDay = new Date(targetDate.setHours(0,0,0,0));
         const endOfDay = new Date(targetDate.setHours(23,59,59,999));
 
-        const appointments = await prisma.appointment.findMany({
+        // Busca todos os SCHEDULED no range para logarmos quem foi ignorado
+        const allInWindow = await prisma.appointment.findMany({
             where: {
                 scheduledAt: { gte: startOfDay, lte: endOfDay },
                 status: 'SCHEDULED',
-                notifications: {
-                    none: { type }
-                }
-            }
+            },
+            include: { notifications: true }
         });
 
-        for (const appt of appointments) {
+        const eligible = allInWindow.filter(appt => !appt.notifications.some(n => n.type === type));
+        const skipped = allInWindow.filter(appt => appt.notifications.some(n => n.type === type));
+
+        logger.info('NotificationService', `[${type}] Janela: ${startOfDay.toISOString()} até ${endOfDay.toISOString()}`);
+        logger.info('NotificationService', `[${type}] Avaliados: ${allInWindow.length} | Elegíveis: ${eligible.length} | Ignorados: ${skipped.length}`);
+
+        for (const appt of skipped) {
+            logger.debug('NotificationService', `[${type}] Agendamento ${appt.id} ignorado: Notificação já existente.`);
+        }
+
+        for (const appt of eligible) {
             await this.triggerReminder(appt.id, type);
         }
     };
@@ -172,6 +191,8 @@ export class NotificationService {
 
     // Processa Pós-Op (sempre 48h antes)
     await this.processDailyPostOpReminders();
+    
+    logger.info('NotificationService', 'Processamento diário de lembretes concluído.');
   }
 
   static async processDailyPostOpReminders() {
@@ -234,10 +255,35 @@ export class NotificationService {
             if (alreadyAlerted) continue;
 
             if (notification.appointmentId) {
+                const appt = notification.appointment as any; // Cast to bypass strict types if needed or just use current status
+                
                 await prisma.appointment.update({
                     where: { id: notification.appointmentId },
                     data: { status: 'ATTENTION_REQUIRED' }
                 });
+
+                // Create AuditLog for the status change
+                await prisma.auditLog.create({
+                    data: {
+                        entityType: 'Appointment',
+                        entityId: notification.appointmentId,
+                        action: 'STATUS_CHANGE',
+                        oldValue: appt.status || 'SCHEDULED',
+                        newValue: 'ATTENTION_REQUIRED',
+                        reason: 'SLA de 24h úteis para confirmação de 48h violado',
+                        userId: 'system', // Indicates automated action
+                        appointmentId: notification.appointmentId
+                    }
+                });
+
+                // Enqueue risk score recalculation since status changed
+                try {
+                    const { riskScoreQueue } = require('../queues/risk-score.processor');
+                    await riskScoreQueue.add('recalculate', { appointmentId: notification.appointmentId });
+                    logger.info('NotificationService', `Enqueued risk score recalculation for ${notification.appointmentId}`);
+                } catch (e: any) {
+                    logger.error('NotificationService', `Failed to enqueue risk score recalculation`, e);
+                }
 
                 // Cria notificação crítica para o TopBar UI
                 await prisma.notification.create({

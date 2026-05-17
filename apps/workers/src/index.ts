@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: '../../.env' });
-import { processDailyAppointments } from './jobs/dailyCron';
 import './queues/whatsapp.processor';
 import './queues/risk-score.processor';
 import { CronJob } from 'cron';
@@ -14,31 +13,39 @@ import helmet from 'helmet';
 import { ensureEvolutionReady } from './evolution/evolution.setup';
 import { evoGoClient } from './evolution/evolution.client';
 import { WhatsappChatbot } from './whatsapp/whatsapp.chatbot';
-import { EvoGoWebhookEnvelope, EvoGoMessageWebhookData, EvoGoQRCodeWebhookData } from './evolution/evolution.types';
+import { EvoGoWebhookEnvelope, EvoGoMessageWebhookData, EvoGoQRCodeWebhookData, EvoGoReceiptWebhookData } from './evolution/evolution.types';
+import { prisma } from '@crmed/database';
 
 const PORT = process.env.WORKERS_PORT || 3002;
 
-// Boot: ensure Evolution Go is ready
-ensureEvolutionReady(evoGoClient);
+// Wrap in IIFE or just top-level await if module allows (TypeScript might require async function or target ES2022)
+// Using an async boot function is safer
+async function boot() {
+    // Boot: ensure Evolution Go is ready
+    await ensureEvolutionReady(evoGoClient);
 
-logger.success('System', 'WhatsApp BullMQ Worker iniciado');
+    logger.success('System', 'WhatsApp BullMQ Worker iniciado');
 
-const job = new CronJob('0 8 * * *', async () => {
-    logger.info('Cron', 'Executando tarefa agendada de agendamentos diários...');
-    await processDailyAppointments();
-    await NotificationService.processDailyReminders();
-    await NotificationService.checkInactivity();
-}, null, true, 'America/Sao_Paulo');
+    const job = new CronJob('0 8 * * *', async () => {
+        logger.info('Cron', 'Executando tarefa agendada de agendamentos diários...');
+        await NotificationService.processDailyReminders();
+        await NotificationService.checkInactivity();
+    }, null, true, 'America/Sao_Paulo');
 
-job.start();
-logger.success('System', 'Cronjob diário agendado para 08:00 AM');
+    job.start();
+    logger.success('System', 'Cronjob diário agendado para 08:00 AM');
 
-if (process.env.NODE_ENV !== 'production') {
-    setTimeout(() => {
-        logger.info('Dev', 'Executando agendamentos diários iniciais...');
-        processDailyAppointments();
-    }, 5000);
+    if (process.env.NODE_ENV !== 'production') {
+        setTimeout(() => {
+            logger.info('Dev', 'Executando agendamentos diários iniciais...');
+            NotificationService.processDailyReminders();
+        }, 5000);
+    }
 }
+
+boot().catch(err => {
+    logger.error('System', 'Erro no boot do worker', err);
+});
 
 const app = express();
 
@@ -97,6 +104,22 @@ app.post('/webhook/evolution', async (req, res) => {
 
                 if (!info || !message) break;
                 
+                // Handoff logic: If a human agent sends a message directly, pause the bot for 12 hours.
+                if (info.IsFromMe) {
+                    const jid = info.Chat;
+                    const session = await prisma.whatsappSession.findUnique({ where: { jid } });
+                    if (session) {
+                        const parsedData = session.data as any;
+                        if (parsedData?.leadId) {
+                            await prisma.lead.update({
+                                where: { id: parsedData.leadId },
+                                data: { botPausedUntil: new Date(Date.now() + 12 * 60 * 60 * 1000) }
+                            });
+                            logger.info('Handoff', `Intervenção humana detectada no chat ${jid}. Bot pausado por 12h para o Lead.`);
+                        }
+                    }
+                }
+
                 // Ignore messages from self, status updates, groups, or broadcasts
                 if (
                     info.IsFromMe || 
@@ -125,6 +148,28 @@ app.post('/webhook/evolution', async (req, res) => {
                     pushName,
                     textMessage
                 );
+                break;
+            }
+
+            case 'Receipt': {
+                const receiptData = data as unknown as EvoGoReceiptWebhookData;
+                const { MessageIDs, Type } = receiptData;
+                if (!MessageIDs || MessageIDs.length === 0) break;
+                if (Type !== 'delivered' && Type !== 'read') break;
+
+                // Mark notifications as delivered/read based on the externalMessageId
+                const updateStatus = Type === 'read' ? 'READ' : 'SENT'; // SENT means delivered here
+                const result = await prisma.notification.updateMany({
+                    where: {
+                        externalMessageId: { in: MessageIDs },
+                        status: 'PENDING' // Only update pending to prevent downgrading a READ to SENT
+                    },
+                    data: { status: updateStatus, sentAt: new Date() }
+                });
+
+                if (result.count > 0) {
+                    logger.success('Webhook', `[RECEIPT] ${result.count} notificações atualizadas para ${updateStatus} (WhatsApp ACK)`);
+                }
                 break;
             }
 

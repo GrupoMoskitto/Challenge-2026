@@ -19,9 +19,9 @@ A disponibilidade é gerida através de três entidades:
 
 Ao criar um agendamento:
 1. O agendamento entra com status `SCHEDULED`.
-2. O sistema de notificações agenda os jobs no BullMQ para os gatilhos de 30d, 7d e 48h.
+2. O **Cronjob Diário** (às 08:00) avalia se o agendamento está na janela correta (30d, 7d, 48h) e enfileira o disparo no BullMQ.
 3. Caso o paciente confirme via WhatsApp, o status muda automaticamente para `CONFIRMED`.
-4. Caso o paciente não responda à confirmação de 48h dentro do SLA, o status muda para `ATTENTION_REQUIRED`.
+4. Caso o paciente não responda à confirmação de 48h dentro do SLA de 24 horas úteis (RN09), o status muda para `ATTENTION_REQUIRED`, um `AuditLog` é gerado e o recálculo do Risk Score é enfileirado automaticamente.
 
 ## Integração com Risk Score
 

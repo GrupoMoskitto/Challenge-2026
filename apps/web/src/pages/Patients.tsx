@@ -39,6 +39,7 @@ import {
   CREATE_POST_OP,
   CREATE_APPOINTMENT,
   GET_SURGEONS,
+  DELETE_LEAD,
 } from "@/lib/queries";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import {
@@ -189,8 +190,11 @@ function PatientTimeline({ patient }: { patient: any }) {
 
           return (
             <div key={item.id} className="relative flex items-center gap-5 group">
+              {index > 0 && (
+                <div className="absolute left-5 -translate-x-[0.5px] w-px bg-border/60 z-0 top-0 bottom-1/2" />
+              )}
               {!isLast && (
-                <div className="absolute left-[19px] w-px bg-border/60 z-0" style={{ top: '50%', bottom: '-50%' }} />
+                <div className="absolute left-5 -translate-x-[0.5px] w-px bg-border/60 z-0 top-1/2 bottom-[-24px]" />
               )}
               <div className={cn("relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 bg-background shrink-0 shadow-sm transition-transform group-hover:scale-105", colorClass)}>
                 <IconComp className="h-4 w-4" />
@@ -260,16 +264,14 @@ const Patients = () => {
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
-    const urlSearch = searchParams.get("search") || "";
     const urlStatus = searchParams.get("status") || "";
     const urlPatientId = searchParams.get("patientId") || null;
     const urlTab = searchParams.get("tab") || "timeline";
 
-    if (search !== urlSearch) { setSearch(urlSearch); setDebouncedSearch(urlSearch); }
     if (statusFilter !== urlStatus) { setStatusFilter(urlStatus); setShowFilters(!!urlStatus); }
     if (urlPatientId !== selectedPatientId) { setSelectedPatientId(urlPatientId); }
     if (urlTab !== activeTab) { setActiveTab(urlTab); }
-  }, [searchParams, activeTab, search, selectedPatientId, statusFilter]);
+  }, [searchParams]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -290,7 +292,7 @@ const Patients = () => {
     }
   }, [searchParams, openCreatePatientModal, setSearchParams]);
 
-  const { data: patientsData, previousData: prevPatientData, loading: loadingPatients, fetchMore } = useQuery(GET_PATIENTS, {
+  const { data: patientsData, previousData: prevPatientData, loading: loadingPatients, fetchMore, refetch: refetchPatients } = useQuery(GET_PATIENTS, {
     variables: { first: PAGE_SIZE, where: { search: debouncedSearch || undefined, status: statusFilter || undefined } },
     notifyOnNetworkStatusChange: true,
     fetchPolicy: 'cache-and-network',
@@ -323,6 +325,10 @@ const Patients = () => {
     dateOfBirth: "", medicalRecord: "", address: "", sex: "", weight: "", height: "", howMet: "", reason: ""
   });
 
+  const [deleteLead, { loading: deletingPatient }] = useMutation(DELETE_LEAD);
+  const [deletePatientDialogOpen, setDeletePatientDialogOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
   const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({ name: "", type: "CONTRACT", date: new Date().toISOString().split('T')[0] });
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
@@ -343,6 +349,25 @@ const Patients = () => {
   const patientList = effectivePatientsData?.patients?.edges?.map((e: any) => e.node) || [];
 
   const handleTabChange = useCallback((v: string) => { setActiveTab(v); updateUrl({ tab: v }); }, [updateUrl]);
+
+  const handleDeletePatient = async () => {
+    if (!selectedPatientId || !patient?.lead?.id) return;
+    if (deleteConfirmText.toLowerCase() !== 'deletar') {
+      toast.error("Digite 'deletar' para confirmar");
+      return;
+    }
+    try {
+      await deleteLead({ variables: { id: patient.lead.id } });
+      toast.success("Paciente excluído (anonimizado) com sucesso!");
+      setDeletePatientDialogOpen(false);
+      setDeleteConfirmText("");
+      setSelectedPatientId(null);
+      updateUrl({ patientId: null });
+      refetchPatients();
+    } catch (e: any) { 
+      toast.error(e.message); 
+    }
+  };
 
   const handleUpdatePatient = async () => {
     if (!selectedPatientId) return;
@@ -574,19 +599,26 @@ const Patients = () => {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-base">Dados Pessoais</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={() => {
-                    setEditPatientForm({
-                      dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
-                      medicalRecord: patient.medicalRecord || "",
-                      address: patient.address || "",
-                      sex: patient.sex || "",
-                      weight: patient.weight?.toString() || "",
-                      height: patient.height?.toString() || "",
-                      howMet: patient.howMet || "",
-                      reason: ""
-                    });
-                    setEditPatientDialogOpen(true);
-                  }}><Pencil className="h-4 w-4 mr-2" />Editar</Button>
+                  <div className="flex items-center gap-2">
+                    {user?.role === 'ADMIN' && (
+                      <Button variant="ghost" size="sm" onClick={() => setDeletePatientDialogOpen(true)} className="text-red-500 hover:text-red-700 hover:bg-red-500/10">
+                        <Trash2 className="h-4 w-4 mr-2" />Deletar
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      setEditPatientForm({
+                        dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split('T')[0] : "",
+                        medicalRecord: patient.medicalRecord || "",
+                        address: patient.address || "",
+                        sex: patient.sex || "",
+                        weight: patient.weight?.toString() || "",
+                        height: patient.height?.toString() || "",
+                        howMet: patient.howMet || "",
+                        reason: ""
+                      });
+                      setEditPatientDialogOpen(true);
+                    }}><Pencil className="h-4 w-4 mr-2" />Editar</Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                    <div className="flex items-center gap-3 mb-4">
@@ -606,7 +638,7 @@ const Patients = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div><span className="text-muted-foreground">Telefone</span><p>{patient.lead?.phone}</p></div>
                     <div><span className="text-muted-foreground">E-mail</span><p className="truncate">{patient.lead?.email}</p></div>
-                    <div><span className="text-muted-foreground">Data de Nascimento</span><p>{patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</p></div>
+                    <div><span className="text-muted-foreground">Data de Nascimento</span><p>{patient.dateOfBirth ? format(new Date(new Date(patient.dateOfBirth).getTime() + new Date(patient.dateOfBirth).getTimezoneOffset() * 60000), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</p></div>
                     <div><span className="text-muted-foreground">Prontuário</span><p>{patient.medicalRecord || '-'}</p></div>
                     <div className="col-span-2"><span className="text-muted-foreground">Endereço</span><p className="break-words">{patient.address || '-'}</p></div>
                     <div><span className="text-muted-foreground">Sexo</span><p>{patient.sex || '-'}</p></div>
@@ -663,12 +695,22 @@ const Patients = () => {
                             />
                             <Badge 
                               className={cn(
-                                apt.status === 'COMPLETED' ? "bg-emerald-500 text-white" : 
-                                apt.status === 'SCHEDULED' || apt.status === 'CONFIRMED' ? "bg-blue-500 text-white" : 
-                                "bg-red-500 text-white", "border-none"
+                                "border",
+                                apt.status === 'SCHEDULED' ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" :
+                                apt.status === 'CONFIRMED' ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800" :
+                                apt.status === 'ATTENTION_REQUIRED' ? "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800" :
+                                apt.status === 'COMPLETED' ? "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800" :
+                                apt.status === 'CANCELLED' ? "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" :
+                                apt.status === 'NO_SHOW' ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800" :
+                                "bg-muted text-muted-foreground border-transparent"
                               )}
                             >
-                              {apt.status === 'COMPLETED' ? 'Concluído' : apt.status === 'SCHEDULED' ? 'Agendado' : apt.status === 'CONFIRMED' ? 'Confirmado' : apt.status === 'CANCELLED' ? 'Cancelado' : 'Faltou'}
+                              {apt.status === 'SCHEDULED' ? 'Agendado' :
+                               apt.status === 'CONFIRMED' ? 'Confirmado' :
+                               apt.status === 'ATTENTION_REQUIRED' ? 'Requer Atenção' :
+                               apt.status === 'COMPLETED' ? 'Concluído' :
+                               apt.status === 'CANCELLED' ? 'Cancelado' :
+                               apt.status === 'NO_SHOW' ? 'Não Compareceu' : apt.status}
                             </Badge>
                           </div>
                         </CardContent>
@@ -926,6 +968,30 @@ const Patients = () => {
           <Button variant="outline" onClick={() => { setDeleteDocDialogOpen(false); setDocToDelete(null); }}>Cancelar</Button>
           <Button variant="destructive" onClick={handleDeleteDocument} disabled={deletingDoc} className="min-w-[100px]">
             {deletingDoc ? <Loader2 className="animate-spin h-4 w-4" /> : "Excluir"}
+          </Button>
+        </div>
+      </ResponsiveModal>
+
+      <ResponsiveModal open={deletePatientDialogOpen} onOpenChange={setDeletePatientDialogOpen} title="Excluir Paciente (LGPD)">
+        <div className="py-4 space-y-4">
+          <div className="p-3 bg-red-50 text-red-900 border border-red-200 rounded-md text-sm">
+            <strong>Atenção:</strong> Ao excluir este paciente, todos os dados pessoais (nome, CPF, telefone) dele e do Lead original serão permanentemente anonimizados para cumprimento da LGPD. Históricos financeiros e agendamentos serão preservados mas desvinculados do indivíduo.
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="delete-confirm">Para confirmar a anonimização, digite <strong>deletar</strong> abaixo:</Label>
+            <Input 
+              id="delete-confirm"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Digite deletar..."
+              className="border-red-200 focus-visible:ring-red-500"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => { setDeletePatientDialogOpen(false); setDeleteConfirmText(""); }}>Cancelar</Button>
+          <Button variant="destructive" onClick={handleDeletePatient} disabled={deletingPatient || deleteConfirmText.toLowerCase() !== 'deletar'} className="min-w-[100px]">
+            {deletingPatient ? <Loader2 className="animate-spin h-4 w-4" /> : "Excluir"}
           </Button>
         </div>
       </ResponsiveModal>

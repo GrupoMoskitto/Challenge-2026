@@ -1,8 +1,7 @@
 import React from 'react';
-import { Info, Clock, Activity, ArrowUpRight, ArrowDownRight, CircleX } from 'lucide-react';
+import { Info, Clock, Activity, ArrowUpRight, ArrowDownRight, CircleX, ShieldAlert, ShieldCheck, Minus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 export interface AppointmentShort {
@@ -16,6 +15,22 @@ interface NoShowRiskSectionProps {
   error?: Error | null;
   onRetry?: () => void;
 }
+
+const riskFactors = [
+  { label: 'Confirmação ignorada', delta: -40 },
+  { label: 'Cancelamentos prévios', delta: -25 },
+  { label: 'SLA violado (>24h)', delta: -30 },
+  { label: 'Fora do expediente', delta: -20 },
+  { label: 'Lead não qualificado', delta: -15 },
+];
+
+const trustFactors = [
+  { label: 'Confirmado via Chatbot', delta: +40 },
+  { label: 'Comparecimentos prévios', delta: +25 },
+  { label: 'Lead convertido', delta: +15 },
+  { label: 'Horário prime', delta: +10 },
+  { label: 'Antecedência > 7 dias', delta: +10 },
+];
 
 export const NoShowRiskSection: React.FC<NoShowRiskSectionProps> = ({
   appointments,
@@ -44,20 +59,30 @@ export const NoShowRiskSection: React.FC<NoShowRiskSectionProps> = ({
   }
 
   const totalCount = appointments.length;
-  const averageScore = totalCount > 0 
+  const hasData = totalCount > 0;
+  const averageScore = hasData
     ? Math.round(appointments.reduce((sum, a) => sum + a.riskScore, 0) / totalCount)
-    : 100;
+    : null;
 
-  const isHealthy = averageScore >= 80;
-  const isCritical = averageScore < 50;
+  const isHealthy = averageScore !== null && averageScore >= 80;
+  const isCritical = averageScore !== null && averageScore < 50;
+
+  const scoreColor = averageScore === null
+    ? 'bg-zinc-500'
+    : isHealthy ? 'bg-emerald-500' : isCritical ? 'bg-red-500' : 'bg-amber-500';
+
+  const glowColor = averageScore === null
+    ? 'shadow-zinc-500/20'
+    : isHealthy ? 'shadow-emerald-500/20' : isCritical ? 'shadow-red-500/20' : 'shadow-amber-500/20';
 
   return (
-    <Card className="rounded-lg border bg-card text-card-foreground shadow-black/5 overflow-hidden shadow-none">
+    <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <div className={cn(
             "h-10 w-10 rounded-lg flex items-center justify-center shadow-lg",
-            isHealthy ? "bg-emerald-500" : isCritical ? "bg-red-500" : "bg-amber-500"
+            scoreColor,
+            glowColor
           )}>
             <Activity className="h-5 w-5 text-white" />
           </div>
@@ -68,35 +93,58 @@ export const NoShowRiskSection: React.FC<NoShowRiskSectionProps> = ({
                 <Info className="h-3.5 w-3.5" />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-72 p-0 shadow-2xl border-primary/10" align="end">
-              <div className="p-3 bg-primary/[0.02]">
-                <h4 className="text-xs font-bold flex items-center gap-1.5 text-primary">
-                  <Info className="h-3.5 w-3.5" />
-                  Metodologia
+            <PopoverContent 
+              className="w-80 p-0 border border-border/60 bg-card/95 backdrop-blur-xl shadow-2xl rounded-xl overflow-hidden" 
+              align="end"
+              sideOffset={8}
+            >
+              <div className="px-4 py-3 border-b border-border/40">
+                <h4 className="text-sm font-bold flex items-center gap-2 text-foreground">
+                  <Info className="h-4 w-4 text-primary" />
+                  Metodologia do Score
                 </h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Score de 0 a 100 por agendamento
+                </p>
               </div>
-              <Separator />
-              <div className="p-3 space-y-3">
-                <div className="space-y-1">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-red-500">Fatores de Risco</span>
-                  <ul className="space-y-0.5 text-[10px] text-muted-foreground font-medium">
-                    <li className="flex justify-between"><span>Confirmação ignorada</span> <span className="font-bold">-40</span></li>
-                    <li className="flex justify-between"><span>Fora do expediente</span> <span className="font-bold">-20</span></li>
-                    <li className="flex justify-between"><span>SLA violado</span> <span className="font-bold">-30</span></li>
-                  </ul>
+
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <ShieldAlert className="h-3.5 w-3.5 text-red-500" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-red-500">Fatores de Risco</span>
+                  </div>
+                  <div className="space-y-1">
+                    {riskFactors.map((f) => (
+                      <div key={f.label} className="flex justify-between items-center py-1 px-2 rounded-md hover:bg-muted/50 transition-colors">
+                        <span className="text-xs text-muted-foreground">{f.label}</span>
+                        <span className="text-xs font-bold text-red-500 tabular-nums">{f.delta}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Fatores de Confiança</span>
-                  <ul className="space-y-0.5 text-[10px] text-muted-foreground font-medium">
-                    <li className="flex justify-between"><span>Confirmado via Chatbot</span> <span className="font-bold text-emerald-600">+40</span></li>
-                    <li className="flex justify-between"><span>Horário Prime</span> <span className="font-bold text-emerald-600">+10</span></li>
-                  </ul>
+
+                <div className="h-px bg-border/40" />
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Fatores de Confiança</span>
+                  </div>
+                  <div className="space-y-1">
+                    {trustFactors.map((f) => (
+                      <div key={f.label} className="flex justify-between items-center py-1 px-2 rounded-md hover:bg-muted/50 transition-colors">
+                        <span className="text-xs text-muted-foreground">{f.label}</span>
+                        <span className="text-xs font-bold text-emerald-500 tabular-nums">+{f.delta}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <Separator />
-              <div className="p-2 flex justify-center bg-muted/10">
-                <div className="flex items-center gap-1.5 text-[8px] font-bold text-muted-foreground uppercase tracking-widest">
-                  <Clock className="h-2.5 w-2.5" /> Atualizado em tempo real
+
+              <div className="px-4 py-2.5 border-t border-border/40 bg-muted/30">
+                <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <Clock className="h-3 w-3" /> Atualizado em tempo real
                 </div>
               </div>
             </PopoverContent>
@@ -105,32 +153,43 @@ export const NoShowRiskSection: React.FC<NoShowRiskSectionProps> = ({
 
         <div className="flex items-center gap-1.5 mb-1">
           <p className="text-2xl font-black tracking-tighter tabular-nums">
-            {averageScore}%
+            {averageScore !== null ? `${averageScore}%` : '—'}
           </p>
-          {isHealthy ? (
-            <ArrowUpRight className="h-4 w-4 text-emerald-500" />
-          ) : (
-            <ArrowDownRight className="h-4 w-4 text-red-500" />
+          {averageScore !== null && (
+            isHealthy ? (
+              <ArrowUpRight className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <ArrowDownRight className="h-4 w-4 text-red-500" />
+            )
+          )}
+          {averageScore === null && (
+            <Minus className="h-4 w-4 text-muted-foreground/50" />
           )}
         </div>
 
         <p className="text-sm font-bold text-foreground/90">Score do Hospital</p>
         
-        <div className="mt-3 space-y-1.5">
-          <div className="h-1.5 w-full bg-muted/40 rounded-full overflow-hidden">
-            <div 
-              className={cn(
-                "h-full transition-all duration-1000",
-                isHealthy ? "bg-emerald-500" : isCritical ? "bg-red-500" : "bg-amber-500"
-              )} 
-              style={{ width: `${averageScore}%` }} 
-            />
+        {hasData ? (
+          <div className="mt-3 space-y-1.5">
+            <div className="h-1.5 w-full bg-muted/40 rounded-full overflow-hidden">
+              <div 
+                className={cn(
+                  "h-full transition-all duration-1000 rounded-full",
+                  isHealthy ? "bg-emerald-500" : isCritical ? "bg-red-500" : "bg-amber-500"
+                )} 
+                style={{ width: `${averageScore}%` }} 
+              />
+            </div>
+            <div className="flex justify-between text-[9px] font-black uppercase tracking-tighter">
+              <span className="text-muted-foreground/40">Crítico</span>
+              <span className="text-muted-foreground/40">Excelente</span>
+            </div>
           </div>
-          <div className="flex justify-between text-[9px] font-black uppercase tracking-tighter">
-            <span className="text-muted-foreground/40">Crítico</span>
-            <span className="text-muted-foreground/40">Excelente</span>
-          </div>
-        </div>
+        ) : (
+          <p className="text-xs text-muted-foreground mt-2 font-medium">
+            Sem agendamentos nos próximos 7 dias
+          </p>
+        )}
       </CardContent>
     </Card>
   );

@@ -62,6 +62,10 @@ export const typeDefs = gql`
     CONFIRMATION_48H
     POST_OP_CONFIRMATION
     LAST_ATTEMPT
+    NEW_LEAD
+    APPOINTMENT_CONFIRMED
+    SYSTEM_ERROR
+    NO_RESPONSE_48H
   }
 
   enum NotificationStatus {

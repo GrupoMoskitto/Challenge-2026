@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RiskPill } from "@crmed/ui";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -98,8 +99,8 @@ const statusColumns = [
   { status: 'LOST', label: 'Perdido', color: 'border-t-red-500' },
 ];
 
-const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Facebook', 'Outro'];
-const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Outro'];
+const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Facebook', 'WhatsApp', 'Outro'];
+const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD', 'Procedimentos Estéticos', 'Cirurgias Plásticas', 'Cirurgias Reparadoras', 'Cirurgias Eletivas Gerais', 'Outros Assuntos', 'Outro'];
 
 const auditActionLabels: Record<string, string> = {
   CREATED: "criado",
@@ -184,7 +185,7 @@ const initialNewLead: NewLeadForm = {
   cpf: '',
   origin: 'Instagram',
   procedure: '',
-  whatsappActive: false,
+  whatsappActive: true,
   notes: '',
 };
 
@@ -378,7 +379,10 @@ const Leads = () => {
 
   const handleDeleteLead = async () => {
     if (!deletingLeadId) return;
-    if (deleteConfirmText.toLowerCase() !== 'deletar') {
+    const leadToDelete = allLeadsArr.find(l => l.id === deletingLeadId);
+    const isConverted = leadToDelete?.status === 'CONVERTED' || !!leadToDelete?.patient;
+
+    if (isConverted && deleteConfirmText.toLowerCase() !== 'deletar') {
       toast.error("Digite 'deletar' para confirmar");
       return;
     }
@@ -406,6 +410,7 @@ const Leads = () => {
       });
       refetch();
       setNewLead(initialNewLead);
+      setDialogOpen(false);
       toast.success("Lead criado!");
     } catch (e: any) { toast.error(e.message); }
   };
@@ -625,7 +630,9 @@ const Leads = () => {
                                 <UserCheck className="h-4 w-4 mr-2" /> Converter
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem onClick={() => { setDeletingLeadId(l.id); setDeleteDialogOpen(true); }} className="text-destructive cursor-pointer font-medium"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
+                            {user?.role === 'ADMIN' && (
+                              <DropdownMenuItem onClick={() => { setDeletingLeadId(l.id); setDeleteDialogOpen(true); }} className="text-destructive cursor-pointer font-medium"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -650,12 +657,31 @@ const Leads = () => {
                         <time className="text-[10px] text-muted-foreground font-semibold">{format(new Date(l.createdAt), "dd/MM/yy")}</time>
                         <div className="flex items-center gap-1.5">
                           {(l.appointments && l.appointments.length > 0) && (
-                            <div className="flex items-center gap-1">
+                             <div className="flex items-center gap-1">
                                <RiskPill 
                                  score={l.appointments[0].riskScore} 
                                  level={l.appointments[0].riskLevel as any} 
                                  minimal={true}
                                />
+                                 <Badge 
+                                   className={cn(
+                                     "border text-[9px] px-1.5 h-4 cursor-default",
+                                     l.appointments[0].status === 'SCHEDULED' ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" :
+                                     l.appointments[0].status === 'CONFIRMED' ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800" :
+                                     l.appointments[0].status === 'ATTENTION_REQUIRED' ? "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800" :
+                                     l.appointments[0].status === 'COMPLETED' ? "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800" :
+                                     l.appointments[0].status === 'CANCELLED' ? "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" :
+                                     l.appointments[0].status === 'NO_SHOW' ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800" :
+                                     "bg-muted text-muted-foreground border-transparent"
+                                   )}
+                                 >
+                                 {l.appointments[0].status === 'SCHEDULED' ? 'Agendado' :
+                                  l.appointments[0].status === 'CONFIRMED' ? 'Confirmado' :
+                                  l.appointments[0].status === 'ATTENTION_REQUIRED' ? 'Atenção' :
+                                  l.appointments[0].status === 'COMPLETED' ? 'Concluído' :
+                                  l.appointments[0].status === 'CANCELLED' ? 'Cancelado' :
+                                  l.appointments[0].status === 'NO_SHOW' ? 'Faltou' : l.appointments[0].status}
+                               </Badge>
                                <div 
                                 className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors border border-primary/20"
                                 onClick={(e) => {
@@ -733,20 +759,27 @@ const Leads = () => {
                       <Input value={editLead.email} onChange={e => setEditLead({...editLead, email: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" />
                     </div>
                     <div className="grid gap-2">
-                      <Label className="text-[11px] font-semibold">Telefone *</Label>
-                      <div className="space-y-3">
-                        <Input value={editLead.phone} onChange={e => setEditLead({...editLead, phone: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" />
-                        <div className="flex items-center space-x-2 px-1">
-                          <input 
-                            type="checkbox" 
-                            id="whatsappActive" 
-                            checked={editLead.whatsappActive} 
-                            onChange={e => setEditLead({...editLead, whatsappActive: e.target.checked})} 
-                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer" 
+                      <div className="flex items-center justify-between pr-1">
+                        <Label className="text-[11px] font-semibold">Telefone *</Label>
+                        <div className="flex items-center gap-1.5 scale-90 origin-right">
+                          <Label 
+                            htmlFor="whatsappActive-edit" 
+                            className={cn(
+                              "text-[10px] font-bold cursor-pointer transition-all",
+                              editLead.whatsappActive ? "text-green-600" : "text-muted-foreground"
+                            )}
+                          >
+                            WhatsApp
+                          </Label>
+                          <Switch
+                            id="whatsappActive-edit"
+                            checked={editLead.whatsappActive}
+                            onCheckedChange={checked => setEditLead({...editLead, whatsappActive: checked})}
+                            className="data-[state=checked]:bg-green-500 h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
                           />
-                          <Label htmlFor="whatsappActive" className="text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">WhatsApp validado</Label>
                         </div>
                       </div>
+                      <Input value={editLead.phone} onChange={e => setEditLead({...editLead, phone: e.target.value})} className="h-11 bg-background shadow-sm border-muted-foreground/20" />
                     </div>
                   </div>
                 </div>
@@ -795,13 +828,52 @@ const Leads = () => {
       </Dialog>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[400px] border-destructive/20 shadow-2xl"><DialogHeader><DialogTitle className="text-destructive flex items-center gap-2"><XCircle className="h-5 w-5" /> Excluir Lead</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4 text-center">
-            <p className="text-sm text-muted-foreground">Digite <span className="font-bold text-destructive">deletar</span> para confirmar:</p>
-            <Input value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder="deletar" className="border-destructive h-11 text-center font-bold" />
-            <div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={() => setDeleteDialogOpen(false)}>Cancelar</Button><Button variant="destructive" className="flex-1 shadow-lg" onClick={handleDeleteLead} disabled={deleting || deleteConfirmText.toLowerCase() !== 'deletar'}>Excluir</Button></div>
-          </div>
-        </DialogContent>
+        {(() => {
+          const leadToDelete = allLeadsArr.find(l => l.id === deletingLeadId);
+          const isConverted = leadToDelete?.status === 'CONVERTED' || !!leadToDelete?.patient;
+          
+          return isConverted ? (
+            <DialogContent className="sm:max-w-[400px]">
+              <DialogHeader>
+                <DialogTitle>Excluir Lead (LGPD)</DialogTitle>
+              </DialogHeader>
+              <div className="py-4 space-y-4">
+                <div className="p-3 bg-red-50 text-red-900 border border-red-200 rounded-md text-sm">
+                  <strong>Atenção:</strong> Ao excluir este lead, todos os dados pessoais (nome, CPF, telefone) dele e do paciente vinculado (se houver) serão permanentemente anonimizados para cumprimento da LGPD. Históricos financeiros e agendamentos serão preservados mas desvinculados do indivíduo.
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="delete-confirm">Para confirmar a anonimização, digite <strong>deletar</strong> abaixo:</Label>
+                  <Input 
+                    id="delete-confirm"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Digite deletar..."
+                    className="border-red-200 focus-visible:ring-red-500"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setDeleteConfirmText(""); }}>Cancelar</Button>
+                <Button variant="destructive" onClick={handleDeleteLead} disabled={deleting || deleteConfirmText.toLowerCase() !== 'deletar'} className="min-w-[100px]">
+                  {deleting ? <Loader2 className="animate-spin h-4 w-4" /> : "Excluir"}
+                </Button>
+              </div>
+            </DialogContent>
+          ) : (
+            <DialogContent className="sm:max-w-[400px] border-destructive/20 shadow-2xl">
+              <DialogHeader><DialogTitle className="text-destructive flex items-center gap-2"><XCircle className="h-5 w-5" /> Excluir Lead</DialogTitle></DialogHeader>
+              <div className="space-y-4 py-4 text-center">
+                <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir o lead <span className="font-bold text-foreground">{leadToDelete?.name}</span>? Esta ação não pode ser desfeita.</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setDeleteDialogOpen(false)}>Cancelar</Button>
+                  <Button variant="destructive" className="flex-1 shadow-lg" onClick={handleDeleteLead} disabled={deleting}>
+                    {deleting ? <Loader2 className="animate-spin h-4 w-4" /> : "Sim, Excluir"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          );
+        })()}
       </Dialog>
 
       <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
@@ -924,8 +996,31 @@ const Leads = () => {
           <DialogHeader><DialogTitle>Novo Lead</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid gap-2"><Label>Nome *</Label><Input value={newLead.name} onChange={e => setNewLead({...newLead, name: e.target.value})} /></div>
+            <div className="grid gap-2"><Label>E-mail</Label><Input type="email" value={newLead.email} onChange={e => setNewLead({...newLead, email: e.target.value})} /></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-2"><Label>Telefone *</Label><Input value={newLead.phone} onChange={e => setNewLead({...newLead, phone: e.target.value})} /></div>
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between pr-1">
+                  <Label>Telefone *</Label>
+                  <div className="flex items-center gap-1.5 scale-90 origin-right">
+                    <Label 
+                      htmlFor="whatsappActive-new" 
+                      className={cn(
+                        "text-[10px] font-bold cursor-pointer transition-all",
+                        newLead.whatsappActive ? "text-green-600" : "text-muted-foreground"
+                      )}
+                    >
+                      WhatsApp
+                    </Label>
+                    <Switch
+                      id="whatsappActive-new"
+                      checked={newLead.whatsappActive}
+                      onCheckedChange={checked => setNewLead({...newLead, whatsappActive: checked})}
+                      className="data-[state=checked]:bg-green-500 h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
+                    />
+                  </div>
+                </div>
+                <Input value={newLead.phone} onChange={e => setNewLead({...newLead, phone: e.target.value})} />
+              </div>
               <div className="grid gap-2"><Label>CPF</Label><Input value={newLead.cpf} onChange={e => setNewLead({...newLead, cpf: e.target.value})} /></div>
             </div>
             <div className="grid gap-2"><Label>Origem</Label>
@@ -1012,8 +1107,11 @@ function LeadTimeline({ leadId }: { leadId?: string }) {
 
           return (
             <div key={item.id} className="relative flex items-center gap-5 group">
+              {index > 0 && (
+                <div className="absolute left-5 -translate-x-[0.5px] w-px bg-border/60 z-0 top-0 bottom-1/2" />
+              )}
               {!isLast && (
-                <div className="absolute left-[19px] w-px bg-border/60 z-0" style={{ top: '50%', bottom: '-50%' }} />
+                <div className="absolute left-5 -translate-x-[0.5px] w-px bg-border/60 z-0 top-1/2 bottom-[-24px]" />
               )}
               <div className={cn("relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 bg-background shrink-0 shadow-sm transition-transform group-hover:scale-105", colorClass)}>
                 <IconComp className="h-4 w-4" />

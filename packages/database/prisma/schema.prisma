@@ -22,6 +22,7 @@ model Lead {
   preferredDoctor String?
   procedure       String?
   whatsappActive  Boolean    @default(false)
+  botPausedUntil  DateTime?
   deletedAt       DateTime?
   contacts        Contact[]
   patient         Patient?
@@ -200,6 +201,7 @@ model Notification {
   postOpId      String?
   type          NotificationType
   status        NotificationStatus @default(PENDING)
+  externalMessageId String?        @unique
   sentAt        DateTime?
   errorMessage  String?
   createdAt     DateTime           @default(now())

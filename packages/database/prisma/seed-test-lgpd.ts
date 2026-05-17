@@ -12,7 +12,7 @@ async function main() {
     create: {
       name: 'Paciente de Teste LGPD',
       email: 'test.patient@example.com',
-      phone: '5511963252226', // Use your phone for WhatsApp testing
+      phone: process.env.DEV_ALLOWED_PHONE || '5511999999999',
       cpf: '999.888.777-00',
       source: 'TEST',
       status: LeadStatus.QUALIFIED,

@@ -5,7 +5,7 @@ export type { User } from '@crmed/types';
 export const GET_NO_SHOW_RISK_SUMMARY = gql`
   query GetNoShowRiskSummary($today: DateTime!, $sevenDaysFromNow: DateTime!) {
     appointments(
-      status_in: [SCHEDULED, CONFIRMED]
+      status_in: [SCHEDULED, CONFIRMED, ATTENTION_REQUIRED]
       scheduledAt_gte: $today
       scheduledAt_lte: $sevenDaysFromNow
     ) {
@@ -122,6 +122,7 @@ export const GET_LEADS = gql`
           appointments {
             id
             scheduledAt
+            status
             riskScore
             riskLevel
           }
@@ -382,7 +383,8 @@ export const UPDATE_LEAD_STATUS = gql`
 export const DELETE_LEAD = gql`
   mutation DeleteLead($id: ID!) {
     deleteLead(id: $id) {
-      id
+      success
+      message
     }
   }
 `;
@@ -493,7 +495,8 @@ export const UPDATE_MESSAGE_TEMPLATE = gql`
 export const DELETE_MESSAGE_TEMPLATE = gql`
   mutation DeleteMessageTemplate($id: ID!) {
     deleteMessageTemplate(id: $id) {
-      id
+      success
+      message
     }
   }
 `;

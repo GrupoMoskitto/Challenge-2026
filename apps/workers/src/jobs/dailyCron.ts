@@ -84,6 +84,7 @@ export async function processDailyAppointments() {
         medico: surgeonData?.name,
         data: format(new Date(appointment.scheduledAt), 'dd/MM/yyyy'),
         hora: format(new Date(appointment.scheduledAt), 'HH:mm'),
+        horario: format(new Date(appointment.scheduledAt), 'HH:mm'),
       });
 
       await whatsappQueue.add('send-reminder', {

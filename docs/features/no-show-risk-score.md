@@ -32,19 +32,19 @@ O score é calculado por agendamento e varia de **0 a 100**.
 
 ```mermaid
 flowchart TD
-    Event[Evento de Agendamento] --> Trigger{Gatilho?}
+    Event["Evento de Agendamento"] --> Trigger{"Gatilho?"}
     Trigger -- Status Change --> Engine
     Trigger -- New Contact --> Engine
     Trigger -- WhatsApp Webhook --> Engine
-    Trigger -- Daily Cron --> Engine
+    Trigger -- Daily Cron SLA Violado --> Engine
     
-    subgraph Engine [Risk Score Engine]
-        Calculate[calculateRiskScore]
+    subgraph EngineGroup ["Risk Score Engine (BullMQ)"]
+        Calculate["calculateRiskScore"]
     end
     
-    Calculate --> Persist[Persistir no DB]
-    Persist --> Audit[Audit Log: RISK_SCORE_UPDATED]
-    Persist --> UI[Update Dashboard & Pills]
+    Calculate --> Persist["Persistir no DB"]
+    Persist --> Audit["Audit Log: RISK_SCORE_UPDATED"]
+    Persist --> UI["Update Dashboard & Pills"]
 ```
 
 ## Visualização na UI
