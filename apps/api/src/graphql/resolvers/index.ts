@@ -1015,7 +1015,7 @@ export const resolvers = {
       return prisma.notification.findMany({
         where: whereClause,
         take: first || 20,
-        include: { appointment: { include: { patient: { include: { lead: true } }, surgeon: true } } },
+        include: { appointment: { include: { patient: { include: { lead: true } }, surgeon: true } }, lead: true },
         orderBy: { createdAt: 'desc' },
       });
     },
@@ -1795,7 +1795,6 @@ export const resolvers = {
       }
       const appointment = await prisma.appointment.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), scheduledAt }, include: { patient: true, surgeon: true } });
       await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: appointment.id, action: 'CREATED', userId: context.user?.userId, appointmentId: appointment.id } });
-      await prisma.notification.create({ data: { appointmentId: appointment.id, type: 'CONFIRMATION_48H', status: 'PENDING' } });
       return appointment;
     },
     updateAppointment: async (_: unknown, { input }: { input: UpdateAppointmentInput }, context: Context) => {

@@ -8,24 +8,25 @@ datasource db {
 }
 
 model Lead {
-  id              String     @id @default(cuid())
+  id              String         @id @default(cuid())
   name            String
-  email           String     @unique
+  email           String         @unique
   phone           String
-  cpf             String     @unique
+  cpf             String         @unique
   source          String
-  status          LeadStatus @default(NEW)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  status          LeadStatus     @default(NEW)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   notes           String?
   origin          String?
   preferredDoctor String?
   procedure       String?
-  whatsappActive  Boolean    @default(false)
+  whatsappActive  Boolean        @default(false)
   botPausedUntil  DateTime?
   deletedAt       DateTime?
   contacts        Contact[]
   patient         Patient?
+  Notification    Notification[]
 
   @@index([cpf])
   @@index([email])
@@ -196,20 +197,23 @@ model AuditLog {
 }
 
 model Notification {
-  id            String             @id @default(cuid())
-  appointmentId String?
-  postOpId      String?
-  type          NotificationType
-  status        NotificationStatus @default(PENDING)
-  externalMessageId String?        @unique
-  sentAt        DateTime?
-  errorMessage  String?
-  createdAt     DateTime           @default(now())
-  appointment   Appointment?       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  postOp        PostOp?            @relation(fields: [postOpId], references: [id], onDelete: Cascade)
+  id                String             @id @default(cuid())
+  appointmentId     String?
+  postOpId          String?
+  leadId            String?
+  type              NotificationType
+  status            NotificationStatus @default(PENDING)
+  externalMessageId String?            @unique
+  sentAt            DateTime?
+  errorMessage      String?
+  createdAt         DateTime           @default(now())
+  appointment       Appointment?       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  postOp            PostOp?            @relation(fields: [postOpId], references: [id], onDelete: Cascade)
+  lead              Lead?              @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@index([appointmentId])
   @@index([postOpId])
+  @@index([leadId])
   @@index([status])
   @@index([type])
 }
@@ -245,14 +249,14 @@ model Document {
 }
 
 model PostOp {
-  id          String       @id @default(cuid())
-  patientId   String
-  date        DateTime
-  type        PostOpType
-  description String
-  status      PostOpStatus @default(SCHEDULED)
-  createdAt   DateTime     @default(now())
-  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id            String         @id @default(cuid())
+  patientId     String
+  date          DateTime
+  type          PostOpType
+  description   String
+  status        PostOpStatus   @default(SCHEDULED)
+  createdAt     DateTime       @default(now())
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   notifications Notification[]
 
   @@index([patientId])
@@ -412,6 +416,8 @@ enum NotificationType {
   LAST_ATTEMPT
   NEW_LEAD
   APPOINTMENT_CONFIRMED
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_RESCHEDULE
   SYSTEM_ERROR
   NO_RESPONSE_48H
 }

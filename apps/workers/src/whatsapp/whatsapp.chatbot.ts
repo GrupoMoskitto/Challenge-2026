@@ -168,6 +168,15 @@ export class WhatsappChatbot {
           await WhatsappSender.sendMessage(instanceId, remoteJid, `Perfeito! Sua presença está confirmada. Ficamos muito felizes em cuidar de você. Em caso de dúvidas, estamos à disposição. ✨`);
           await WhatsappSession.clear(remoteJid);
         } else if (textMessage === '2') {
+          if (state.appointmentId) {
+            await prisma.notification.create({
+              data: {
+                appointmentId: state.appointmentId,
+                type: 'APPOINTMENT_RESCHEDULE',
+                status: 'SENT',
+              }
+            });
+          }
           state.stage = 'EXISTING_SCHEDULE';
           await WhatsappSession.save(remoteJid, state);
           await WhatsappSender.sendMessage(instanceId, remoteJid, `Entendido. Vamos buscar uma nova data para você. Um de nossos atendentes especializados entrará em contato em instantes para verificar a melhor disponibilidade. 👩‍💻`);
@@ -188,6 +197,13 @@ export class WhatsappChatbot {
               }
             });
             await riskScoreQueue.add('recalculate', { appointmentId: state.appointmentId });
+            await prisma.notification.create({
+              data: {
+                appointmentId: state.appointmentId,
+                type: 'APPOINTMENT_CANCELLED',
+                status: 'SENT',
+              }
+            });
           }
           await WhatsappSender.sendMessage(instanceId, remoteJid, `Compreendemos. Sua solicitação foi registrada em nosso sistema. Caso mude de ideia, sinta-se à vontade para nos procurar novamente. O Hospital São Rafael agradece.`);
           await WhatsappSession.clear(remoteJid);
@@ -495,6 +511,16 @@ export class WhatsappChatbot {
           notes: 'Lead criado pelo atendimento automatizado do WhatsApp.'
         }
       });
+      
+      await prisma.notification.create({
+        data: {
+          leadId: lead.id,
+          type: 'NEW_LEAD',
+          status: 'SENT',
+          sentAt: new Date(),
+        }
+      });
+      
       return lead.id;
     } catch (e: unknown) {
       logger.error('WhatsApp:Chatbot', 'Erro ao criar lead no fluxo NEW (possivelmente já existe)', e);

@@ -54,6 +54,11 @@ const NOTIFICATIONS_QUERY = gql`
       type
       status
       createdAt
+      lead {
+        id
+        name
+        procedure
+      }
       appointment {
         id
         procedure
@@ -316,7 +321,7 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 gap-1 px-2"
+                    className="h-7 text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 dark:hover:text-red-400 gap-1 px-2"
                     onClick={handleDeleteAllNotifs}
                   >
                     <Trash2 className="h-3 w-3" />
@@ -336,53 +341,79 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
               <ScrollArea className="h-[380px]">
                 {notifications.map((notif: any) => {
                   const isRead = notif.status === 'READ';
-                  const isCritical = notif.type === 'NO_RESPONSE_48H';
+                  const isCritical = notif.type === 'NO_RESPONSE_48H' || notif.type === 'APPOINTMENT_CANCELLED';
                   const is48h = notif.type === 'CONFIRMATION_48H';
                   const isConfirm = notif.type === 'APPOINTMENT_CONFIRMED';
+                  const isNewLead = notif.type === 'NEW_LEAD';
+                  const isReschedule = notif.type === 'APPOINTMENT_RESCHEDULE';
                   const apt = notif.appointment;
+                  const lead = notif.lead;
+                  
+                  const displayName = lead?.name || apt?.patient?.lead?.name || 'Paciente/Lead não encontrado';
+                  const procedure = lead?.procedure || apt?.procedure;
                   
                   return (
                     <div
                       key={notif.id}
                       className={`flex items-start gap-3 px-3 py-3 border-b last:border-b-0 transition-all ${
-                        isRead ? 'opacity-55' : 
-                        isCritical ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500 animate-pulse' :
-                        isConfirm ? 'bg-emerald-50 hover:bg-emerald-100 border-l-4 border-l-emerald-500' :
-                        is48h ? 'bg-amber-50 hover:bg-amber-100 border-l-4 border-l-amber-500' :
-                        'bg-primary/5 hover:bg-primary/10'
+                        isRead ? 'opacity-50 hover:bg-muted/40 dark:hover:bg-muted/20' : 
+                        isCritical ? 'bg-red-50/70 hover:bg-red-100/80 dark:bg-red-950/15 dark:hover:bg-red-950/25 border-l-4 border-l-red-500 animate-pulse' :
+                        isConfirm ? 'bg-emerald-50/70 hover:bg-emerald-100/80 dark:bg-emerald-950/15 dark:hover:bg-emerald-950/25 border-l-4 border-l-emerald-500' :
+                        is48h ? 'bg-amber-50/70 hover:bg-amber-100/80 dark:bg-amber-950/15 dark:hover:bg-amber-950/25 border-l-4 border-l-amber-500' :
+                        isNewLead ? 'bg-blue-50/70 hover:bg-blue-100/80 dark:bg-blue-950/15 dark:hover:bg-blue-950/25 border-l-4 border-l-blue-500' :
+                        isReschedule ? 'bg-orange-50/70 hover:bg-orange-100/80 dark:bg-orange-950/15 dark:hover:bg-orange-950/25 border-l-4 border-l-orange-500' :
+                        'bg-primary/5 hover:bg-primary/10 dark:bg-primary/10 dark:hover:bg-primary/15'
                       }`}
                     >
                       <div className={`mt-2 h-2 w-2 rounded-full shrink-0 ${
                         isRead ? 'bg-muted-foreground/30' : 
-                        isCritical ? 'bg-red-600' : 
-                        isConfirm ? 'bg-emerald-600' :
-                        is48h ? 'bg-amber-600 animate-pulse' :
+                        isCritical ? 'bg-red-600 dark:bg-red-400' : 
+                        isConfirm ? 'bg-emerald-600 dark:bg-emerald-400' :
+                        is48h ? 'bg-amber-600 dark:bg-amber-400 animate-pulse' :
+                        isNewLead ? 'bg-blue-600 dark:bg-blue-400' :
+                        isReschedule ? 'bg-orange-600 dark:bg-orange-400' :
                         'bg-primary'
                       }`} />
                       <div className="flex-1 min-w-0">
                         <div 
                           className={`text-sm font-bold truncate cursor-pointer hover:underline transition-colors ${
-                            isCritical ? 'text-red-700' : 
-                            isConfirm ? 'text-emerald-700' :
-                            is48h ? 'text-amber-700' :
-                            'hover:text-primary'
+                            isCritical ? 'text-red-800 dark:text-red-200' : 
+                            isConfirm ? 'text-emerald-800 dark:text-emerald-200' :
+                            is48h ? 'text-amber-800 dark:text-amber-200' :
+                            isNewLead ? 'text-blue-800 dark:text-blue-200' :
+                            isReschedule ? 'text-orange-800 dark:text-orange-200' :
+                            'hover:text-primary text-foreground'
                           }`}
                           onClick={() => {
                             if (apt?.patient?.id) {
                               navigate(`/patients?patientId=${apt.patient.id}`);
+                            } else if (lead?.id) {
+                              navigate(`/leads`);
                             }
                           }}
                         >
-                          {isCritical && <AlertTriangle className="h-3 w-3 inline mr-1 text-red-600" />}
-                          {isConfirm && <CheckCheck className="h-3 w-3 inline mr-1 text-emerald-600" />}
-                          {apt?.patient?.lead?.name || 'Paciente não encontrado'}
+                          {isCritical && <AlertTriangle className="h-3 w-3 inline mr-1 text-red-600 dark:text-red-400" />}
+                          {isConfirm && <CheckCheck className="h-3 w-3 inline mr-1 text-emerald-600 dark:text-emerald-400" />}
+                          {displayName}
                         </div>
-                        <div className={`text-xs ${isCritical ? 'text-red-600 font-semibold' : isConfirm ? 'text-emerald-600 font-semibold' : is48h ? 'text-amber-600 font-medium' : 'text-muted-foreground'}`}>
+                        <div className={`text-xs ${
+                          isCritical ? 'text-red-600 dark:text-red-400 font-semibold' : 
+                          isConfirm ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 
+                          is48h ? 'text-amber-600 dark:text-amber-400 font-medium' : 
+                          isNewLead ? 'text-blue-600 dark:text-blue-400 font-medium' : 
+                          isReschedule ? 'text-orange-600 dark:text-orange-400 font-medium' : 
+                          'text-muted-foreground'
+                        }`}>
                           {notificationTypeLabels[notif.type] || notif.type}
-                          {apt?.procedure && ` • ${apt.procedure}`}
+                          {procedure && ` • ${procedure}`}
                         </div>
                         {apt?.scheduledAt && (
-                          <div className={`text-xs mt-0.5 font-medium ${isCritical ? 'text-red-700' : isConfirm ? 'text-emerald-700' : is48h ? 'text-amber-700' : 'text-primary'}`}>
+                          <div className={`text-xs mt-0.5 font-medium ${
+                            isCritical ? 'text-red-700 dark:text-red-300' : 
+                            isConfirm ? 'text-emerald-700 dark:text-emerald-300' : 
+                            is48h ? 'text-amber-700 dark:text-amber-300' : 
+                            'text-primary dark:text-primary-foreground'
+                          }`}>
                             {format(new Date(apt.scheduledAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
                           </div>
                         )}
@@ -395,7 +426,14 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className={`h-7 w-7 shrink-0 ${isCritical ? 'text-red-600 hover:bg-red-200' : 'text-muted-foreground hover:text-primary hover:bg-primary/10'}`}
+                            className={`h-7 w-7 shrink-0 ${
+                              isCritical ? 'text-red-600 hover:bg-red-200/50 dark:text-red-400 dark:hover:bg-red-950/50' : 
+                              isConfirm ? 'text-emerald-600 hover:bg-emerald-200/50 dark:text-emerald-400 dark:hover:bg-emerald-950/50' :
+                              is48h ? 'text-amber-600 hover:bg-amber-200/50 dark:text-amber-400 dark:hover:bg-amber-950/50' :
+                              isNewLead ? 'text-blue-600 hover:bg-blue-200/50 dark:text-blue-400 dark:hover:bg-blue-950/50' :
+                              isReschedule ? 'text-orange-600 hover:bg-orange-200/50 dark:text-orange-400 dark:hover:bg-orange-950/50' :
+                              'text-muted-foreground hover:text-primary hover:bg-primary/10'
+                            }`}
                             title="Marcar como lida"
                             onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.id); }}
                           >
@@ -405,7 +443,7 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className={`h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500 hover:bg-red-50`}
+                          className={`h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 dark:hover:text-red-400`}
                           title="Excluir notificação"
                           onClick={(e) => handleDeleteNotif(notif.id, e)}
                         >

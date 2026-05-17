@@ -109,8 +109,10 @@ async function main() {
         let apptDate = addDays(patient.createdAt, 2 + Math.floor(Math.random() * 10));
         apptDate = setHours(setMinutes(apptDate, 0), 9 + Math.floor(Math.random() * 8));
 
-        // Simplified risk distribution for demo
-        const apptStatus = i % 3 === 0 ? 'ATTENTION_REQUIRED' : (i % 2 === 0 ? 'CONFIRMED' : 'SCHEDULED');
+        // We use CONFIRMED for demo data to avoid polluting the NotificationService cronjob
+        // The NotificationService only picks up SCHEDULED appointments.
+        // This ensures only the cron-test seed feeds the actual notification system.
+        const apptStatus = i % 3 === 0 ? 'ATTENTION_REQUIRED' : 'CONFIRMED';
 
         await prisma.appointment.create({
             data: {
@@ -119,8 +121,8 @@ async function main() {
                 procedure: lead.procedure!,
                 scheduledAt: apptDate,
                 status: apptStatus as any,
-                riskScore: apptStatus === 'ATTENTION_REQUIRED' ? 40 : (apptStatus === 'CONFIRMED' ? 100 : 80),
-                riskLevel: apptStatus === 'ATTENTION_REQUIRED' ? 'HIGH' : (apptStatus === 'CONFIRMED' ? 'LOW' : 'LOW'),
+                riskScore: apptStatus === 'ATTENTION_REQUIRED' ? 40 : 100,
+                riskLevel: apptStatus === 'ATTENTION_REQUIRED' ? 'HIGH' : 'LOW',
                 createdAt: patient.createdAt
             }
         });

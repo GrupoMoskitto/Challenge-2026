@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config({ path: '../../.env' });
 import { prisma, AppointmentStatus } from '@crmed/database';
 
 async function main() {
@@ -62,7 +64,9 @@ async function main() {
 
   await createTestAppt(30, 'Test Cron 30D (REMINDER_30D)');
   await createTestAppt(7, 'Test Cron 7D (REMINDER_7D)');
-  await createTestAppt(2, 'Test Cron 48H (CONFIRMATION_48H)');
+  await createTestAppt(2, 'Test Cron 48H (Para Confirmar - 1)');
+  await createTestAppt(2, 'Test Cron 48H (Para Reagendar - 2)');
+  await createTestAppt(2, 'Test Cron 48H (Para Cancelar - 3)');
 
   console.log('🎉 Seed complete. Run pnpm test:cron to test the notifications.');
 }

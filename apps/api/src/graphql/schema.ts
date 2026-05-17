@@ -64,6 +64,8 @@ export const typeDefs = gql`
     LAST_ATTEMPT
     NEW_LEAD
     APPOINTMENT_CONFIRMED
+    APPOINTMENT_CANCELLED
+    APPOINTMENT_RESCHEDULE
     SYSTEM_ERROR
     NO_RESPONSE_48H
   }
@@ -323,8 +325,12 @@ export const typeDefs = gql`
 
   type Notification {
     id: ID!
-    appointmentId: ID!
-    appointment: Appointment!
+    appointmentId: ID
+    appointment: Appointment
+    postOpId: ID
+    postOp: PostOp
+    leadId: ID
+    lead: Lead
     type: NotificationType!
     status: NotificationStatus!
     sentAt: DateTime
