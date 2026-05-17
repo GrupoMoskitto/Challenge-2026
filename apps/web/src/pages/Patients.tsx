@@ -261,16 +261,14 @@ const Patients = () => {
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
-    const urlSearch = searchParams.get("search") || "";
     const urlStatus = searchParams.get("status") || "";
     const urlPatientId = searchParams.get("patientId") || null;
     const urlTab = searchParams.get("tab") || "timeline";
 
-    if (search !== urlSearch) { setSearch(urlSearch); setDebouncedSearch(urlSearch); }
     if (statusFilter !== urlStatus) { setStatusFilter(urlStatus); setShowFilters(!!urlStatus); }
     if (urlPatientId !== selectedPatientId) { setSelectedPatientId(urlPatientId); }
     if (urlTab !== activeTab) { setActiveTab(urlTab); }
-  }, [searchParams, activeTab, search, selectedPatientId, statusFilter]);
+  }, [searchParams]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -637,7 +635,7 @@ const Patients = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div><span className="text-muted-foreground">Telefone</span><p>{patient.lead?.phone}</p></div>
                     <div><span className="text-muted-foreground">E-mail</span><p className="truncate">{patient.lead?.email}</p></div>
-                    <div><span className="text-muted-foreground">Data de Nascimento</span><p>{patient.dateOfBirth ? format(new Date(patient.dateOfBirth), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</p></div>
+                    <div><span className="text-muted-foreground">Data de Nascimento</span><p>{patient.dateOfBirth ? format(new Date(new Date(patient.dateOfBirth).getTime() + new Date(patient.dateOfBirth).getTimezoneOffset() * 60000), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</p></div>
                     <div><span className="text-muted-foreground">Prontuário</span><p>{patient.medicalRecord || '-'}</p></div>
                     <div className="col-span-2"><span className="text-muted-foreground">Endereço</span><p className="break-words">{patient.address || '-'}</p></div>
                     <div><span className="text-muted-foreground">Sexo</span><p>{patient.sex || '-'}</p></div>

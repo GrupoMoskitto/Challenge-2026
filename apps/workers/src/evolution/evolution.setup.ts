@@ -39,6 +39,8 @@ export async function ensureEvolutionReady(client: EvoGoClient): Promise<void> {
         client.setInstanceToken(instance.token);
         resolvedInstanceId = instance.id;
         logger.info('EvoGo:Setup', 'Instance token loaded successfully.');
+        // Give EvoGo a moment to stabilize the token session
+        await new Promise(resolve => setTimeout(resolve, 2000));
       } else {
         logger.warn('EvoGo:Setup', 'Instance token not found, API calls may fail with 401.');
       }
@@ -58,7 +60,7 @@ export async function ensureEvolutionReady(client: EvoGoClient): Promise<void> {
         logger.success('EvoGo:Setup', `Instance is connected and logged in as "${status.Name || 'unknown'}" ✓`);
         
         try {
-          await client.connect(webhookUrl, ['MESSAGE', 'CONNECTION', 'QRCODE'], resolvedInstanceId);
+          await client.connect(webhookUrl, ['MESSAGE', 'RECEIPT', 'CONNECTION', 'QRCODE'], resolvedInstanceId);
           logger.info('EvoGo:Setup', `Webhook re-confirmed at: ${webhookUrl}`);
         } catch (webhookError) {
           logger.warn('EvoGo:Setup', 'Could not re-confirm webhook, but instance is connected.', webhookError);
@@ -82,7 +84,7 @@ export async function ensureEvolutionReady(client: EvoGoClient): Promise<void> {
 
     try {
       logger.info('EvoGo:Setup', `Connecting instance with webhook: ${webhookUrl}...`);
-      const connectResult = await client.connect(webhookUrl, ['MESSAGE', 'CONNECTION', 'QRCODE'], resolvedInstanceId);
+      const connectResult = await client.connect(webhookUrl, ['MESSAGE', 'RECEIPT', 'CONNECTION', 'QRCODE'], resolvedInstanceId);
       logger.success('EvoGo:Setup', `Instance connected! Events: ${connectResult.eventString}`);
     } catch (connectError) {
       logger.error('EvoGo:Setup', 'Failed to connect instance.', connectError);

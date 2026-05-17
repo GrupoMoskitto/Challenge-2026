@@ -8,7 +8,9 @@
     "start": "node dist/index.js",
     "lint": "eslint .",
     "test:whatsapp": "tsx src/scripts/send-test.ts",
-    "setup:webhook": "tsx src/scripts/setup-webhook.ts"
+    "test:cron": "tsx src/scripts/run-cron.ts",
+    "setup:webhook": "tsx src/scripts/setup-webhook.ts",
+    "seed:cron-test": "tsx src/scripts/seed-cron-test.ts"
   },
   "dependencies": {
     "@crmed/database": "workspace:*",

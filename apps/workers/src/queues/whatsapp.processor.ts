@@ -28,6 +28,7 @@ export const whatsappDLQ = new Queue(WHATSAPP_DLQ_NAME, {
 
 interface WhatsAppJobData {
   appointmentId?: string;
+  postOpId?: string;
   leadId: string;
   patientName: string;
   phone: string;
@@ -40,7 +41,7 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
   WHATSAPP_QUEUE_NAME,
   async (job: Job<WhatsAppJobData>) => {
     logger.info('Worker', `Processando job ${job.id}: ${job.name} (tentativa ${job.attemptsMade + 1}/${job.opts.attempts ?? 5})`);
-    const { appointmentId, leadId, phone, message, triggerDays, instanceName: jobInstanceName } = job.data;
+    const { appointmentId, postOpId, leadId, phone, message, triggerDays, instanceName: jobInstanceName } = job.data;
 
     try {
       const defaultInstance = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
@@ -58,11 +59,47 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
         });
       }
 
+      // Determine notification type
+      let notificationType: 'REMINDER_30D' | 'REMINDER_7D' | 'CONFIRMATION_48H' | 'POST_OP_CONFIRMATION' | 'NEW_LEAD' | 'LAST_ATTEMPT' = 'LAST_ATTEMPT';
+      if (triggerDays === 30) notificationType = 'REMINDER_30D';
+      else if (triggerDays === 7) notificationType = 'REMINDER_7D';
+      else if (triggerDays === 2) notificationType = 'CONFIRMATION_48H';
+      else if (triggerDays === -1) notificationType = 'POST_OP_CONFIRMATION';
+      else if (triggerDays === 0) notificationType = 'NEW_LEAD';
+
+      // Create SENT notification with the WhatsApp Message ID (Immediate visibility)
+      if (result.messageId) {
+        if (appointmentId) {
+          await prisma.notification.create({
+            data: {
+              appointmentId,
+              type: notificationType as any,
+              status: 'SENT',
+              externalMessageId: result.messageId,
+              sentAt: new Date(),
+            }
+          });
+        } else if (postOpId) {
+          await prisma.notification.create({
+            data: {
+              postOpId,
+              type: notificationType as any,
+              status: 'SENT',
+              externalMessageId: result.messageId,
+              sentAt: new Date(),
+            }
+          });
+        }
+      }
+
+      const entityId = appointmentId || postOpId || leadId;
+      const entityType = appointmentId ? 'Appointment' : (postOpId ? 'PostOp' : 'Lead');
+
       // RN06: Successful delivery audit
       await prisma.auditLog.create({
         data: {
-          entityType: appointmentId ? 'Appointment' : 'Lead',
-          entityId: appointmentId || leadId,
+          entityType,
+          entityId,
           action: 'WHATSAPP_SENT',
           newValue: JSON.stringify({ triggerDays, messageSnippet: message.substring(0, 50) }),
           reason: `Automação RN05: Lembrete/Mensagem de ${triggerDays} dia(s) enviado com sucesso`,
@@ -75,10 +112,13 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
       const errMessage = error instanceof Error ? error.message : String(error);
       logger.error('Worker', `Falha ao enviar para ${phone}`, errMessage);
       
+      const entityId = appointmentId || postOpId || leadId;
+      const entityType = appointmentId ? 'Appointment' : (postOpId ? 'PostOp' : 'Lead');
+
       await prisma.auditLog.create({
         data: {
-          entityType: appointmentId ? 'Appointment' : 'Lead',
-          entityId: appointmentId || leadId,
+          entityType,
+          entityId,
           action: 'WHATSAPP_FAILED',
           newValue: JSON.stringify({ error: errMessage, attempt: job.attemptsMade + 1 }),
           reason: `Automação RN05: Falha ao enviar lembrete/mensagem de ${triggerDays} dia(s)`,

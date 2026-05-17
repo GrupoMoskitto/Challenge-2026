@@ -18,6 +18,7 @@ Lead → Paciente → Agendamento → Notificação WhatsApp → Confirmação �
 - [Segurança](./security.md) — RBAC, OWASP Top 10, Rate Limit, JWT, XSS e LGPD.
 - [API Reference](./api.md) — Documentação da API GraphQL (queries, mutations, enums, erros).
 - [Desenvolvimento](./development.md) — Guia de início rápido e scripts.
+- [Testes de Fluxo](./testing-flows.md) — Roteiro para validação manual de regras de negócio (E2E).
 
 ### Funcionalidades
 

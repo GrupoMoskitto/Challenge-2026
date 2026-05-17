@@ -226,6 +226,8 @@ pnpm infra:dev
 | `pnpm --filter @crmed/api dev` | Inicia apenas a API |
 | `pnpm --filter @crmed/web dev` | Inicia apenas o frontend |
 | `pnpm --filter @crmed/workers dev` | Inicia apenas os workers |
+| `pnpm --filter @crmed/workers seed:cron-test` | Popula 3 agendamentos fictícios nas janelas da régua |
+| `pnpm --filter @crmed/workers test:cron` | Força a execução manual do Cron Diário de notificações |
 
 ### Portas
 

@@ -75,10 +75,18 @@ export class IdentityService {
         return { isValid: false, error: 'MISMATCH' };
     }
 
-    const patientDOB = startOfDay(lead.patient.dateOfBirth);
+    const dbDate = lead.patient.dateOfBirth;
+    
+    // Converte a data do DB (que sempre salva meia-noite UTC) para string YYYY-MM-DD
+    const dbYear = dbDate.getUTCFullYear();
+    const dbMonth = String(dbDate.getUTCMonth() + 1).padStart(2, '0');
+    const dbDay = String(dbDate.getUTCDate()).padStart(2, '0');
+    const dbDateString = `${dbYear}-${dbMonth}-${dbDay}`;
 
-    // 3. Comparação (usando strings para evitar problemas de timezone de objeto Date)
-    if (format(parsedDate, 'yyyy-MM-dd') === format(patientDOB, 'yyyy-MM-dd')) {
+    // Converte a data parseada (que está no fuso local) para YYYY-MM-DD
+    const parsedDateString = format(parsedDate, 'yyyy-MM-dd');
+
+    if (parsedDateString === dbDateString) {
       return { isValid: true };
     }
 

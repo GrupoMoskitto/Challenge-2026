@@ -36,9 +36,9 @@ flowchart TD
     Trigger -- Status Change --> Engine
     Trigger -- New Contact --> Engine
     Trigger -- WhatsApp Webhook --> Engine
-    Trigger -- Daily Cron --> Engine
+    Trigger -- Daily Cron SLA Violado --> Engine
     
-    subgraph Engine [Risk Score Engine]
+    subgraph Engine [Risk Score Engine (BullMQ)]
         Calculate[calculateRiskScore]
     end
     

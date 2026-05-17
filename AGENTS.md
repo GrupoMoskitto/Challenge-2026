@@ -223,6 +223,10 @@ pnpm --filter @crmed/api test -- --grep="test name"
 # Database
 pnpm --filter @crmed/database db:setup   # generate + migrate + seed
 pnpm --filter @crmed/database db:generate
+
+# Cron Testing
+pnpm --filter @crmed/workers seed:cron-test  # Populates test appointments in notification windows
+pnpm --filter @crmed/workers test:cron       # Triggers the manual execution of the daily cron
 ```
 
 ---

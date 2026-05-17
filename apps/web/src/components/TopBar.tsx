@@ -97,11 +97,13 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
   });
 
   const unreadCount = notifData?.unreadNotificationsCount || 0;
-  const notifications = [...(notifData?.notifications || [])].sort((a, b) => {
-    if (a.type === 'NO_RESPONSE_48H' && b.type !== 'NO_RESPONSE_48H') return -1;
-    if (a.type !== 'NO_RESPONSE_48H' && b.type === 'NO_RESPONSE_48H') return 1;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+  const notifications = [...(notifData?.notifications || [])]
+    .filter(n => n.status !== 'PENDING') // Hide notifications that haven't been delivered
+    .sort((a, b) => {
+      if (a.type === 'NO_RESPONSE_48H' && b.type !== 'NO_RESPONSE_48H') return -1;
+      if (a.type !== 'NO_RESPONSE_48H' && b.type === 'NO_RESPONSE_48H') return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -335,6 +337,8 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
                 {notifications.map((notif: any) => {
                   const isRead = notif.status === 'READ';
                   const isCritical = notif.type === 'NO_RESPONSE_48H';
+                  const is48h = notif.type === 'CONFIRMATION_48H';
+                  const isConfirm = notif.type === 'APPOINTMENT_CONFIRMED';
                   const apt = notif.appointment;
                   
                   return (
@@ -343,17 +347,25 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
                       className={`flex items-start gap-3 px-3 py-3 border-b last:border-b-0 transition-all ${
                         isRead ? 'opacity-55' : 
                         isCritical ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500 animate-pulse' :
+                        isConfirm ? 'bg-emerald-50 hover:bg-emerald-100 border-l-4 border-l-emerald-500' :
+                        is48h ? 'bg-amber-50 hover:bg-amber-100 border-l-4 border-l-amber-500' :
                         'bg-primary/5 hover:bg-primary/10'
                       }`}
                     >
                       <div className={`mt-2 h-2 w-2 rounded-full shrink-0 ${
                         isRead ? 'bg-muted-foreground/30' : 
-                        isCritical ? 'bg-red-600' : 'bg-primary'
+                        isCritical ? 'bg-red-600' : 
+                        isConfirm ? 'bg-emerald-600' :
+                        is48h ? 'bg-amber-600 animate-pulse' :
+                        'bg-primary'
                       }`} />
                       <div className="flex-1 min-w-0">
                         <div 
                           className={`text-sm font-bold truncate cursor-pointer hover:underline transition-colors ${
-                            isCritical ? 'text-red-700' : 'hover:text-primary'
+                            isCritical ? 'text-red-700' : 
+                            isConfirm ? 'text-emerald-700' :
+                            is48h ? 'text-amber-700' :
+                            'hover:text-primary'
                           }`}
                           onClick={() => {
                             if (apt?.patient?.id) {
@@ -362,14 +374,15 @@ export function TopBar({ title, onMenuToggle }: TopBarProps) {
                           }}
                         >
                           {isCritical && <AlertTriangle className="h-3 w-3 inline mr-1 text-red-600" />}
+                          {isConfirm && <CheckCheck className="h-3 w-3 inline mr-1 text-emerald-600" />}
                           {apt?.patient?.lead?.name || 'Paciente não encontrado'}
                         </div>
-                        <div className={`text-xs ${isCritical ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
+                        <div className={`text-xs ${isCritical ? 'text-red-600 font-semibold' : isConfirm ? 'text-emerald-600 font-semibold' : is48h ? 'text-amber-600 font-medium' : 'text-muted-foreground'}`}>
                           {notificationTypeLabels[notif.type] || notif.type}
                           {apt?.procedure && ` • ${apt.procedure}`}
                         </div>
                         {apt?.scheduledAt && (
-                          <div className={`text-xs mt-0.5 font-medium ${isCritical ? 'text-red-700' : 'text-primary'}`}>
+                          <div className={`text-xs mt-0.5 font-medium ${isCritical ? 'text-red-700' : isConfirm ? 'text-emerald-700' : is48h ? 'text-amber-700' : 'text-primary'}`}>
                             {format(new Date(apt.scheduledAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
                           </div>
                         )}

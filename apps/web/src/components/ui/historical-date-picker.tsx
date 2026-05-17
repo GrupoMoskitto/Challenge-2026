@@ -124,13 +124,13 @@ export function HistoricalDatePicker({
   const [open, setOpen] = React.useState(false);
   // Estado local para permitir selecionar antes de confirmar
   const [internalDate, setInternalDate] = React.useState<Date | undefined>(
-    value ? parseISO(value) : undefined
+    value ? parseISO(value.split('T')[0]) : undefined
   );
 
   // Sincronizar estado interno quando o valor externo mudar ou o popover abrir
   React.useEffect(() => {
     if (open) {
-      setInternalDate(value ? parseISO(value) : undefined);
+      setInternalDate(value ? parseISO(value.split('T')[0]) : undefined);
     }
   }, [value, open]);
 
@@ -154,7 +154,7 @@ export function HistoricalDatePicker({
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? format(parseISO(value), "dd/MM/yyyy", { locale: ptBR }) : <span>{placeholder}</span>}
+          {value ? format(parseISO(value.split('T')[0]), "dd/MM/yyyy", { locale: ptBR }) : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0 overflow-hidden rounded-xl border-none shadow-2xl" align="start">

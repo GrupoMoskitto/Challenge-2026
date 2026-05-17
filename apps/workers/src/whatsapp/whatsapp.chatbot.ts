@@ -47,6 +47,16 @@ export class WhatsappChatbot {
     const logText = textMessage.replace(/\n/g, ' ').substring(0, 50);
     logger.info('WhatsApp:Chatbot', `[INBOUND] Mensagem de ${pushName} (${cleanPhone}): ${logText}...`);
 
+    // Check Handoff (Bot Paused)
+    const activeLead = await prisma.lead.findFirst({ 
+      where: { phone: { contains: cleanPhone.substring(2) } } 
+    });
+
+    if (activeLead && activeLead.botPausedUntil && activeLead.botPausedUntil > new Date()) {
+      logger.info('WhatsApp:Chatbot', `[HANDOFF] Ignorando mensagem de ${pushName} (${cleanPhone}). Bot pausado até ${activeLead.botPausedUntil.toISOString()}`);
+      return;
+    }
+
     const state = await WhatsappSession.get(remoteJid);
 
     if (state.appointmentId) {
@@ -142,6 +152,13 @@ export class WhatsappChatbot {
               }
             });
             await riskScoreQueue.add('recalculate', { appointmentId: state.appointmentId });
+            await prisma.notification.create({
+              data: {
+                appointmentId: state.appointmentId,
+                type: 'APPOINTMENT_CONFIRMED',
+                status: 'SENT', // Immediate display
+              }
+            });
           } else if (state.postOpId) {
             await prisma.postOp.update({
               where: { id: state.postOpId },
@@ -279,6 +296,13 @@ export class WhatsappChatbot {
             }
           });
           await riskScoreQueue.add('recalculate', { appointmentId: state.appointmentId });
+          await prisma.notification.create({
+            data: {
+              appointmentId: state.appointmentId,
+              type: 'APPOINTMENT_CONFIRMED',
+              status: 'SENT', // Immediate display
+            }
+          });
           await WhatsappSender.sendMessage(instanceId, remoteJid, `✅ *Confirmado!* Sua presença foi registrada com sucesso. Estamos te aguardando! ✨`);
           await WhatsappSession.clear(remoteJid);
         } else if (textMessage === '2' || textMessage.toLowerCase().includes('reagendar')) {
@@ -465,7 +489,7 @@ export class WhatsappChatbot {
           cpf: `WPP.${uniqueId}`,
           email: leadEmail,
           source: 'WHATSAPP',
-          origin: 'Whatsapp',
+          origin: 'WhatsApp',
           procedure: procedureInterest,
           whatsappActive: true,
           notes: 'Lead criado pelo atendimento automatizado do WhatsApp.'
@@ -473,8 +497,17 @@ export class WhatsappChatbot {
       });
       return lead.id;
     } catch (e: unknown) {
-      logger.error('WhatsApp:Chatbot', 'Erro ao criar lead no fluxo NEW', e);
+      logger.error('WhatsApp:Chatbot', 'Erro ao criar lead no fluxo NEW (possivelmente já existe)', e);
       const existing = await prisma.lead.findFirst({ where: { phone } });
+      
+      // Auto-heal legacy test leads that had the old 'Whatsapp' origin
+      if (existing && existing.origin === 'Whatsapp') {
+        await prisma.lead.update({
+          where: { id: existing.id },
+          data: { origin: 'WhatsApp' }
+        });
+      }
+      
       return existing?.id;
     }
   }

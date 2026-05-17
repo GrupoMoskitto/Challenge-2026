@@ -11,7 +11,21 @@ A automação de comunicações via WhatsApp é um dos pilares de eficiência do
 | **Confirmação 48h** | 48 horas antes do agendamento | Confirmar presença ou solicitar remarcação. |
 | **Pós-Op** | Data definida no registro de Post-Op | Acompanhamento de recuperação do paciente. |
 
-Os jobs são enfileirados no **BullMQ (Redis)** no momento do agendamento e executados pelo `Daily Cron` às 08:00 (America/Sao_Paulo).
+Os envios são avaliados pelo **Cronjob Diário** (que roda às 08:00 AM - America/Sao_Paulo). O cronjob identifica os agendamentos elegíveis e enfileira as mensagens no **BullMQ (Redis)**.
+
+### Testando a Régua de Notificações Manualmente
+
+Para facilitar a validação em ambiente de desenvolvimento, o sistema possui scripts oficiais para gerar dados de teste e forçar a execução do cronjob:
+
+```bash
+# 1. Popula o banco com 3 agendamentos fictícios (30d, 7d, 2d) vinculados ao número do DEV_ALLOWED_PHONE
+pnpm -F @crmed/workers seed:cron-test
+
+# 2. Executa a varredura do Cronjob manualmente
+pnpm -F @crmed/workers test:cron
+```
+
+O Cronjob possui observabilidade detalhada e logará no terminal exatamente quantos agendamentos foram avaliados, quantos foram enfileirados para envio e quantos foram ignorados (por já possuírem a notificação no banco de dados, evitando duplicidade).
 
 ---
 

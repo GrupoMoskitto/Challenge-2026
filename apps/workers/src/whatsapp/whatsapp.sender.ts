@@ -48,14 +48,14 @@ export class WhatsappSender {
 
     try {
       logger.info('WhatsApp:Sender', `Enviando mensagem para ${number}...`);
-      await evoGoClient.sendText(number, text, 1200, instanceId || undefined);
+      const response = await evoGoClient.sendText(number, text, 1200, instanceId || undefined);
       logger.success('WhatsApp:Sender', `Mensagem entregue para ${number}`);
 
       if (leadId) {
         await this.logOutboundContact(leadId, text);
       }
 
-      return { delivered: true };
+      return { delivered: true, messageId: response.Info?.ID };
     } catch (error: unknown) {
       const errMsg = error instanceof EvolutionApiError ? error.message : (error as Error).message;
       logger.error('WhatsApp:Sender', `Erro ao enviar mensagem para ${number}: ${errMsg}`);
