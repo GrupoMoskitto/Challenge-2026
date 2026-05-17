@@ -190,8 +190,11 @@ function PatientTimeline({ patient }: { patient: any }) {
 
           return (
             <div key={item.id} className="relative flex items-center gap-5 group">
+              {index > 0 && (
+                <div className="absolute left-5 -translate-x-[0.5px] w-px bg-border/60 z-0 top-0 bottom-1/2" />
+              )}
               {!isLast && (
-                <div className="absolute left-[19px] w-px bg-border/60 z-0" style={{ top: '50%', bottom: '-50%' }} />
+                <div className="absolute left-5 -translate-x-[0.5px] w-px bg-border/60 z-0 top-1/2 bottom-[-24px]" />
               )}
               <div className={cn("relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 bg-background shrink-0 shadow-sm transition-transform group-hover:scale-105", colorClass)}>
                 <IconComp className="h-4 w-4" />

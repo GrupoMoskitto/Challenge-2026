@@ -126,6 +126,8 @@ const testValues: Record<string, string> = {
   medico: "Dr. Arnaldo Castro",
   data: format(addDays(new Date(), 2), "dd/MM/yyyy"),
   hora: "09:30",
+  horario: "09:30",
+  "horário": "09:30",
 };
 
 function formatWhatsAppText(content: string) {
@@ -1505,7 +1507,7 @@ const Settings = () => {
                 <User className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-sm truncate">CRM-ed Atendimento</h3>
+                <h3 className="font-bold text-sm truncate">CRMed Atendimento</h3>
                 <p className="text-[10px] opacity-80">visto por último hoje às {format(new Date(), "HH:mm")}</p>
               </div>
             </div>
