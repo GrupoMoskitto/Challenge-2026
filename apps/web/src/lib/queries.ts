@@ -454,6 +454,17 @@ export const UPDATE_APPOINTMENT = gql`
   }
 `;
 
+export const UPDATE_APPOINTMENT_STATUS = gql`
+  mutation UpdateAppointmentStatus($input: UpdateAppointmentStatusInput!) {
+    updateAppointmentStatus(input: $input) {
+      id
+      status
+      riskScore
+      riskLevel
+    }
+  }
+`;
+
 export const DELETE_APPOINTMENT = gql`
   mutation DeleteAppointment($input: DeleteAppointmentInput!) {
     deleteAppointment(input: $input) {

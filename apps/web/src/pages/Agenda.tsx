@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Trash, Search, Loader2, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
-import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_PATIENTS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT } from "@/lib/queries";
+import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_PATIENTS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT, UPDATE_APPOINTMENT_STATUS } from "@/lib/queries";
 import { validatePhone, sanitizeInput, checkSurgeonAvailability } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -70,6 +70,7 @@ const Agenda = () => {
     patientPhone: '',
     procedure: '',
     notes: '',
+    status: '',
   });
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [patientSearch, setPatientSearch] = useState("");
@@ -104,6 +105,7 @@ const Agenda = () => {
 
   const [createAppointment] = useMutation(CREATE_APPOINTMENT);
   const [updateAppointment] = useMutation(UPDATE_APPOINTMENT);
+  const [updateAppointmentStatus] = useMutation(UPDATE_APPOINTMENT_STATUS);
   const [deleteAppointment, { loading: deleting }] = useMutation(DELETE_APPOINTMENT);
 
   const appointments = appointmentsData?.appointmentsByDate || [];
@@ -211,6 +213,7 @@ const Agenda = () => {
         patientPhone: apt.patient?.lead?.phone || apt.patient?.phone || '',
         procedure: apt.procedure || '',
         notes: apt.notes || '',
+        status: apt.status || 'SCHEDULED',
       };
       setNewAppointment(apptState);
       setPreviousAppointmentState({
@@ -222,7 +225,7 @@ const Agenda = () => {
     } else {
       setEditingAppointmentId(null);
       setSelectedPatientId(null);
-      setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '' });
+      setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '', status: '' });
       setPreviousAppointmentState(null);
     }
     setSheetOpen(true);
@@ -302,6 +305,16 @@ const Agenda = () => {
             },
           },
         });
+        if (newAppointment.status && previousAppointmentState && newAppointment.status !== previousAppointmentState.status) {
+          await updateAppointmentStatus({
+            variables: {
+              input: {
+                id: editingAppointmentId,
+                status: newAppointment.status,
+              }
+            }
+          });
+        }
       } else {
         if (!selectedPatientId) {
           toast.error('Selecione um paciente');
@@ -339,6 +352,16 @@ const Agenda = () => {
                 },
               },
             });
+            if (previousAppointmentState.status && previousAppointmentState.status !== newAppointment.status) {
+              await updateAppointmentStatus({
+                variables: {
+                  input: {
+                    id: editingAppointmentId,
+                    status: previousAppointmentState.status,
+                  }
+                }
+              });
+            }
             await refetchAppointments();
           }
         },
@@ -346,7 +369,7 @@ const Agenda = () => {
       );
       setSheetOpen(false);
       setEditingAppointmentId(null);
-      setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '' });
+      setNewAppointment({ patientName: '', patientPhone: '', procedure: '', notes: '', status: '' });
       setSelectedPatientId(null);
       setPreviousAppointmentState(null);
     } catch (error) {
@@ -718,6 +741,30 @@ const Agenda = () => {
                 </SelectContent>
               </Select>
             </div>
+            
+            {editingAppointmentId && (
+              <div className="space-y-2">
+                <Label htmlFor="status">Status do Agendamento</Label>
+                <Select
+                  value={newAppointment.status}
+                  onValueChange={(value) => setNewAppointment({ ...newAppointment, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(statusLabels).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("w-2 h-2 rounded-full", statusColors[key] || "bg-gray-500")} />
+                          {label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="notes">Observações Clínicas</Label>
               <Textarea
