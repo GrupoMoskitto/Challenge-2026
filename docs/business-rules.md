@@ -47,8 +47,8 @@ await enforceStatusChange({
 - **Timezone**: Todas as comparações de data usam offset `-03:00` (America/Sao_Paulo) para evitar bugs de boundary.
 
 ### RN05 — Régua de Notificação
-- **Enfileiramento**: Jobs são criados no BullMQ no momento do `createAppointment`.
-- **Execução**: O `Daily Cron` (08:00 AM) identifica agendamentos próximos e processa os jobs pendentes.
+- **Enfileiramento Automático (Cron)**: Jobs de lembretes (30d, 7d, 48h) são enfileirados no BullMQ no momento da avaliação pelo `Daily Cron` (08:00 AM).
+- **Disparo Ativo (Reagendamento)**: Se a recepção alterar a data/hora de uma consulta, um gatilho envia imediatamente a nova data via WhatsApp.
 - **Template**: O conteúdo das mensagens vem do banco de dados via `TemplateParser`. Nunca hardcoded.
 
 ### RN06 — Rastreabilidade (Audit)

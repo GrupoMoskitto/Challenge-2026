@@ -20,6 +20,7 @@ export const typeDefs = gql`
     COMPLETED
     CANCELLED
     NO_SHOW
+    RESCHEDULED
   }
 
   enum RiskLevel {

@@ -37,6 +37,7 @@ const statusColors: Record<string, string> = {
   COMPLETED: "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800",
   CANCELLED: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
   NO_SHOW: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+  RESCHEDULED: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
 };
 
 const statusLabels: Record<string, string> = {
@@ -46,6 +47,7 @@ const statusLabels: Record<string, string> = {
   COMPLETED: "Concluído",
   CANCELLED: "Cancelado",
   NO_SHOW: "Não Compareceu",
+  RESCHEDULED: "Reagendado",
 };
 
 export default function Surgeons() {

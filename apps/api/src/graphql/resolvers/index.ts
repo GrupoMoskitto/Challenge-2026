@@ -1799,7 +1799,67 @@ export const resolvers = {
     },
     updateAppointment: async (_: unknown, { input }: { input: UpdateAppointmentInput }, context: Context) => {
       assertAuthenticated(context);
-      const updated = await prisma.appointment.update({ where: { id: decodeId(input.id) }, data: { ...input, id: undefined, patientId: input.patientId ? decodeId(input.patientId) : undefined, surgeonId: input.surgeonId ? decodeId(input.surgeonId) : undefined, scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined } });
+      const apptId = decodeId(input.id);
+      
+      const current = await prisma.appointment.findUnique({ 
+        where: { id: apptId },
+        include: { patient: { include: { lead: true } }, surgeon: true } 
+      });
+      if (!current) throw new Error('Consulta não encontrada');
+
+      const dataToUpdate: any = { 
+        ...input, 
+        id: undefined, 
+        patientId: input.patientId ? decodeId(input.patientId) : undefined, 
+        surgeonId: input.surgeonId ? decodeId(input.surgeonId) : undefined, 
+        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined 
+      };
+
+      if (input.scheduledAt && new Date(input.scheduledAt).getTime() !== current.scheduledAt.getTime()) {
+        dataToUpdate.status = 'RESCHEDULED';
+        if (current.status !== 'RESCHEDULED') {
+          await prisma.auditLog.create({ 
+            data: { 
+              entityType: 'Appointment', 
+              entityId: apptId, 
+              action: 'STATUS_CHANGE', 
+              oldValue: current.status, 
+              newValue: 'RESCHEDULED', 
+              userId: context.user?.userId, 
+              appointmentId: apptId 
+            } 
+          });
+          
+          // Emit reschedule notification
+          await prisma.notification.create({
+            data: {
+              type: 'APPOINTMENT_RESCHEDULE',
+              appointmentId: apptId
+            }
+          });
+          
+          if (current.patient?.lead?.phone) {
+            const { dispatchAppointmentReschedule } = await import('../../services/whatsappQueue');
+            await dispatchAppointmentReschedule(
+              apptId,
+              current.patient.lead.id,
+              current.patient.lead.name,
+              current.patient.lead.phone,
+              input.procedure || current.procedure,
+              current.surgeon?.name || '',
+              new Date(input.scheduledAt)
+            ).catch(err => logger.error('WhatsApp', 'Failed to dispatch reschedule notification', err));
+          }
+        }
+      }
+
+      const updated = await prisma.appointment.update({ where: { id: apptId }, data: dataToUpdate });
+      
+      // Recalculate risk score just in case date changed
+      await RiskScoreService.updateRiskScore(apptId).catch(err => {
+        logger.error('RiskScoreTrigger', `Failed to update risk score for appointment ${apptId}`, err);
+      });
+      
       return updated;
     },
     updateAppointmentStatus: async (_: unknown, { input }: { input: { id: string, status: AppointmentStatus } }, context: Context) => {

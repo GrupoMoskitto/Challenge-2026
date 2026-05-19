@@ -131,34 +131,60 @@ const testValues: Record<string, string> = {
 };
 
 function formatWhatsAppText(content: string) {
-  // First, handle variables with test data and styling
-  const parts = content.split(/(\{\{[^}]+\}\})/g);
-  
-  const populatedParts = parts.map((part, i) => {
-    if (part.startsWith("{{") && part.endsWith("}}")) {
-      const variable = part.replace(/[{}]/g, "").trim();
-      const value = testValues[variable] || part;
-      return (
-        <span key={`var-${i}`} className="font-bold text-primary underline decoration-primary/30">
-          {value}
-        </span>
-      );
-    }
-    
-    // Then, handle *bold* or **bold** syntax within the non-variable text
-    const text = part;
-    const subParts = text.split(/(\*[^*]+\*|\*\*[^*]+\*\*)/g);
-    
-    return subParts.map((subPart, j) => {
-      if ((subPart.startsWith("**") && subPart.endsWith("**")) || (subPart.startsWith("*") && subPart.endsWith("*"))) {
-        const boldText = subPart.replace(/\*/g, "");
-        return <strong key={`bold-${i}-${j}`} className="font-bold">{boldText}</strong>;
-      }
-      return subPart;
-    });
+  // Step 1: Replace variables with placeholder tokens and store the styled spans.
+  // This prevents variable braces from interfering with formatting regex.
+  const varMap: Record<string, React.ReactNode> = {};
+  let idx = 0;
+  const withPlaceholders = content.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
+    const key = `__VAR_${idx++}__`;
+    const value = testValues[varName.trim()] || match;
+    varMap[key] = (
+      <span key={key} className="font-bold text-primary underline decoration-primary/30">
+        {value}
+      </span>
+    );
+    return key;
   });
 
-  return populatedParts;
+  // Step 2: Process WhatsApp formatting on the full text (now free of {{ }}).
+  // Split by formatting tokens: ```mono```, *bold*, _italic_, ~strike~, \n
+  const tokens = withPlaceholders.split(/(```[^`]+```|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|\n)/g);
+
+  const result: React.ReactNode[] = [];
+
+  tokens.forEach((token, ti) => {
+    const key = `t-${ti}`;
+
+    if (token === "\n") {
+      result.push(<br key={key} />);
+    } else if (token.startsWith("```") && token.endsWith("```")) {
+      result.push(
+        <code key={key} className="font-mono text-[0.85em] bg-muted/60 dark:bg-muted/30 px-1 py-0.5 rounded text-foreground">
+          {injectVars(token.slice(3, -3), varMap)}
+        </code>
+      );
+    } else if (token.startsWith("*") && token.endsWith("*") && token.length > 2) {
+      result.push(<strong key={key} className="font-bold">{injectVars(token.slice(1, -1), varMap)}</strong>);
+    } else if (token.startsWith("_") && token.endsWith("_") && token.length > 2) {
+      result.push(<em key={key} className="italic">{injectVars(token.slice(1, -1), varMap)}</em>);
+    } else if (token.startsWith("~") && token.endsWith("~") && token.length > 2) {
+      result.push(<s key={key} className="line-through opacity-70">{injectVars(token.slice(1, -1), varMap)}</s>);
+    } else {
+      // Plain text — still may contain variable placeholders
+      result.push(<React.Fragment key={key}>{injectVars(token, varMap)}</React.Fragment>);
+    }
+  });
+
+  return result;
+}
+
+// Splits a string segment by __VAR_N__ placeholders and replaces them with styled spans.
+function injectVars(text: string, varMap: Record<string, React.ReactNode>): React.ReactNode[] {
+  const parts = text.split(/(__VAR_\d+__)/g);
+  return parts.map((part, i) => {
+    if (varMap[part]) return varMap[part];
+    return <React.Fragment key={`iv-${i}`}>{part}</React.Fragment>;
+  });
 }
 
 function highlightVariables(content: string) {

@@ -497,7 +497,7 @@ const Patients = () => {
 
     try {
       const scheduledAt = new Date(`${newApptForm.date}T${newApptForm.time}:00`);
-      await createAppointment({
+      const res = await createAppointment({
         variables: {
           input: {
             patientId: selectedPatientId,
@@ -507,6 +507,11 @@ const Patients = () => {
           }
         }
       });
+      
+      if (res.errors && res.errors.length > 0) {
+        throw new Error(res.errors[0].message);
+      }
+      
       toast.success("Consulta agendada!");
       setNewApptDialogOpen(false);
       setNewApptForm({ 
@@ -516,7 +521,9 @@ const Patients = () => {
         time: "09:00"
       });
       refetchPatient();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) { 
+      toast.error(e.message || "Erro ao criar agendamento."); 
+    }
   };
 
   if (loadingPatients && !patientsData) {
@@ -684,7 +691,7 @@ const Patients = () => {
                             <CalendarIcon className="h-5 w-5 text-muted-foreground" />
                             <div>
                               <p className="text-sm font-medium">{apt.procedure}</p>
-                              <p className="text-xs text-muted-foreground">{format(new Date(apt.scheduledAt), "dd/MM/yyyy 'às' HH:mm")} • Dr(a). {apt.surgeon?.name}</p>
+                              <p className="text-xs text-muted-foreground">{format(new Date(apt.scheduledAt), "dd/MM/yyyy 'às' HH:mm")} • {apt.surgeon?.name}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -702,6 +709,7 @@ const Patients = () => {
                                 apt.status === 'COMPLETED' ? "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800" :
                                 apt.status === 'CANCELLED' ? "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" :
                                 apt.status === 'NO_SHOW' ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800" :
+                                apt.status === 'RESCHEDULED' ? "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800" :
                                 "bg-muted text-muted-foreground border-transparent"
                               )}
                             >
@@ -710,7 +718,8 @@ const Patients = () => {
                                apt.status === 'ATTENTION_REQUIRED' ? 'Requer Atenção' :
                                apt.status === 'COMPLETED' ? 'Concluído' :
                                apt.status === 'CANCELLED' ? 'Cancelado' :
-                               apt.status === 'NO_SHOW' ? 'Não Compareceu' : apt.status}
+                               apt.status === 'NO_SHOW' ? 'Não Compareceu' :
+                               apt.status === 'RESCHEDULED' ? 'Reagendado' : apt.status}
                             </Badge>
                           </div>
                         </CardContent>

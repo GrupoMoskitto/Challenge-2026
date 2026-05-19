@@ -41,10 +41,12 @@ const notificationTypeLabels: Record<string, string> = {
   CONFIRMATION_48H: "Confirmação — 48 horas",
   POST_OP_CONFIRMATION: "Confirmação Pós-Op",
   LAST_ATTEMPT: "Última tentativa",
-  NEW_LEAD: "Novo Lead via WhatsApp",
-  APPOINTMENT_CONFIRMED: "Confirmação de Agendamento",
-  SYSTEM_ERROR: "Erro de Sistema",
-  NO_RESPONSE_48H: "SEM RESPOSTA (CRÍTICO)",
+  'NEW_LEAD': 'Novo Paciente Registrado',
+  'APPOINTMENT_CONFIRMED': 'Presença Confirmada',
+  'APPOINTMENT_CANCELLED': 'Agendamento Cancelado',
+  'APPOINTMENT_RESCHEDULE': 'Reagendamento Solicitado',
+  'SYSTEM_ERROR': 'Alerta de Sistema',
+  'NO_RESPONSE_48H': 'Sem Resposta (SLA Violado)'
 };
 
 const NOTIFICATIONS_QUERY = gql`
