@@ -164,19 +164,26 @@ const Agenda = () => {
     }
   }, [appointments, searchParams, setSearchParams, sheetOpen]);
 
+  const updateDateAndUrl = (newDate: string) => {
+    setCurrentDate(newDate);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("date", newDate);
+    setSearchParams(newParams, { replace: true });
+  };
+
   const prevDay = () => {
     const newDate = format(subDays(dateObj, 1), 'yyyy-MM-dd');
-    setCurrentDate(newDate);
+    updateDateAndUrl(newDate);
   };
   
   const nextDay = () => {
     const newDate = format(addDays(dateObj, 1), 'yyyy-MM-dd');
-    setCurrentDate(newDate);
+    updateDateAndUrl(newDate);
   };
   
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
-      setCurrentDate(format(date, 'yyyy-MM-dd'));
+      updateDateAndUrl(format(date, 'yyyy-MM-dd'));
       setCalendarOpen(false);
     }
   };
@@ -400,17 +407,17 @@ const Agenda = () => {
 
   return (
     <AppLayout title="Agenda Médica">
-      <div className="flex items-center justify-between mb-4 sm:mb-6 gap-3">
-        <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <Button variant="outline" size="icon" onClick={prevDay} className="shrink-0">
             <ChevronLeft className="h-4 w-4" />
           </Button>
 
           <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-[260px] sm:w-[340px] justify-start capitalize font-normal text-xs sm:text-sm">
+              <Button variant="outline" className="flex-1 min-w-0 sm:flex-none sm:w-[340px] justify-start capitalize font-normal text-xs sm:text-sm px-2 sm:px-4">
                 <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                <span>{dateLabel}</span>
+                <span className="truncate">{dateLabel}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -437,7 +444,7 @@ const Agenda = () => {
             }
             setNewConsultDialogOpen(true);
           }} 
-          className="shrink-0"
+          className="w-full sm:w-auto shrink-0"
         >
           <Plus className="h-4 w-4 mr-2" />
           Nova Consulta
