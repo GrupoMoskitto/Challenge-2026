@@ -40,7 +40,6 @@ import { format, subDays, startOfWeek, endOfWeek, isWithinInterval, addDays } fr
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-const TREND_CHART_DAYS = 14;
 
 const statusLabels: Record<string, string> = {
   NEW: "Novo",
@@ -56,6 +55,8 @@ const appointmentStatusColors: Record<string, string> = {
   COMPLETED: "bg-gray-500 cursor-default hover:bg-gray-600",
   CANCELLED: "bg-red-500 cursor-default hover:bg-red-600",
   NO_SHOW: "bg-yellow-500 cursor-default hover:bg-yellow-600",
+  ATTENTION_REQUIRED: "bg-orange-500 cursor-default hover:bg-orange-600",
+  RESCHEDULED: "bg-purple-500 cursor-default hover:bg-purple-600",
 };
 
 const appointmentStatusLabels: Record<string, string> = {
@@ -64,6 +65,8 @@ const appointmentStatusLabels: Record<string, string> = {
   COMPLETED: "Concluído",
   CANCELLED: "Cancelado",
   NO_SHOW: "Faltou",
+  ATTENTION_REQUIRED: "Atenção Necessária",
+  RESCHEDULED: "Reagendado",
 };
 
 const getThemeColors = () => {
@@ -125,7 +128,7 @@ const Dashboard = () => {
   
   const { data: statsData, loading: statsLoading } = useQuery(GET_DASHBOARD_STATS);
   const { data: leadsData, loading: leadsLoading } = useQuery(GET_LEADS, {
-    variables: { first: 100 },
+    variables: { first: 2000 },
     fetchPolicy: 'network-only',
   });
   const { data: appointmentsData, loading: appointmentsLoading } = useQuery(GET_APPOINTMENTS);
@@ -249,9 +252,11 @@ const Dashboard = () => {
     return acc;
   }, {});
 
+  const trendDays = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+
   const trendData = Object.entries(leadsByDay)
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(-TREND_CHART_DAYS)
+    .slice(-trendDays)
     .map(([date, data]: [string, any]) => ({ 
       date: format(new Date(date + 'T12:00:00'), 'dd/MM'), 
       leads: data.leads, 
@@ -504,7 +509,7 @@ const Dashboard = () => {
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-base font-medium">Tendência de Leads</CardTitle>
-                <p className="text-sm text-muted-foreground">Evolução dos últimos 14 dias</p>
+                <p className="text-sm text-muted-foreground">Evolução dos últimos {trendDays} dias</p>
               </div>
               <div className="flex gap-4 text-sm">
                 <div className="flex items-center gap-1">
@@ -547,6 +552,8 @@ const Dashboard = () => {
                         axisLine={false}
                         tickLine={false}
                         dx={-10}
+                        allowDecimals={false}
+                        domain={[0, 'auto']}
                       />
                       <Tooltip
                         contentStyle={{
@@ -806,56 +813,55 @@ const Dashboard = () => {
           </Card>
 
           {/* Today's Appointments */}
-          <Card 
-            className="shadow-sm hover:shadow-md transition-all cursor-pointer group/card border-zinc-800 hover:border-primary/20"
-            onClick={() => navigate('/schedule')}
-          >
+          <Card className="shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-4">
               <div>
-                <CardTitle className="text-base font-semibold group-hover/card:text-primary transition-colors">Consultas de Hoje</CardTitle>
+                <CardTitle className="text-base font-semibold">Consultas de Hoje</CardTitle>
                 <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
                   {format(today, "EEEE, dd 'de' MMMM", { locale: ptBR })}
                 </p>
               </div>
               {todayAppointments.length > 0 && (
                 <Badge variant="secondary" className="font-bold bg-primary/10 text-primary border-none">
-                  {todayAppointments.length} agendadas
+                  {todayAppointments.length} {todayAppointments.length === 1 ? 'agendada' : 'agendadas'}
                 </Badge>
               )}
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {todayAppointments.length === 0 ? (
-                  <div className="py-24 flex flex-col items-center justify-center text-center px-6 rounded-3xl bg-muted/[0.02] border-2 border-dashed border-muted-foreground/10 group-hover/card:border-primary/30 transition-all duration-500 shadow-inner">
+                  <div
+                    className="py-24 flex flex-col items-center justify-center text-center px-6 rounded-3xl bg-muted/[0.02] border-2 border-dashed border-muted-foreground/10 transition-all duration-500 shadow-inner cursor-pointer hover:border-primary/30"
+                    onClick={() => navigate('/schedule')}
+                  >
                     <div className="relative mb-4">
-                      <div className="h-16 w-16 rounded-full bg-primary/5 flex items-center justify-center relative z-10 group-hover/card:rotate-12 transition-transform duration-300">
+                      <div className="h-16 w-16 rounded-full bg-primary/5 flex items-center justify-center relative z-10">
                         <CalendarCheck className="h-8 w-8 text-primary/40" />
                       </div>
                     </div>
                     <h3 className="text-sm font-bold text-foreground mb-1">Tudo em ordem por aqui!</h3>
                     <p className="text-xs text-muted-foreground max-w-[200px] leading-relaxed">
-                      Não há consultas agendadas para hoje. Clique em qualquer lugar para ver a agenda completa.
+                      Não há consultas agendadas para hoje. Clique aqui para ver a agenda completa.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {todayAppointments.map((apt: any) => (
                       <div 
-                        key={apt.id} 
-                        className="flex items-center justify-between p-3.5 rounded-xl border border-border/50 bg-card group-hover/card:border-primary/30 transition-all shadow-sm"
-                        onClick={(e) => {
-                          e.stopPropagation(); // Still allow clicking specific appointment
+                        key={apt.id}
+                        className="group flex items-center justify-between p-3.5 rounded-xl border border-border/50 bg-card hover:border-primary/30 hover:bg-primary/[0.03] hover:shadow-md transition-all shadow-sm cursor-pointer"
+                        onClick={() => {
                           const date = format(new Date(apt.scheduledAt), 'yyyy-MM-dd');
                           navigate(`/schedule?date=${date}&appointmentId=${apt.id}`);
                         }}
                       >
                         <div className="flex items-center gap-4">
-                          <div className="flex flex-col items-center justify-center h-12 w-12 rounded-xl bg-muted/30 group-hover/card:bg-primary/10 transition-colors border border-transparent group-hover/card:border-primary/20">
-                            <span className="text-[10px] font-black text-muted-foreground group-hover/card:text-primary uppercase tracking-tighter">HOJE</span>
-                            <span className="text-sm font-black text-foreground group-hover/card:text-primary leading-none -mt-1">{format(new Date(apt.scheduledAt), 'HH:mm')}</span>
+                          <div className="flex flex-col items-center justify-center h-12 w-12 rounded-xl bg-muted/30 group-hover:bg-primary/10 transition-colors border border-transparent group-hover:border-primary/20">
+                            <span className="text-[10px] font-black text-muted-foreground group-hover:text-primary uppercase tracking-tighter">HOJE</span>
+                            <span className="text-sm font-black text-foreground group-hover:text-primary leading-none -mt-1">{format(new Date(apt.scheduledAt), 'HH:mm')}</span>
                           </div>
                           <div>
-                            <p className="font-bold text-sm text-foreground group-hover/card:text-primary transition-colors">{apt.patient?.lead?.name || 'Paciente'}</p>
+                            <p className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{apt.patient?.lead?.name || 'Paciente'}</p>
                             <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
                               <span className="text-foreground/70 font-semibold">{apt.surgeon?.name}</span> • {apt.procedure}
                             </p>

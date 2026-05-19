@@ -71,6 +71,44 @@ export const dispatchLeadFollowup = async (leadId: string, leadName: string, pho
   });
 };
 
+export const dispatchAppointmentReschedule = async (
+  appointmentId: string, 
+  leadId: string,
+  patientName: string, 
+  phone: string, 
+  procedure: string, 
+  surgeonName: string,
+  scheduledAt: Date
+) => {
+  if (!phone) return;
+  const { prisma } = await import('@crmed/database');
+  const template = await prisma.messageTemplate.findFirst({ where: { name: 'Reagendamento de Consulta' } });
+  
+  if (!template) {
+    console.error(`[API] Erro: Template de 'Reagendamento de Consulta' não encontrado.`);
+    return;
+  }
+
+  const content = TemplateParser.parse(template.content, {
+    paciente: patientName.split(' ')[0],
+    procedimento: procedure,
+    medico: surgeonName,
+    data: scheduledAt.toLocaleDateString('pt-BR'),
+    hora: scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  });
+
+  await whatsappQueue.add('send-reschedule', {
+    appointmentId,
+    leadId,
+    patientName,
+    phone,
+    message: content,
+    triggerDays: 999,
+  }, {
+    jobId: `send-reschedule-${appointmentId}-${Date.now()}`,
+  });
+};
+
 export const dispatchTemplateTest = async (templateId: string, instanceName: string, _userId: string) => {
   const { prisma } = await import('@crmed/database');
   const template = await prisma.messageTemplate.findUnique({ 

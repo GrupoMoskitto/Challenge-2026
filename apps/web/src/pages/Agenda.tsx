@@ -31,6 +31,8 @@ const statusLabels: Record<string, string> = {
   COMPLETED: "Concluído",
   CANCELLED: "Cancelado",
   NO_SHOW: "Não Compareceu",
+  ATTENTION_REQUIRED: "Requer Atenção",
+  RESCHEDULED: "Reagendado",
 };
 
 const statusColors: Record<string, string> = {
@@ -39,6 +41,8 @@ const statusColors: Record<string, string> = {
   COMPLETED: "bg-gray-500",
   CANCELLED: "bg-red-500",
   NO_SHOW: "bg-yellow-500",
+  ATTENTION_REQUIRED: "bg-orange-500",
+  RESCHEDULED: "bg-purple-500",
 };
 
 const Agenda = () => {
@@ -296,7 +300,7 @@ const Agenda = () => {
           toast.error('Selecione um paciente');
           return;
         }
-        await createAppointment({
+        const res = await createAppointment({
           variables: {
             input: {
               patientId: selectedPatientId,
@@ -307,6 +311,9 @@ const Agenda = () => {
             },
           },
         });
+        if (res.errors && res.errors.length > 0) {
+          throw new Error(res.errors[0].message);
+        }
       }
       await refetchAppointments();
       showUndoableToast(
@@ -337,7 +344,7 @@ const Agenda = () => {
       setPreviousAppointmentState(null);
     } catch (error) {
       console.error('Error saving appointment:', error);
-      toast.error('Erro ao salvar agendamento.');
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar agendamento.');
     }
   };
 
@@ -451,7 +458,14 @@ const Agenda = () => {
             {/* Régua de horários — sticky left E maior z-index */}
             <div className="sticky left-[-8px] md:left-[-16px] z-30 shrink-0 w-[68px] md:w-[96px] bg-card border-r shadow-[2px_0_8px_-2px_rgba(0,0,0,0.1)] -ml-2 md:-ml-4 pl-2 md:pl-4 -my-2 md:-my-4 py-2 md:py-4">
               {/* Espaçador sticky no topo que acompanha o cabeçalho dos médicos */}
-              <div className="sticky top-0 z-30 bg-card mb-3 md:mb-4 h-[52px] md:h-[60px]" />
+              <div className="sticky top-0 z-30 bg-card mb-3 md:mb-4 pointer-events-none opacity-0">
+                <Card className="shadow-sm overflow-hidden">
+                  <CardHeader className="p-2 md:p-3">
+                    <CardTitle className="text-xs md:text-sm">Spacer</CardTitle>
+                    <p className="text-[10px] md:text-xs">Spacer</p>
+                  </CardHeader>
+                </Card>
+              </div>
               <div className="space-y-1.5 md:space-y-2">
                 {timeSlots.map((time) => (
                   <div key={time} className="h-16 md:h-20 flex items-center justify-center text-xs md:text-sm font-medium text-muted-foreground border-b">
@@ -464,8 +478,8 @@ const Agenda = () => {
             {surgeons.map((surgeon: any) => (
               <div key={surgeon.id} className="min-w-[200px] md:min-w-[220px] flex-1 snap-center">
                 {/* Card do médico — sticky top, mas z-index menor que a régua */}
-                <Card className="mb-3 md:mb-4 sticky top-0 z-10 shadow-sm">
-                  <CardHeader className="p-2 md:p-3 bg-secondary/50 rounded-t-lg">
+                <Card className="mb-3 md:mb-4 sticky top-0 z-10 shadow-sm overflow-hidden">
+                  <CardHeader className="p-2 md:p-3 bg-secondary/50">
                     <CardTitle className="text-xs md:text-sm truncate">{surgeon.name}</CardTitle>
                     <p className="text-[10px] md:text-xs text-muted-foreground truncate">{surgeon.specialty}</p>
                   </CardHeader>
@@ -492,13 +506,15 @@ const Agenda = () => {
                             <div className="flex items-center justify-between gap-1">
                               <span className="text-[10px] md:text-xs text-muted-foreground truncate font-medium">{appointment.procedure}</span>
                               <div className="flex items-center gap-1">
-                                <RiskPill 
-                                  score={appointment.riskScore} 
-                                  level={appointment.riskLevel} 
-                                  minimal={true}
-                                />
-                                <Badge className={cn("h-4 text-[8px] md:text-[9px] px-1 md:px-1.5 shrink-0", statusColors[appointment.status])}>
-                                  {statusLabels[appointment.status]}
+                                {appointment.riskScore != null && appointment.riskLevel != null && (
+                                  <RiskPill 
+                                    score={appointment.riskScore} 
+                                    level={appointment.riskLevel} 
+                                    minimal={true}
+                                  />
+                                )}
+                                <Badge className={cn("h-4 text-[8px] md:text-[9px] px-1 md:px-1.5 shrink-0", statusColors[appointment.status] || 'bg-gray-500')}>
+                                  {statusLabels[appointment.status] || appointment.status}
                                 </Badge>
                               </div>
                             </div>

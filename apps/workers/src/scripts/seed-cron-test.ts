@@ -62,11 +62,9 @@ async function main() {
       where: { patientId: patient.id, procedure: { contains: 'Test Cron' } }
   });
 
-  await createTestAppt(30, 'Test Cron 30D (REMINDER_30D)');
-  await createTestAppt(7, 'Test Cron 7D (REMINDER_7D)');
-  await createTestAppt(2, 'Test Cron 48H (Para Confirmar - 1)');
-  await createTestAppt(2, 'Test Cron 48H (Para Reagendar - 2)');
-  await createTestAppt(2, 'Test Cron 48H (Para Cancelar - 3)');
+  await createTestAppt(30, 'Test Cron 30D (Lembrete 30 Dias)');
+  await createTestAppt(7, 'Test Cron 7D (Orientações 7 Dias)');
+  await createTestAppt(2, 'Test Cron 48H (Confirmação)');
 
   console.log('🎉 Seed complete. Run pnpm test:cron to test the notifications.');
 }

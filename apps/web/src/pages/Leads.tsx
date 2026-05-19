@@ -640,10 +640,9 @@ const Leads = () => {
                       <div className="space-y-2 mt-4">
                         <div className="flex items-center gap-2.5 text-xs text-foreground/70 font-medium">
                           <div className={cn("p-1 rounded-full shadow-sm", l.whatsappActive ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground/30")}>
-                            <Phone className="h-3 w-3" />
+                            {l.whatsappActive ? <MessageCircle className="h-3 w-3" /> : <Phone className="h-3 w-3" />}
                           </div>
                           <span>{l.phone}</span>
-                          {l.whatsappActive && <MessageCircle className="h-3.5 w-3.5 text-green-500" />}
                         </div>
                         {l.email && (
                           <div className="flex items-center gap-2.5 text-xs text-muted-foreground italic">
@@ -672,6 +671,7 @@ const Leads = () => {
                                      l.appointments[0].status === 'COMPLETED' ? "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800" :
                                      l.appointments[0].status === 'CANCELLED' ? "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" :
                                      l.appointments[0].status === 'NO_SHOW' ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800" :
+                                     l.appointments[0].status === 'RESCHEDULED' ? "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800" :
                                      "bg-muted text-muted-foreground border-transparent"
                                    )}
                                  >
@@ -680,7 +680,8 @@ const Leads = () => {
                                   l.appointments[0].status === 'ATTENTION_REQUIRED' ? 'Atenção' :
                                   l.appointments[0].status === 'COMPLETED' ? 'Concluído' :
                                   l.appointments[0].status === 'CANCELLED' ? 'Cancelado' :
-                                  l.appointments[0].status === 'NO_SHOW' ? 'Faltou' : l.appointments[0].status}
+                                  l.appointments[0].status === 'NO_SHOW' ? 'Faltou' :
+                                  l.appointments[0].status === 'RESCHEDULED' ? 'Reagendado' : l.appointments[0].status}
                                </Badge>
                                <div 
                                 className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors border border-primary/20"

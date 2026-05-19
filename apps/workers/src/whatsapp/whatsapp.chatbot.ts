@@ -169,6 +169,21 @@ export class WhatsappChatbot {
           await WhatsappSession.clear(remoteJid);
         } else if (textMessage === '2') {
           if (state.appointmentId) {
+            await prisma.appointment.update({
+              where: { id: state.appointmentId },
+              data: { status: 'RESCHEDULED' }
+            });
+            await prisma.auditLog.create({
+              data: {
+                entityType: 'Appointment',
+                entityId: state.appointmentId,
+                action: 'STATUS_CHANGE',
+                oldValue: JSON.stringify({ status: 'SCHEDULED' }),
+                newValue: JSON.stringify({ status: 'RESCHEDULED' }),
+                reason: 'Reagendamento via WhatsApp Chatbot (48h)',
+              }
+            });
+            await riskScoreQueue.add('recalculate', { appointmentId: state.appointmentId });
             await prisma.notification.create({
               data: {
                 appointmentId: state.appointmentId,
@@ -322,6 +337,28 @@ export class WhatsappChatbot {
           await WhatsappSender.sendMessage(instanceId, remoteJid, `✅ *Confirmado!* Sua presença foi registrada com sucesso. Estamos te aguardando! ✨`);
           await WhatsappSession.clear(remoteJid);
         } else if (textMessage === '2' || textMessage.toLowerCase().includes('reagendar')) {
+          await prisma.appointment.update({
+            where: { id: state.appointmentId },
+            data: { status: 'RESCHEDULED' }
+          });
+          await prisma.auditLog.create({
+            data: {
+              entityType: 'Appointment',
+              entityId: state.appointmentId!,
+              action: 'STATUS_CHANGE',
+              oldValue: JSON.stringify({ status: 'SCHEDULED' }),
+              newValue: JSON.stringify({ status: 'RESCHEDULED' }),
+              reason: 'Reagendamento via WhatsApp Chatbot (Autoatendimento)',
+            }
+          });
+          await riskScoreQueue.add('recalculate', { appointmentId: state.appointmentId });
+          await prisma.notification.create({
+            data: {
+              appointmentId: state.appointmentId,
+              type: 'APPOINTMENT_RESCHEDULE',
+              status: 'SENT',
+            }
+          });
           state.stage = 'EXISTING_SCHEDULE';
           await WhatsappSession.save(remoteJid, state);
           await WhatsappSender.sendMessage(instanceId, remoteJid, `🔄 *Solicitação de Reagendamento*\n\nEntendido. Um de nossos atendentes entrará em contato em instantes para buscar uma nova data que seja ideal para você.`);
@@ -638,7 +675,7 @@ export class WhatsappChatbot {
     appts.forEach((appt, i) => {
       const dateStr = appt.scheduledAt.toLocaleDateString('pt-BR');
       const hourStr = appt.scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      text += `*${i + 1}. ${appt.procedure}*\n👨‍⚕️ Dr. ${appt.surgeon.name}\n📅 ${dateStr} às ${hourStr}\n\n`;
+      text += `*${i + 1}. ${appt.procedure}*\n👨‍⚕️ ${appt.surgeon.name}\n📅 ${dateStr} às ${hourStr}\n\n`;
     });
 
     text += `Para gerenciar um agendamento, digite o *número* correspondente.`;

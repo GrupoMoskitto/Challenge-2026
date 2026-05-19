@@ -57,13 +57,24 @@ async function main() {
   const generateCpf = () => `${Math.floor(100+Math.random()*899)}.${Math.floor(100+Math.random()*899)}.${Math.floor(100+Math.random()*899)}-${Math.floor(10+Math.random()*89)}`;
   const randomItem = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
 
-  console.log('📈 Seeding 60 leads...');
-  for (let i = 0; i < 60; i++) {
-    const creationDate = subDays(new Date(), Math.floor(Math.random() * 30));
-    const status = i < 10 ? LeadStatus.CONVERTED : 
-                   i < 25 ? LeadStatus.QUALIFIED :
-                   i < 45 ? LeadStatus.CONTACTED :
-                   i < 55 ? LeadStatus.NEW : LeadStatus.LOST;
+
+  const totalLeads = 120;
+  const maxDaysAgo = 90;
+
+  const weightedDaysAgo = (): number => {
+    const r = Math.random();
+    if (r < 0.40) return Math.floor(Math.random() * 7);          
+    if (r < 0.70) return 7 + Math.floor(Math.random() * 23);     
+    return 30 + Math.floor(Math.random() * 60);                  
+  };
+
+  console.log(`📈 Seeding ${totalLeads} leads across ${maxDaysAgo} days of history...`);
+  for (let i = 0; i < totalLeads; i++) {
+    const creationDate = subDays(new Date(), weightedDaysAgo());
+    const status = i < 15 ? LeadStatus.CONVERTED :
+                   i < 35 ? LeadStatus.QUALIFIED :
+                   i < 70 ? LeadStatus.CONTACTED :
+                   i < 100 ? LeadStatus.NEW : LeadStatus.LOST;
     
     const lead = await prisma.lead.create({
       data: {
@@ -106,13 +117,22 @@ async function main() {
             }
         });
 
+        // ~20% of patients don't have appointments yet (just converted)
+        if (i % 5 === 4) continue;
+
         let apptDate = addDays(patient.createdAt, 2 + Math.floor(Math.random() * 10));
         apptDate = setHours(setMinutes(apptDate, 0), 9 + Math.floor(Math.random() * 8));
 
-        // We use CONFIRMED for demo data to avoid polluting the NotificationService cronjob
-        // The NotificationService only picks up SCHEDULED appointments.
-        // This ensures only the cron-test seed feeds the actual notification system.
-        const apptStatus = i % 3 === 0 ? 'ATTENTION_REQUIRED' : 'CONFIRMED';
+        const statusPool: Array<{ status: string; riskScore: number; riskLevel: string }> = [
+          { status: 'CONFIRMED', riskScore: 95 + Math.floor(Math.random() * 6), riskLevel: 'LOW' },
+          { status: 'CONFIRMED', riskScore: 85 + Math.floor(Math.random() * 16), riskLevel: 'LOW' },
+          { status: 'ATTENTION_REQUIRED', riskScore: 20 + Math.floor(Math.random() * 25), riskLevel: 'HIGH' },
+          { status: 'CANCELLED', riskScore: 10 + Math.floor(Math.random() * 20), riskLevel: 'HIGH' },
+          { status: 'COMPLETED', riskScore: 100, riskLevel: 'LOW' },
+          { status: 'NO_SHOW', riskScore: 5 + Math.floor(Math.random() * 15), riskLevel: 'HIGH' },
+          { status: 'RESCHEDULED', riskScore: 50 + Math.floor(Math.random() * 30), riskLevel: 'MEDIUM' },
+        ];
+        const chosen = statusPool[i % statusPool.length];
 
         await prisma.appointment.create({
             data: {
@@ -120,9 +140,9 @@ async function main() {
                 surgeonId: randomItem(surgeons).id,
                 procedure: lead.procedure!,
                 scheduledAt: apptDate,
-                status: apptStatus as any,
-                riskScore: apptStatus === 'ATTENTION_REQUIRED' ? 40 : 100,
-                riskLevel: apptStatus === 'ATTENTION_REQUIRED' ? 'HIGH' : 'LOW',
+                status: chosen.status as any,
+                riskScore: chosen.riskScore,
+                riskLevel: chosen.riskLevel as any,
                 createdAt: patient.createdAt
             }
         });
@@ -227,6 +247,12 @@ _Hospital São Rafael — Cuidando de você._`
         channel: 'WHATSAPP',
         triggerDays: 0,
         content: `Olá, *{{paciente}}*! 👋\n\nBem-vindo(a) ao Hospital São Rafael. Recebemos o seu contato com sucesso!\n\nEm breve, um de nossos especialistas de atendimento falará com você por aqui para tirar todas as suas dúvidas e auxiliar no seu agendamento.\n\n_Hospital São Rafael — Cuidando de você._`
+      },
+      {
+        name: 'Reagendamento de Consulta',
+        channel: 'WHATSAPP',
+        triggerDays: 999,
+        content: `Olá, *{{paciente}}*!\n\nInformamos que o seu procedimento de *{{procedimento}}* com o *{{medico}}* foi reagendado para o dia *{{data}}* às *{{hora}}*.\n\nCaso tenha dúvidas, estamos à disposição!\n\n_Hospital São Rafael — Cuidando de você._`
       },
     ]
   });
