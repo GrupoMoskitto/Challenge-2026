@@ -9,6 +9,7 @@ A automação de comunicações via WhatsApp é um dos pilares de eficiência do
 | **Lembrete 30d** | 30 dias antes do agendamento | Manter o agendamento no radar do paciente. |
 | **Lembrete 7d** | 7 dias antes do agendamento | Iniciar preparativos para o procedimento. |
 | **Confirmação 48h** | 48 horas antes do agendamento | Confirmar presença ou solicitar remarcação. |
+| **Reagendamento** | Alteração de data/hora no CRM | Informar ativamente o paciente sobre o novo horário. |
 | **Pós-Op** | Data definida no registro de Post-Op | Acompanhamento de recuperação do paciente. |
 
 Os envios são avaliados pelo **Cronjob Diário** (que roda às 08:00 AM - America/Sao_Paulo). O cronjob identifica os agendamentos elegíveis e enfileira as mensagens no **BullMQ (Redis)**.

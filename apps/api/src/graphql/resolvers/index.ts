@@ -1834,8 +1834,7 @@ export const resolvers = {
           await prisma.notification.create({
             data: {
               type: 'APPOINTMENT_RESCHEDULE',
-              appointmentId: apptId,
-              message: `Consulta reagendada de ${current.scheduledAt.toLocaleString()} para ${new Date(input.scheduledAt).toLocaleString()}`
+              appointmentId: apptId
             }
           });
           
