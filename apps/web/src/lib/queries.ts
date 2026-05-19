@@ -446,8 +446,8 @@ export const CREATE_APPOINTMENT = gql`
 `;
 
 export const UPDATE_APPOINTMENT = gql`
-  mutation UpdateAppointment($id: ID!, $input: UpdateAppointmentInput!) {
-    updateAppointment(id: $id, input: $input) {
+  mutation UpdateAppointment($input: UpdateAppointmentInput!) {
+    updateAppointment(input: $input) {
       id
       status
     }
