@@ -24,9 +24,23 @@ O score é calculado por agendamento e varia de **0 a 100**.
 
 ## Thresholds de Risco
 
-- **HIGH** (Risco Alto): Score < 50. Requer intervenção urgente (ligação manual).
-- **MEDIUM** (Moderado): Score 50-79. Monitorar resposta.
-- **LOW** (Baixo): Score >= 80. Procedimento normal.
+Aqui está a representação exata de como os scores são apresentados aos usuários do sistema:
+
+- <RiskBadge :score="45" level="HIGH" label="Crítico" /> **Risco Alto:** Score < 50. Destacado em <Badge type="danger" text="Vermelho" /> no sistema. Requer intervenção urgente (ligação manual e avaliação do cirurgião).
+- <RiskBadge :score="65" level="MEDIUM" label="Moderado" /> **Risco Moderado:** Score 50-79. Destacado em <Badge type="warning" text="Laranja" />. Monitorar resposta do chatbot.
+- <RiskBadge :score="92" level="LOW" label="Excelente" /> **Risco Baixo:** Score >= 80. Destacado em <Badge type="tip" text="Verde" />. Procedimento segue o fluxo automatizado normal.
+
+### Exemplo de Visualização (Simulação)
+
+No **Dashboard**, o score é exibido assim na listagem de consultas:
+
+> **João Silva** - Rinoplastia <br>
+> 08:00 - Quarta-feira <br>
+> <RiskBadge :score="35" level="HIGH" /> <Badge type="danger" text="Atenção" />
+
+> **Maria Souza** - Mamoplastia <br>
+> 10:00 - Quarta-feira <br>
+> <RiskBadge :score="88" level="LOW" /> <Badge type="tip" text="Confirmado" />
 
 ## Arquitetura de Recálculo
 

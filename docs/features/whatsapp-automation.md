@@ -109,7 +109,18 @@ O `TemplateParser` do pacote `@crmed/database` realiza a interpolação de vari�
 "Olá *João Silva*! Seu procedimento *Rinoplastia* com o Dr. Carlos está agendado para 20/06/2026."
 ```
 
-- Suporta sintaxe `{{ }}` (duplas chaves).
+**Visão do Paciente:**
+
+<WhatsAppSim 
+  contactName="Hospital São Rafael"
+  :messages="[
+    { direction: 'outbound', text: 'Olá *João Silva*! Seu procedimento *Rinoplastia* com o Dr. Carlos está agendado para 20/06/2026. Responda 1 para confirmar.', time: '08:00' },
+    { direction: 'inbound', text: '1', time: '08:15' },
+    { direction: 'outbound', text: 'Excelente! Sua presença foi confirmada.', time: '08:15' }
+  ]"
+/>
+
+- Suporta sintaxe <code v-pre>{{ }}</code> (duplas chaves).
 - Suporta formatação nativa do WhatsApp: `*negrito*`, `_itálico_`.
 - **Graceful Degradation**: Tags não encontradas são substituídas por termos genéricos (ex: `"nosso especialista"`), evitando mensagens quebradas.
 

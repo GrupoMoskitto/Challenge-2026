@@ -38,17 +38,61 @@ graph TD
     Workers -->|X-Internal-Key| API
 ```
 
-## Apps e Packages
+## Apps e Packages (Monorepo)
 
-| Nome | Tipo | Porta | Responsabilidade |
-| :--- | :--- | :--- | :--- |
-| `apps/api` | App | 3001 | Servidor GraphQL, lógica de negócio, autenticação e RBAC. |
-| `apps/web` | App | 5173 | Dashboard interno em React 18 com Tailwind CSS e Radix UI. |
-| `apps/workers` | App | 3002 | Filas BullMQ (WhatsApp), Cron Jobs e receptor de Webhooks. |
-| `packages/database` | Package | — | Schema Prisma, Migrations, Cliente e `TemplateParser`. |
-| `packages/types` | Package | — | Interfaces TypeScript compartilhadas entre todos os apps. |
-| `packages/ui` | Package | — | Componentes React reutilizáveis (Design System interno). |
-| `packages/config` | Package | — | Configurações compartilhadas (ESLint, Prettier, TSConfig). |
+O projeto é organizado usando **Turborepo** para gerenciar múltiplos pacotes e aplicações em um único repositório:
+
+<div class="file-tree">
+  <details open>
+    <summary>apps</summary>
+    <div class="folder-content">
+      <details>
+        <summary>api <span class="comment">Servidor GraphQL, lógica de negócio, autenticação e RBAC (Porta 3001)</span></summary>
+        <div class="folder-content">
+          <div class="file">package.json</div>
+          <div class="file">src/index.ts</div>
+        </div>
+      </details>
+      <details>
+        <summary>web <span class="comment">Dashboard interno em React 18 com Tailwind CSS e Radix UI (Porta 5173)</span></summary>
+        <div class="folder-content">
+          <div class="file">package.json</div>
+          <div class="file">src/App.tsx</div>
+        </div>
+      </details>
+      <details>
+        <summary>workers <span class="comment">Filas BullMQ (WhatsApp), Cron Jobs e Webhooks (Porta 3002)</span></summary>
+        <div class="folder-content">
+          <div class="file">package.json</div>
+          <div class="file">src/index.ts</div>
+        </div>
+      </details>
+    </div>
+  </details>
+  <details open>
+    <summary>packages</summary>
+    <div class="folder-content">
+      <details>
+        <summary>config <span class="comment">Configurações compartilhadas (ESLint, Prettier, TSConfig)</span></summary>
+      </details>
+      <details>
+        <summary>database <span class="comment">Schema Prisma, Migrations, Cliente</span></summary>
+        <div class="folder-content">
+          <div class="file">prisma/schema.prisma</div>
+        </div>
+      </details>
+      <details>
+        <summary>types <span class="comment">Interfaces TypeScript compartilhadas</span></summary>
+      </details>
+      <details>
+        <summary>ui <span class="comment">Design System (Componentes React compartilhados)</span></summary>
+      </details>
+    </div>
+  </details>
+  <div class="file">turbo.json</div>
+  <div class="file">pnpm-workspace.yaml</div>
+  <div class="file">package.json</div>
+</div>
 
 ## Ciclo de Vida de uma Requisição (Request Lifecycle)
 

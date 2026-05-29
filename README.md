@@ -68,14 +68,17 @@ infra/
 
 ### Documentação
 
-A documentação completa do sistema está centralizada no diretório [`/docs`](./docs/index.md).
+O sistema de documentação técnica, regras de negócio e arquitetura foi construído com **VitePress** e está centralizado no diretório [`/docs`](./docs/). Ele é hospedado publicamente via **GitHub Pages** para facilitar o acesso da equipe técnica.
 
-- [**Arquitetura**](./docs/architecture.md) — Diagramas de serviços e fluxos de dados de ponta a ponta.
-- [**Banco de Dados**](./docs/database.md) — Diagrama ER completo e decisões de modelagem.
-- [**Regras de Negócio**](./docs/business-rules.md) — Detalhamento das RN01 a RN09 e camadas de enforcement.
-- [**Segurança e LGPD**](./docs/security.md) — Modelo RBAC, criptografia e proteção de dados sensíveis.
-- [**Guia de Funcionalidades**](./docs/index.md#funcionalidades) — Automação de WhatsApp, Leads e **Score de Risco**.
-- [**API Reference**](./docs/api.md) — Referência técnica de Queries, Mutations e Enums.
+- [**Acessar Portal de Documentação**](https://grupomoskitto.github.io/Challenge-2026/) *(link oficial)*
+- [**Rodar Localmente**](#scripts): Use o comando `pnpm --filter docs dev` para rodar a documentação no seu ambiente (porta 5174).
+
+**Conteúdos Principais:**
+- **Arquitetura** — Diagramas de serviços e fluxos de dados de ponta a ponta.
+- **Banco de Dados** — Diagrama ER completo e decisões de modelagem.
+- **Regras de Negócio** — Detalhamento das RN01 a RN09 e camadas de enforcement.
+- **Segurança e LGPD** — Modelo RBAC, criptografia e proteção de dados sensíveis.
+- **API Reference** — Referência técnica de Queries, Mutations e Enums.
 
 ### Documentação Visual
 

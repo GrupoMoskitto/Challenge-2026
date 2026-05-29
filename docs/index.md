@@ -1,39 +1,84 @@
-# CRMed Documentation
+---
+layout: home
 
-Bem-vindo à documentação oficial do CRMed, um sistema completo de gestão de leads, pacientes e agendamentos para clínicas médicas.
+hero:
+  name: "CRMed"
+  text: "Gestão Inteligente para Clínicas Médicas"
+  tagline: "Automatize o ciclo de vida do seu paciente com análise preditiva, WhatsApp e segurança total."
+  image:
+    src: /logo.svg
+    alt: CRMed Logo
+  actions:
+    - theme: brand
+      text: Guia de Início Rápido
+      link: /development
+    - theme: alt
+      text: Entenda a Arquitetura
+      link: /architecture
 
-## Visão Geral
+features:
+  - title: Automação WhatsApp
+    details: Integração nativa com Evolution API para agendamentos, lembretes e confirmações automáticas com fallback inteligente para SLA humano.
+  - title: Score de Risco No-Show
+    details: Algoritmo que calcula a probabilidade de comparecimento baseada em comportamento histórico e variáveis contextuais.
+  - title: Segurança & Compliance
+    details: RBAC granular, Audit Log total e anonimização irreversível de dados sensíveis para conformidade estrita com a legislação.
+  - title: Estrutura de Alta Performance
+    details: Monorepo gerenciado por Turborepo com React, GraphQL, Node.js e BullMQ para processamento assíncrono resiliente.
+---
 
-O CRMed é um monorepo construído com tecnologias modernas para oferecer uma experiência robusta e escalável. O sistema automatiza o ciclo de vida do paciente — desde o primeiro contato como lead até o pós-operatório — integrando comunicações via WhatsApp e análise preditiva de risco de no-show.
+<div class="quick-start-preview">
 
+## Como executar o projeto
+
+O CRMed utiliza **pnpm** e **Docker** para simplificar o ambiente local. Siga os passos abaixo:
+
+```bash
+# 1. Instale as dependências do monorepo
+pnpm install
+
+# 2. Suba o banco de dados e o Redis
+docker-compose up -d
+
+# 3. Configure o banco (migrations + seed)
+pnpm --filter @crmed/database db:setup
+
+# 4. Inicie todos os serviços em paralelo
+pnpm dev
 ```
-Lead → Paciente → Agendamento → Notificação WhatsApp → Confirmação → Risk Score → Dashboard
-```
 
-## Navegação
+> **Nota:** O sistema estará acessível em `http://localhost:5173` (Web) e `http://localhost:3001` (API).
 
-- [Arquitetura](./architecture.md) — Visão técnica do sistema, fluxo de dados e diagrama de serviços.
-- [Banco de Dados](./database.md) — Modelagem de dados e diagrama ER.
-- [Regras de Negócio](./business-rules.md) — Documentação das RN01 a RN09.
-- [Segurança](./security.md) — RBAC, OWASP Top 10, Rate Limit, JWT, XSS e LGPD.
-- [API Reference](./api.md) — Documentação da API GraphQL (queries, mutations, enums, erros).
-- [Desenvolvimento](./development.md) — Guia de início rápido e scripts.
-- [Testes de Fluxo](./testing-flows.md) — Roteiro para validação manual de regras de negócio (E2E).
+[Acesse o guia completo de desenvolvimento →](/development)
 
-### Funcionalidades
+</div>
 
-- [Automação de WhatsApp](./features/whatsapp-automation.md)
-- [Gestão de Leads](./features/lead-management.md)
-- [Agendamento](./features/scheduling.md)
-- [Score de Risco de No-Show](./features/no-show-risk-score.md)
+## Explore a Documentação
 
-## Decisões Arquiteturais
+Navegue pelos módulos técnicos e de negócio para entender as entranhas do sistema:
 
-| # | Decisão | Motivo |
-| :--- | :--- | :--- |
-| 1 | **Monorepo com Turborepo** | Compartilhamento de código e tipos entre API, Web e Workers sem duplicação. Build incremental cacheado. |
-| 2 | **GraphQL (Apollo Server)** | API flexível, tipada e auto-documentada. Data minimization nativa — o cliente busca exatamente o que precisa (LGPD). |
-| 3 | **Prisma ORM** | Modelagem de dados segura, migrações versionadas e proteção nativa contra SQL Injection via prepared statements. |
-| 4 | **BullMQ sobre Redis** | Filas persistentes com retry automático para notificações críticas de WhatsApp. |
-| 5 | **Soft Delete + Audit Log** | Conformidade com LGPD, rastreabilidade total de alterações e preservação de histórico clínico. |
-| 6 | **JWT em Cookies HttpOnly** | Tokens nunca acessíveis via JavaScript — proteção estrutural contra XSS por design. |
+- **[Regras de Negócio](/business-rules)**: O coração da solução, detalhando as regras de agendamento e automação.
+- **[Arquitetura de Sistemas](/architecture)**: Diagramas C4, fluxos de dados e decisões tecnológicas.
+- **[Segurança & Compliance](/security)**: Como protegemos os dados dos pacientes.
+- **[API Reference](/api)**: Documentação técnica dos Schemas GraphQL.
+
+<style>
+.quick-start-preview {
+  margin-top: 64px;
+  padding: 40px;
+  background-color: var(--vp-c-bg-soft);
+  border-radius: 12px;
+  border: 1px solid var(--vp-c-divider);
+}
+
+.quick-start-preview h2 {
+  margin-top: 0;
+  border-top: none;
+}
+
+@media (max-width: 640px) {
+  .quick-start-preview {
+    padding: 24px;
+  }
+}
+</style>
