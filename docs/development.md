@@ -62,15 +62,15 @@ Este guia fornece instruções para configurar o ambiente de desenvolvimento loc
 
 | Variável | Obrigatória em Prod | Descrição |
 | :--- | :--- | :--- |
-| `DATABASE_URL` | ✅ | String de conexão com o PostgreSQL. |
-| `REDIS_URL` | ✅ | String de conexão com o Redis. |
-| `JWT_SECRET` | ✅ | Chave secreta para assinatura do `access_token` (15min). |
-| `REFRESH_SECRET` | ✅ | Chave secreta para assinatura do `refresh_token` (7d). |
-| `INTERNAL_API_KEY` | ✅ | Chave de autenticação interna Workers → API. Nunca expor publicamente. |
-| `CORS_ORIGIN` | ✅ | Origens permitidas separadas por vírgula. Ex: `https://crmed.com`. |
-| `EVOLUTION_INSTANCE_ID` | ✅ | ID da instância Evolution Go. |
-| `EVOLUTION_API_KEY` | ✅ | API Key global da Evolution Go. |
-| `DEV_ALLOWED_PHONE` | ❌ | Número autorizado a receber mensagens no Sandbox. **Deve estar vazio em produção.** |
+| `DATABASE_URL` | <EnvBadge :required="true" /> | String de conexão com o PostgreSQL. |
+| `REDIS_URL` | <EnvBadge :required="true" /> | String de conexão com o Redis. |
+| `JWT_SECRET` | <EnvBadge :required="true" /> | Chave secreta para assinatura do `access_token` (15min). |
+| `REFRESH_SECRET` | <EnvBadge :required="true" /> | Chave secreta para assinatura do `refresh_token` (7d). |
+| `INTERNAL_API_KEY` | <EnvBadge :required="true" /> | Chave de autenticação interna Workers → API. Nunca expor publicamente. |
+| `CORS_ORIGIN` | <EnvBadge :required="true" /> | Origens permitidas separadas por vírgula. Ex: `https://crmed.com`. |
+| `EVOLUTION_INSTANCE_ID` | <EnvBadge :required="true" /> | ID da instância Evolution Go. |
+| `EVOLUTION_API_KEY` | <EnvBadge :required="true" /> | API Key global da Evolution Go. |
+| `DEV_ALLOWED_PHONE` | <EnvBadge :required="false" /> | Número autorizado a receber mensagens no Sandbox. **Deve estar vazio em produção.** |
 
 > **Segurança**: Em produção, `JWT_SECRET` e `REFRESH_SECRET` lançam erro na inicialização caso não estejam definidos. Nunca use os valores padrão de desenvolvimento.
 

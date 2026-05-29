@@ -16,3 +16,7 @@ binary-output/
 bfg-1.14.0.jar
 **/uploads/*
 *.csv
+
+# VitePress
+docs/.vitepress/cache
+docs/.vitepress/dist

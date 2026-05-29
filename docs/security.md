@@ -212,11 +212,11 @@ A comunicação da Evolution Go com os Workers é protegida por duas camadas:
 
 ## 10. Checklist de Produção
 
-- [ ] Ativar WAF (Web Application Firewall) na borda (ex: AWS WAF / Cloudflare).
-- [ ] Usar Secrets Manager (AWS Secrets Manager) para `JWT_SECRET`, `REFRESH_SECRET`, `INTERNAL_API_KEY`.
-- [ ] IAM Least Privilege para serviços (S3, RDS, Redis).
-- [ ] Habilitar TLS 1.3 no load balancer e desabilitar TLS 1.0/1.1.
-- [ ] Configurar `CORS_ORIGIN` com apenas os domínios de produção.
-- [ ] Scanning de vulnerabilidades periódico (SonarQube / Snyk).
-- [ ] Configurar alertas de Rate Limit no sistema de monitoramento (Datadog / CloudWatch).
-- [ ] Revisar `DEV_ALLOWED_PHONE` — garantir que está vazio ou não definido em produção.
+- <input type="checkbox" class="task-list-item-checkbox" /> Ativar WAF (Web Application Firewall) na borda (ex: AWS WAF / Cloudflare).
+- <input type="checkbox" class="task-list-item-checkbox" /> Usar Secrets Manager (AWS Secrets Manager) para `JWT_SECRET`, `REFRESH_SECRET`, `INTERNAL_API_KEY`.
+- <input type="checkbox" class="task-list-item-checkbox" /> IAM Least Privilege para serviços (S3, RDS, Redis).
+- <input type="checkbox" class="task-list-item-checkbox" /> Habilitar TLS 1.3 no load balancer e desabilitar TLS 1.0/1.1.
+- <input type="checkbox" class="task-list-item-checkbox" /> Configurar `CORS_ORIGIN` com apenas os domínios de produção.
+- <input type="checkbox" class="task-list-item-checkbox" /> Scanning de vulnerabilidades periódico (SonarQube / Snyk).
+- <input type="checkbox" class="task-list-item-checkbox" /> Configurar alertas de Rate Limit no sistema de monitoramento (Datadog / CloudWatch).
+- <input type="checkbox" class="task-list-item-checkbox" /> Revisar `DEV_ALLOWED_PHONE` — garantir que está vazio ou não definido em produção.

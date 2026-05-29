@@ -31,10 +31,7 @@ authRedis.connect().catch((err: unknown) => {
 const BLACKLIST_PREFIX = 'token_blacklist:';
 const REFRESH_TOKEN_TTL = 7 * 24 * 60 * 60; // 7 days in seconds (matches refresh token expiry)
 
-/**
- * Revokes all tokens for a user by adding their userId to the Redis blacklist.
- * Called when admin deactivates a user via toggleUserStatus.
- */
+
 export async function revokeUserTokens(userId: string): Promise<void> {
   try {
     await authRedis.set(
@@ -46,28 +43,19 @@ export async function revokeUserTokens(userId: string): Promise<void> {
     logger.info('Auth:Revocation', `Tokens revoked for user ${userId}`);
   } catch (err) {
     logger.error('Auth:Revocation', `Failed to revoke tokens for user ${userId}`, err);
-    // Don't throw — deactivation should still proceed even if Redis is down
   }
 }
 
-/**
- * Checks if a user's tokens have been revoked.
- * Returns the revocation timestamp if revoked, null otherwise.
- */
 export async function isTokenRevoked(userId: string): Promise<boolean> {
   try {
     const revocationTimestamp = await authRedis.get(`${BLACKLIST_PREFIX}${userId}`);
     return revocationTimestamp !== null;
   } catch (err) {
     logger.error('Auth:Revocation', `Failed to check revocation for user ${userId}`, err);
-    // Fail open in dev, fail closed in production
     return isProduction;
   }
 }
 
-/**
- * Clears the revocation entry for a user (when re-activated).
- */
 export async function clearTokenRevocation(userId: string): Promise<void> {
   try {
     await authRedis.del(`${BLACKLIST_PREFIX}${userId}`);
@@ -76,8 +64,6 @@ export async function clearTokenRevocation(userId: string): Promise<void> {
     logger.error('Auth:Revocation', `Failed to clear revocation for user ${userId}`, err);
   }
 }
-
-// Login Rate Limiting (in-memory fallback, production uses Redis via express-rate-limit)
 
 const loginAttempts = new Map<string, { count: number; firstAttempt: number }>();
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000;
