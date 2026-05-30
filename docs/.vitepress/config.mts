@@ -10,7 +10,62 @@ export default withMermaid(
     mermaid: {
       securityLevel: 'loose',
       startOnLoad: true,
-      zoom: false,
+      theme: 'base',
+      themeVariables: {
+        // ─── Core Palette (CRMed Teal) ───
+        primaryColor: '#e8f4f8',
+        primaryTextColor: '#0e4a5c',
+        primaryBorderColor: '#2196a4',
+        secondaryColor: '#f0f7e8',
+        secondaryTextColor: '#3d5a1e',
+        secondaryBorderColor: '#7cb342',
+        tertiaryColor: '#fef3e2',
+        tertiaryTextColor: '#6d4c00',
+        tertiaryBorderColor: '#f9a825',
+
+        // ─── Lines & Labels ───
+        lineColor: '#4a8fa0',
+        textColor: '#1a3a47',
+
+        // ─── Backgrounds ───
+        mainBkg: '#e8f4f8',
+        nodeBorder: '#2196a4',
+        clusterBkg: '#f0fafc',
+        clusterBorder: '#b2dfdb',
+        titleColor: '#0e4a5c',
+
+        // ─── Notes ───
+        noteBkgColor: '#fff8e1',
+        noteTextColor: '#5d4037',
+        noteBorderColor: '#ffe082',
+
+        // ─── Sequence Diagram ───
+        actorBkg: '#e8f4f8',
+        actorBorder: '#2196a4',
+        actorTextColor: '#0e4a5c',
+        actorLineColor: '#78b8c4',
+        signalColor: '#1a3a47',
+        signalTextColor: '#1a3a47',
+        labelBoxBkgColor: '#e8f4f8',
+        labelBoxBorderColor: '#2196a4',
+        labelTextColor: '#0e4a5c',
+        loopTextColor: '#0e4a5c',
+        activationBorderColor: '#2196a4',
+        activationBkgColor: '#d4eef4',
+        sequenceNumberColor: '#ffffff',
+
+        // ─── State Diagram ───
+        labelColor: '#0e4a5c',
+        altBackground: '#f0fafc',
+
+        // ─── ER Diagram ───
+        attributeBackgroundColorEven: '#f0fafc',
+        attributeBackgroundColorOdd: '#e0f2f1',
+
+        // ─── Fonts ───
+        fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
+        fontSize: '14px',
+      },
     },
 
     themeConfig: {

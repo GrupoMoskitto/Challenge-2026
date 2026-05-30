@@ -54,6 +54,11 @@
   background-color: transparent !important;
 }
 
+.VPNavBar .divider,
+.VPNavBar .divider-line {
+  display: none !important;
+}
+
 @media (min-width: 960px) {
 
   .VPNavBar.has-sidebar .divider {
@@ -68,6 +73,20 @@
   .VPSidebar .curtain {
     display: none !important;
   }
+}
+
+.medium-zoom-overlay,
+.medium-zoom-image--opened {
+  z-index: 100;
+}
+
+.medium-zoom-overlay {
+  z-index: 99;
+}
+
+.medium-zoom-image--opened {
+  z-index: 100;
+  margin-top: calc(var(--vp-nav-height, 64px) / 2) !important;
 }
 
 .VPNavBarTitle .logo {
@@ -129,6 +148,317 @@
   margin: 0 auto;
 }
 
+/* ═══════════════════════════════════════════════
+   CRMed Mermaid Theme
+   M = .vp-doc .mermaid  |  Z = #mermaid-zoom-content
+   Every dark selector covers both in-page and zoom.
+   ═══════════════════════════════════════════════ */
+
+/* ─── Light: Container backgrounds ─── */
+.vp-doc .mermaid {
+  background-color: #f7fbfd;
+}
+
+.dark .vp-doc .mermaid {
+  background-color: #060e14;
+}
+
+#mermaid-zoom-content {
+  background: var(--vp-c-bg);
+}
+
+/* ─── Light: Edge labels fix (no dark bg) ─── */
+.vp-doc .mermaid .edgeLabel,
+#mermaid-zoom-content .edgeLabel {
+  background-color: #f0f8fb !important;
+}
+
+.vp-doc .mermaid .edgeLabel rect,
+#mermaid-zoom-content .edgeLabel rect {
+  fill: #f0f8fb !important;
+  opacity: 0.92;
+}
+
+.vp-doc .mermaid .edgeLabel span,
+#mermaid-zoom-content .edgeLabel span {
+  color: #1a5c6b !important;
+}
+
+/* ─── Light: Decision diamond fill ─── */
+.vp-doc .mermaid .node polygon,
+#mermaid-zoom-content .node polygon {
+  fill: #e4f3e0 !important;
+  stroke: #5da352 !important;
+}
+
+/* ─── Both: Rounded nodes ─── */
+.vp-doc .mermaid .node rect,
+#mermaid-zoom-content .node rect {
+  rx: 6;
+  ry: 6;
+}
+
+.vp-doc .mermaid .cluster rect,
+#mermaid-zoom-content .cluster rect {
+  rx: 8;
+  ry: 8;
+}
+
+/* ═══════════════════════════════════════════════
+   DARK MODE — Flowchart / Graph
+   ═══════════════════════════════════════════════ */
+
+.dark .vp-doc .mermaid .node rect,
+.dark .vp-doc .mermaid .node circle,
+.dark #mermaid-zoom-content .node rect,
+.dark #mermaid-zoom-content .node circle {
+  fill: #0d2f3b !important;
+  stroke: #2ba5b5 !important;
+  stroke-width: 1.5px;
+}
+
+.dark .vp-doc .mermaid .node .label,
+.dark .vp-doc .mermaid .nodeLabel,
+.dark #mermaid-zoom-content .node .label,
+.dark #mermaid-zoom-content .nodeLabel {
+  color: #c4e8ef !important;
+  fill: #c4e8ef !important;
+}
+
+/* ─── Dark: Decision nodes (rhombus) ─── */
+.dark .vp-doc .mermaid .node polygon,
+.dark #mermaid-zoom-content .node polygon {
+  fill: #1a2e1a !important;
+  stroke: #6dbf67 !important;
+}
+
+/* ─── Dark: Subgraphs / Clusters ─── */
+.dark .vp-doc .mermaid .cluster rect,
+.dark #mermaid-zoom-content .cluster rect {
+  fill: #0a1f29 !important;
+  stroke: #1a5c6b !important;
+}
+
+.dark .vp-doc .mermaid .cluster span,
+.dark .vp-doc .mermaid .cluster .nodeLabel,
+.dark #mermaid-zoom-content .cluster span,
+.dark #mermaid-zoom-content .cluster .nodeLabel {
+  color: #8fc7d4 !important;
+  fill: #8fc7d4 !important;
+}
+
+/* ─── Dark: Edges / Arrows ─── */
+.dark .vp-doc .mermaid .flowchart-link,
+.dark .vp-doc .mermaid .edge-pattern-solid,
+.dark .vp-doc .mermaid path.path,
+.dark #mermaid-zoom-content .flowchart-link,
+.dark #mermaid-zoom-content .edge-pattern-solid,
+.dark #mermaid-zoom-content path.path {
+  stroke: #3d9aab !important;
+}
+
+.dark .vp-doc .mermaid .edgeLabel,
+.dark #mermaid-zoom-content .edgeLabel {
+  background-color: #0f1f27 !important;
+  color: #a0c4cc !important;
+}
+
+.dark .vp-doc .mermaid .edgeLabel rect,
+.dark #mermaid-zoom-content .edgeLabel rect {
+  fill: #0f1f27 !important;
+  opacity: 0.85;
+}
+
+.dark .vp-doc .mermaid .edgeLabel span,
+.dark #mermaid-zoom-content .edgeLabel span {
+  color: #a0c4cc !important;
+  fill: #a0c4cc !important;
+}
+
+.dark .vp-doc .mermaid marker path,
+.dark #mermaid-zoom-content marker path {
+  fill: #3d9aab !important;
+  stroke: #3d9aab !important;
+}
+
+/* ═══════════════════════════════════════════════
+   DARK MODE — Sequence Diagram
+   ═══════════════════════════════════════════════ */
+
+.dark .vp-doc .mermaid .actor,
+.dark #mermaid-zoom-content .actor {
+  fill: #0d2f3b !important;
+  stroke: #2ba5b5 !important;
+}
+
+.dark .vp-doc .mermaid .actor-line,
+.dark #mermaid-zoom-content .actor-line {
+  stroke: #1a5c6b !important;
+}
+
+.dark .vp-doc .mermaid text.actor > tspan,
+.dark #mermaid-zoom-content text.actor > tspan {
+  fill: #c4e8ef !important;
+}
+
+.dark .vp-doc .mermaid .messageLine0,
+.dark .vp-doc .mermaid .messageLine1,
+.dark #mermaid-zoom-content .messageLine0,
+.dark #mermaid-zoom-content .messageLine1 {
+  stroke: #3d9aab !important;
+}
+
+.dark .vp-doc .mermaid .messageText,
+.dark #mermaid-zoom-content .messageText {
+  fill: #c4e8ef !important;
+}
+
+.dark .vp-doc .mermaid .activation0,
+.dark .vp-doc .mermaid .activation1,
+.dark .vp-doc .mermaid .activation2,
+.dark #mermaid-zoom-content .activation0,
+.dark #mermaid-zoom-content .activation1,
+.dark #mermaid-zoom-content .activation2 {
+  fill: #143844 !important;
+  stroke: #2ba5b5 !important;
+}
+
+.dark .vp-doc .mermaid .note,
+.dark #mermaid-zoom-content .note {
+  fill: #2a2200 !important;
+  stroke: #a08530 !important;
+}
+
+.dark .vp-doc .mermaid .noteText > tspan,
+.dark #mermaid-zoom-content .noteText > tspan {
+  fill: #e8d48b !important;
+}
+
+.dark .vp-doc .mermaid .loopText > tspan,
+.dark .vp-doc .mermaid .labelText > tspan,
+.dark #mermaid-zoom-content .loopText > tspan,
+.dark #mermaid-zoom-content .labelText > tspan {
+  fill: #8fc7d4 !important;
+}
+
+.dark .vp-doc .mermaid .loopLine,
+.dark #mermaid-zoom-content .loopLine {
+  stroke: #1a5c6b !important;
+}
+
+.dark .vp-doc .mermaid .labelBox,
+.dark #mermaid-zoom-content .labelBox {
+  fill: #0d2f3b !important;
+  stroke: #2ba5b5 !important;
+}
+
+.dark .vp-doc .mermaid line[class^="sequenceNumber"],
+.dark #mermaid-zoom-content line[class^="sequenceNumber"] {
+  fill: #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════════
+   DARK MODE — State Diagram
+   ═══════════════════════════════════════════════ */
+
+.dark .vp-doc .mermaid .stateGroup rect,
+.dark .vp-doc .mermaid .statediagram-state rect,
+.dark #mermaid-zoom-content .stateGroup rect,
+.dark #mermaid-zoom-content .statediagram-state rect {
+  fill: #0d2f3b !important;
+  stroke: #2ba5b5 !important;
+}
+
+.dark .vp-doc .mermaid .stateGroup .composit rect,
+.dark #mermaid-zoom-content .stateGroup .composit rect {
+  fill: #081a22 !important;
+  stroke: #1a5c6b !important;
+}
+
+.dark .vp-doc .mermaid .state-note rect,
+.dark #mermaid-zoom-content .state-note rect {
+  fill: #2a2200 !important;
+  stroke: #a08530 !important;
+}
+
+.dark .vp-doc .mermaid .stateLabel .box,
+.dark #mermaid-zoom-content .stateLabel .box {
+  fill: #0d2f3b !important;
+  stroke: #2ba5b5 !important;
+}
+
+.dark .vp-doc .mermaid .stateLabel text,
+.dark .vp-doc .mermaid .statediagram-state .nodeLabel,
+.dark #mermaid-zoom-content .stateLabel text,
+.dark #mermaid-zoom-content .statediagram-state .nodeLabel {
+  fill: #c4e8ef !important;
+}
+
+.dark .vp-doc .mermaid .statediagram-cluster rect,
+.dark #mermaid-zoom-content .statediagram-cluster rect {
+  fill: #0a1f29 !important;
+  stroke: #1a5c6b !important;
+}
+
+.dark .vp-doc .mermaid .statediagram-cluster .inner,
+.dark #mermaid-zoom-content .statediagram-cluster .inner {
+  fill: #081a22 !important;
+}
+
+.dark .vp-doc .mermaid .statediagram-cluster-alt rect,
+.dark #mermaid-zoom-content .statediagram-cluster-alt rect {
+  fill: #0e2430 !important;
+}
+
+/* ═══════════════════════════════════════════════
+   DARK MODE — ER Diagram
+   ═══════════════════════════════════════════════ */
+
+.dark .vp-doc .mermaid .er.entityBox,
+.dark #mermaid-zoom-content .er.entityBox {
+  fill: #0d2f3b !important;
+  stroke: #2ba5b5 !important;
+}
+
+.dark .vp-doc .mermaid .er.entityLabel,
+.dark #mermaid-zoom-content .er.entityLabel {
+  fill: #c4e8ef !important;
+}
+
+.dark .vp-doc .mermaid .er.attributeBoxEven,
+.dark #mermaid-zoom-content .er.attributeBoxEven {
+  fill: #0e2430 !important;
+}
+
+.dark .vp-doc .mermaid .er.attributeBoxOdd,
+.dark #mermaid-zoom-content .er.attributeBoxOdd {
+  fill: #0a1f29 !important;
+}
+
+.dark .vp-doc .mermaid .er.relationshipLine,
+.dark #mermaid-zoom-content .er.relationshipLine {
+  stroke: #3d9aab !important;
+}
+
+.dark .vp-doc .mermaid .er.relationshipLabel,
+.dark #mermaid-zoom-content .er.relationshipLabel {
+  fill: #a0c4cc !important;
+}
+
+/* ═══════════════════════════════════════════════
+   DARK MODE — General text fallback
+   ═══════════════════════════════════════════════ */
+
+.dark .vp-doc .mermaid text,
+.dark #mermaid-zoom-content text {
+  fill: #c4e8ef !important;
+}
+
+.dark .vp-doc .mermaid .label text,
+.dark #mermaid-zoom-content .label text {
+  fill: #c4e8ef !important;
+}
+
 #mermaid-zoom-modal {
   display: none;
   position: fixed;
@@ -155,13 +485,17 @@
   border-radius: var(--vp-custom-block-radius);
   padding: 2rem;
   width: 90vw;
-  height: 90vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  max-height: 90vh;
   overflow: auto;
   cursor: default;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+#mermaid-zoom-content svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
 }
 
 .file-tree {

@@ -5,7 +5,7 @@
       <div class="wa-header-left">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="wa-back-btn"><path d="m15 18-6-6 6-6"/></svg>
         <div class="wa-avatar">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21v-1a7 7 0 0 1 14 0v1"/><circle cx="10" cy="8" r="4"/><path d="M17.5 8a2.5 2.5 0 0 1 0 5"/><path d="M21 21v-1a4 4 0 0 0-3-3.85"/></svg>
         </div>
         <div class="wa-contact-info">
           <div class="wa-name">{{ contactName }}</div>
@@ -14,24 +14,28 @@
       </div>
       <div class="wa-header-right">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.6 11.6L22 7v10l-6.4-4.5v-1zM4 5h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7c0-1.1.9-2 2-2z"/></svg>
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
       </div>
     </div>
 
-    <div class="wa-chat-area">
+    <div class="wa-chat-area" ref="chatArea">
       <div class="wa-encryption-notice">
-        <span>Criptografia de ponta a ponta</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>As mensagens são protegidas com criptografia de ponta a ponta.</span>
       </div>
 
       <div class="wa-message-row" v-for="(msg, index) in parsedMessages" :key="index" :class="msg.direction">
-        <div class="wa-message-bubble">
-          <div class="wa-tail"></div>
+        <div class="wa-message-bubble" :class="{ 'has-tail': isFirstInGroup(index) }">
+          <div class="wa-tail" v-if="isFirstInGroup(index)"></div>
           <div class="wa-message-text" v-html="msg.html"></div>
           <div class="wa-message-meta">
             <span class="wa-time">{{ msg.time || currentTime }}</span>
             <span v-if="msg.direction === 'outbound'" class="wa-ticks">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="tick-icon"><polyline points="20 6 9 17 4 12"/><polyline points="20 10 15 15"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="11" viewBox="0 0 16 11" class="tick-icon">
+                <path d="M11.071.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-2.011-2.095a.46.46 0 0 0-.33-.15.457.457 0 0 0-.328.135.474.474 0 0 0-.015.658l2.338 2.438a.47.47 0 0 0 .34.15h.024a.462.462 0 0 0 .342-.166l6.507-8.02a.458.458 0 0 0 .008-.662z" fill="currentColor"/>
+                <path d="M15.071.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-1.2-1.25-.352.434 1.525 1.59a.47.47 0 0 0 .34.15h.024a.462.462 0 0 0 .342-.166l6.507-8.02a.458.458 0 0 0-.311-.45z" fill="currentColor"/>
+              </svg>
             </span>
           </div>
         </div>
@@ -48,7 +52,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   contactName: {
@@ -60,6 +64,8 @@ const props = defineProps({
     required: true,
   }
 })
+
+const chatArea = ref(null)
 
 const currentTime = computed(() => {
   const d = new Date()
@@ -81,59 +87,65 @@ const parsedMessages = computed(() => {
     html: formatText(m.text)
   }))
 })
+
+const isFirstInGroup = (index) => {
+  if (index === 0) return true
+  return props.messages[index].direction !== props.messages[index - 1].direction
+}
 </script>
 
 <style scoped>
 .whatsapp-sim {
-
+  /* Light theme — WhatsApp Web defaults */
   --wa-header-bg: #075e54;
   --wa-header-text: #ffffff;
-  --wa-bg: #e5ddd5;
-  --wa-bg-img: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
-  --wa-outbound-bg: #dcf8c6;
+  --wa-bg: #eae6df;
+  --wa-outbound-bg: #d9fdd3;
   --wa-inbound-bg: #ffffff;
   --wa-text: #111b21;
   --wa-time-text: #667781;
-  --wa-enc-bg: #fff5c4;
+  --wa-enc-bg: #fdf8c8;
   --wa-enc-text: #54656f;
-  --wa-input-area-bg: #f0f0f0;
+  --wa-input-area-bg: #f0f2f5;
   --wa-input-box-bg: #ffffff;
   --wa-icon-color: #54656f;
-  --wa-border: var(--vp-c-border);
+  --wa-border: rgba(0,0,0,0.08);
 
   border: 1px solid var(--wa-border);
   border-radius: 12px;
   overflow: hidden;
   width: 100%;
-  max-width: 500px;
+  max-width: 480px;
   margin: 24px auto;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  box-shadow:
+    0 4px 6px -1px rgba(0,0,0,0.1),
+    0 2px 4px -1px rgba(0,0,0,0.06),
+    0 12px 40px -4px rgba(0,0,0,0.12);
   display: flex;
   flex-direction: column;
-  height: 600px;
+  height: 580px;
   background-color: var(--wa-bg);
   font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
   transition: background-color 0.3s ease;
 }
 
 :root.dark .whatsapp-sim {
-
   --wa-header-bg: #202c33;
   --wa-header-text: #e9edef;
   --wa-bg: #0b141a;
-  --wa-bg-img: none; 
   --wa-outbound-bg: #005c4b;
   --wa-inbound-bg: #202c33;
   --wa-text: #e9edef;
-  --wa-time-text: #8696a0;
-  --wa-enc-bg: #182229;
+  --wa-time-text: rgba(255,255,255,0.45);
+  --wa-enc-bg: rgba(255,210,121,0.06);
   --wa-enc-text: #ffd279;
   --wa-input-area-bg: #202c33;
   --wa-input-box-bg: #2a3942;
   --wa-icon-color: #8696a0;
-  --wa-border: var(--vp-c-divider);
+  --wa-border: rgba(255,255,255,0.06);
 }
 
+/* ─── Header ─── */
 .wa-header {
   background-color: var(--wa-header-bg);
   color: var(--wa-header-text);
@@ -142,7 +154,6 @@ const parsedMessages = computed(() => {
   align-items: center;
   justify-content: space-between;
   z-index: 10;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   transition: background-color 0.3s ease;
 }
 
@@ -155,8 +166,8 @@ const parsedMessages = computed(() => {
 .wa-header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
-  opacity: 0.9;
+  gap: 18px;
+  opacity: 0.85;
 }
 
 .wa-back-btn {
@@ -164,10 +175,10 @@ const parsedMessages = computed(() => {
 }
 
 .wa-avatar {
-  width: 36px;
-  height: 36px;
-  background-color: rgba(255,255,255,0.2);
-  color: #ffffff;
+  width: 38px;
+  height: 38px;
+  background-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.85);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -189,40 +200,61 @@ const parsedMessages = computed(() => {
 .wa-status {
   font-size: 13px;
   line-height: 20px;
-  color: rgba(255,255,255,0.8);
+  color: rgba(255,255,255,0.7);
 }
 
+/* ─── Chat Area ─── */
 .wa-chat-area {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 5%;
+  padding: 16px 5% 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background-image: var(--wa-bg-img);
-  background-repeat: repeat;
+  gap: 4px;
   background-color: var(--wa-bg);
+  /* WhatsApp-style doodle pattern (dark mode uses plain bg) */
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(0,0,0,0.02) 1px, transparent 1px),
+    radial-gradient(circle at 70% 60%, rgba(0,0,0,0.02) 1px, transparent 1px),
+    radial-gradient(circle at 40% 80%, rgba(0,0,0,0.015) 1px, transparent 1px);
+  background-size: 60px 60px, 80px 80px, 100px 100px;
   transition: background-color 0.3s ease;
 }
 
+:root.dark .wa-chat-area {
+  background-image: none;
+}
+
+/* ─── Encryption Notice ─── */
 .wa-encryption-notice {
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.wa-encryption-notice svg {
+  color: var(--wa-enc-text);
+  opacity: 0.7;
 }
 
 .wa-encryption-notice span {
   background-color: var(--wa-enc-bg);
   color: var(--wa-enc-text);
-  font-size: 12.5px;
-  padding: 5px 12px;
+  font-size: 11.5px;
+  padding: 6px 12px;
   border-radius: 7.5px;
-  box-shadow: 0 1px 0.5px rgba(11,20,26,.13);
+  box-shadow: 0 1px 0.5px rgba(11,20,26,.08);
   transition: all 0.3s ease;
 }
 
+/* ─── Message Rows ─── */
 .wa-message-row {
   display: flex;
   width: 100%;
+  margin-bottom: 2px;
 }
 
 .wa-message-row.outbound {
@@ -233,8 +265,9 @@ const parsedMessages = computed(() => {
   justify-content: flex-start;
 }
 
+/* ─── Bubbles ─── */
 .wa-message-bubble {
-  max-width: 85%;
+  max-width: 80%;
   padding: 6px 7px 8px 9px;
   border-radius: 7.5px;
   position: relative;
@@ -247,14 +280,21 @@ const parsedMessages = computed(() => {
 
 .wa-message-row.outbound .wa-message-bubble {
   background-color: var(--wa-outbound-bg);
+}
+
+.wa-message-row.outbound .wa-message-bubble.has-tail {
   border-top-right-radius: 0;
 }
 
 .wa-message-row.inbound .wa-message-bubble {
   background-color: var(--wa-inbound-bg);
+}
+
+.wa-message-row.inbound .wa-message-bubble.has-tail {
   border-top-left-radius: 0;
 }
 
+/* ─── Message Content ─── */
 .wa-message-text {
   margin-bottom: 2px;
   word-wrap: break-word;
@@ -269,11 +309,12 @@ const parsedMessages = computed(() => {
   font-style: italic;
 }
 
+/* ─── Message Meta (time + ticks) ─── */
 .wa-message-meta {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 3px;
   float: right;
   margin-left: 12px;
   margin-top: 4px;
@@ -287,10 +328,11 @@ const parsedMessages = computed(() => {
 }
 
 .tick-icon {
-  margin-top: -2px;
-  color: #53bdeb; 
+  color: #53bdeb;
+  margin-top: -1px;
 }
 
+/* ─── Tail ─── */
 .wa-tail {
   position: absolute;
   top: 0;
@@ -309,13 +351,19 @@ const parsedMessages = computed(() => {
   border-right: 10px solid var(--wa-inbound-bg);
 }
 
+/* ─── Input Area ─── */
 .wa-input-area {
   background-color: var(--wa-input-area-bg);
-  padding: 10px 16px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
+  border-top: 1px solid rgba(0,0,0,0.04);
   transition: background-color 0.3s ease;
+}
+
+:root.dark .wa-input-area {
+  border-top-color: rgba(255,255,255,0.04);
 }
 
 .wa-icon {
@@ -330,10 +378,9 @@ const parsedMessages = computed(() => {
   flex: 1;
   background-color: var(--wa-input-box-bg);
   border-radius: 20px;
-  padding: 9px 12px;
+  padding: 9px 14px;
   color: var(--wa-icon-color);
   font-size: 15px;
-  box-shadow: 0 1px 1px rgba(0,0,0,0.05);
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
@@ -347,5 +394,11 @@ const parsedMessages = computed(() => {
   align-items: center;
   justify-content: center;
   padding: 0;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
+}
+
+.microphone:hover {
+  background-color: #06cf9c;
 }
 </style>
