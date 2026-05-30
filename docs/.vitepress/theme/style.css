@@ -1,44 +1,32 @@
-/* docs/.vitepress/theme/style.css */
-
-/*
-  Customização do tema para alinhar com a identidade visual do CRMed (apps/web)
-  Baseado nos valores HSL definidos no site oficial.
-*/
-
 :root {
-  --vp-nav-bg-color: transparent;
+  --vp-nav-bg-color: hsla(220, 16%, 94%, 0.72);
 
-  /* Cores de Marca (Brand) - Teal/Blue do CRMed */
   --vp-c-brand-1: hsl(195 80% 38%);
   --vp-c-brand-2: hsl(195 80% 30%);
   --vp-c-brand-3: hsl(195 80% 25%);
   --vp-c-brand-soft: hsla(195, 80%, 38%, 0.14);
 
-  /* Background e Superfícies */
   --vp-c-bg: hsl(220 16% 94%);
   --vp-c-bg-soft: hsl(220 14% 89%);
   --vp-c-bg-mute: hsl(220 14% 86%);
   --vp-c-bg-alt: hsl(220 14% 90%);
 
-  /* Texto */
   --vp-c-text-1: hsl(222 47% 11%);
   --vp-c-text-2: hsl(220 9% 36%);
   --vp-c-text-3: hsl(220 9% 45%);
 
-  /* Bordas */
   --vp-c-border: hsl(220 13% 78%);
   --vp-c-divider: hsl(220 13% 80%);
 
-  /* Tipografia */
   --vp-font-family-base: "Inter", system-ui, -apple-system, sans-serif;
-  
-  /* Arredondamento (Radius do shadcn/ui usado no web) */
+
   --vp-button-brand-border-radius: 0.75rem;
   --vp-custom-block-radius: 0.75rem;
 }
 
-/* Ajustes para o Modo Escuro */
 .dark {
+  --vp-nav-bg-color: hsla(220, 10%, 6%, 0.72);
+
   --vp-c-brand-1: hsl(195 68% 54%);
   --vp-c-brand-2: hsl(195 68% 65%);
   --vp-c-brand-3: hsl(195 68% 75%);
@@ -51,44 +39,35 @@
 
   --vp-c-text-1: hsl(210 20% 95%);
   --vp-c-text-2: hsl(215 14% 55%);
-  
+
   --vp-c-border: hsl(220 10% 18%);
   --vp-c-divider: hsl(220 10% 14%);
 }
 
-/* Customizações Adicionais de Estilo */
-
-/* Deixa a sidebar e navbar com um leve blur igual ao AppSidebar.tsx */
 .VPLocalNav, .VPSidebar, .VPNavBar {
-  background-color: transparent !important;
+  background-color: var(--vp-nav-bg-color) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* Garante que o fundo da navbar não tenha cores sólidas diferentes */
-.VPNavBar {
-  background-image: none !important;
-}
-
-.VPNavBar.has-sidebar .content {
+.VPNavBar:not(.home.top) .content-body {
   background-color: transparent !important;
 }
 
-/* Ajuste nos cards (Custom Blocks) para parecerem com os Cards do dashboard */
-.custom-block {
-  border: 1px solid var(--vp-c-border) !important;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
-}
+@media (min-width: 960px) {
 
-/* Botões com estilo mais próximo ao shadcn/ui */
-.VPButton.brand {
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
+  .VPNavBar.has-sidebar .divider {
+    padding-left: 0 !important;
+  }
 
-/* Ajuste fino na Logo para não "vazar" da sidebar */
-.VPNavBarTitle.has-sidebar {
-  width: var(--vp-sidebar-width);
+  .VPSidebar {
+    top: var(--vp-nav-height) !important;
+    padding-top: 32px !important;
+  }
+
+  .VPSidebar .curtain {
+    display: none !important;
+  }
 }
 
 .VPNavBarTitle .logo {
@@ -96,12 +75,16 @@
   width: auto;
 }
 
-/* Remove margens extras que podem empurrar o texto/logo */
-.VPNavBarTitle {
-  padding-left: 0;
+.custom-block {
+  border: 1px solid var(--vp-c-border) !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
 }
 
-/* Mermaid Diagram Styling */
+.VPButton.brand {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 .vp-doc .mermaid {
   background-color: var(--vp-c-bg-alt);
   border: 1px solid var(--vp-c-border);
@@ -146,7 +129,6 @@
   margin: 0 auto;
 }
 
-/* Modal de zoom do Mermaid */
 #mermaid-zoom-modal {
   display: none;
   position: fixed;
@@ -182,11 +164,10 @@
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
 }
 
-/* File Tree Component (Interactive) - Redesign */
 .file-tree {
   font-family: var(--vp-font-family-mono);
-  font-size: 0.875rem; /* Um pouco maior */
-  background-color: var(--vp-c-bg-alt); /* Fundo alinhado com blocos de código */
+  font-size: 0.875rem; 
+  background-color: var(--vp-c-bg-alt); 
   border: 1px solid var(--vp-c-border);
   padding: 1.25rem 1.5rem;
   border-radius: 8px;
@@ -200,7 +181,6 @@
   margin: 0;
 }
 
-/* Sobrescrevendo o CSS padrão do VitePress para details */
 .vp-doc .file-tree details {
   margin: 0 !important;
   padding: 0 !important;
@@ -239,36 +219,33 @@
   display: none;
 }
 
-/* Ícone de Pasta Fechada */
 .file-tree summary::before {
   content: '';
   display: inline-block;
   width: 16px;
   height: 16px;
-  /* Azul suave para a pasta (compatível claro/escuro) */
+
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");
   background-size: contain;
   background-repeat: no-repeat;
   opacity: 0.9;
 }
 
-/* Ícone de Pasta Aberta */
 .file-tree details[open] > summary::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2'/%3E%3C/svg%3E");
   opacity: 1;
 }
 
-/* Guias Visuais (Indentação) */
 .file-tree .folder-content {
-  /* Recuo principal alinhado ao centro do ícone da pasta pai (16px) */
+
   padding-left: 14px;
-  border-left: 1px solid var(--vp-c-divider); /* Linha mais sutil */
+  border-left: 1px solid var(--vp-c-divider); 
   margin-left: 7px; 
   margin-top: 4px;
   margin-bottom: 4px;
   display: flex;
   flex-direction: column;
-  gap: 4px; /* Mais respiro entre os arquivos */
+  gap: 4px; 
 }
 
 .file-tree .file {
@@ -277,7 +254,7 @@
   gap: 6px;
   padding: 4px 6px;
   border-radius: 4px;
-  margin-left: -6px; /* Compensa o padding para alinhar com o hover */
+  margin-left: -6px; 
   color: var(--vp-c-text-2);
   transition: background-color 0.2s ease, color 0.2s ease;
 }
@@ -287,20 +264,18 @@
   color: var(--vp-c-text-1);
 }
 
-/* Ícone de Arquivo */
 .file-tree .file::before {
   content: '';
   display: inline-block;
   width: 14px;
   height: 14px;
-  /* Cinza com um leve tom azulado para o arquivo */
+
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E%3Cpolyline points='10 9 9 9 8 9'/%3E%3C/svg%3E");
   background-size: contain;
   background-repeat: no-repeat;
   opacity: 0.8;
 }
 
-/* Comentários aprimorados */
 .file-tree .comment {
   color: var(--vp-c-text-2);
   font-family: var(--vp-font-family-base);
@@ -317,7 +292,6 @@
   outline: none;
 }
 
-/* Custom Task List Checkboxes */
 input[type="checkbox"].task-list-item-checkbox {
   appearance: none;
   -webkit-appearance: none;
@@ -329,7 +303,7 @@ input[type="checkbox"].task-list-item-checkbox {
   position: relative;
   cursor: pointer;
   background-color: var(--vp-c-bg);
-  opacity: 1 !important; /* Force override disabled styling */
+  opacity: 1 !important; 
   transition: all 0.2s ease;
   vertical-align: text-bottom;
 }
@@ -355,15 +329,15 @@ input[type="checkbox"].task-list-item-checkbox:checked::after {
   transform: rotate(45deg);
 }
 
-/* VitePress Local Search — alinha com o tema glassmorphism */
 .VPNavBarSearch .DocSearch-Button {
-  background: transparent !important;
-  border: 1px solid transparent !important;
+  background: var(--vp-c-bg-soft) !important;
+  border: 1px solid var(--vp-c-border) !important;
+  transition: all 0.2s ease;
 }
 
 .VPNavBarSearch .DocSearch-Button:hover {
-  background: var(--vp-c-bg-soft) !important;
-  border-color: var(--vp-c-border) !important;
+  background: var(--vp-c-bg-mute) !important;
+  border-color: var(--vp-c-brand-1) !important;
 }
 
 .VPLocalSearchBox {

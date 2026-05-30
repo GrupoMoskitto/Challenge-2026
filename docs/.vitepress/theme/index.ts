@@ -25,31 +25,28 @@ function ensureModal() {
 }
 
 function handleMermaidClick(e: MouseEvent) {
-  // Capture the closest .mermaid container from the clicked target
+
   const container = (e.target as Element).closest?.('.vp-doc .mermaid')
   if (!container) return
-  
-  // Find the SVG within the container
+
   const svg = container.querySelector('svg')
   if (!svg) return
 
-  // Prevent other click handlers (if any)
   e.stopPropagation()
 
   const modal = document.getElementById(MODAL_ID)
   if (!modal) return
-  
+
   modal.innerHTML = ''
 
   const wrapper = document.createElement('div')
   wrapper.id = CONTENT_ID
   wrapper.addEventListener('click', (e) => e.stopPropagation())
 
-  // Clone SVG to show in the modal
   const clone = svg.cloneNode(true) as SVGElement
   clone.removeAttribute('width')
   clone.removeAttribute('height')
-  // Force the SVG to take up the full available width of the wrapper
+
   clone.style.cssText = 'width: 100%; height: auto; min-width: 100%; min-height: 100%; display: block; margin: 0 auto;'
 
   wrapper.appendChild(clone)
@@ -69,10 +66,10 @@ export default {
 
     onMounted(() => {
       init()
-      // Register event delegation once using capture phase
+
       document.addEventListener('click', handleMermaidClick, true)
     })
-    
+
     watch(() => route.path, () => nextTick(() => {
       mediumZoom('.vp-doc img:not(.medium-zoom-image)', { background: 'var(--vp-c-bg)', margin: 24 })
     }))
@@ -83,9 +80,3 @@ export default {
     app.component('WhatsAppSim', WhatsAppSim)
   },
 }
-
-
-
-
-
-

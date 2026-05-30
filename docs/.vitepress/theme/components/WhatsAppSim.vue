@@ -1,6 +1,6 @@
 <template>
   <div class="whatsapp-sim">
-    <!-- Header -->
+
     <div class="wa-header">
       <div class="wa-header-left">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="wa-back-btn"><path d="m15 18-6-6 6-6"/></svg>
@@ -19,7 +19,6 @@
       </div>
     </div>
 
-    <!-- Chat Area -->
     <div class="wa-chat-area">
       <div class="wa-encryption-notice">
         <span>Criptografia de ponta a ponta</span>
@@ -39,7 +38,6 @@
       </div>
     </div>
 
-    <!-- Input Area -->
     <div class="wa-input-area">
       <div class="wa-icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></div>
       <div class="wa-icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
@@ -87,7 +85,7 @@ const parsedMessages = computed(() => {
 
 <style scoped>
 .whatsapp-sim {
-  /* Light Theme Variables */
+
   --wa-header-bg: #075e54;
   --wa-header-text: #ffffff;
   --wa-bg: #e5ddd5;
@@ -119,11 +117,11 @@ const parsedMessages = computed(() => {
 }
 
 :root.dark .whatsapp-sim {
-  /* Dark Theme Variables */
+
   --wa-header-bg: #202c33;
   --wa-header-text: #e9edef;
   --wa-bg: #0b141a;
-  --wa-bg-img: none; /* No strong pattern in dark mode to keep it clean */
+  --wa-bg-img: none; 
   --wa-outbound-bg: #005c4b;
   --wa-inbound-bg: #202c33;
   --wa-text: #e9edef;
@@ -290,10 +288,9 @@ const parsedMessages = computed(() => {
 
 .tick-icon {
   margin-top: -2px;
-  color: #53bdeb; /* Always blue for read receipts */
+  color: #53bdeb; 
 }
 
-/* CSS Triangles for the tails */
 .wa-tail {
   position: absolute;
   top: 0;

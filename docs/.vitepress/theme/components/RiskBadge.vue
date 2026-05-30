@@ -45,7 +45,6 @@ defineProps({
   line-height: 1;
 }
 
-/* High Risk (Red) */
 .high {
   background: hsla(0, 84%, 60%, 0.15);
   color: hsl(0, 84%, 45%);
@@ -55,7 +54,6 @@ defineProps({
   color: hsl(0, 84%, 75%);
 }
 
-/* Medium Risk (Amber) */
 .medium {
   background: hsla(38, 92%, 50%, 0.15);
   color: hsl(38, 92%, 40%);
@@ -65,7 +63,6 @@ defineProps({
   color: hsl(38, 92%, 65%);
 }
 
-/* Low Risk (Green) */
 .low {
   background: hsla(142, 71%, 45%, 0.15);
   color: hsl(142, 71%, 35%);
