@@ -47,7 +47,7 @@ function handleMermaidClick(e: MouseEvent) {
   clone.removeAttribute('width')
   clone.removeAttribute('height')
 
-  clone.style.cssText = 'width: 100%; height: auto; min-width: 100%; min-height: 100%; display: block; margin: 0 auto;'
+  clone.style.cssText = 'width: 100%; height: auto; display: block; margin: 0 auto;'
 
   wrapper.appendChild(clone)
   modal.appendChild(wrapper)
@@ -61,7 +61,7 @@ export default {
 
     const init = () => {
       ensureModal()
-      mediumZoom('.vp-doc img:not(.medium-zoom-image)', { background: 'var(--vp-c-bg)', margin: 24 })
+      mediumZoom('.vp-doc img:not(.medium-zoom-image)', { background: 'var(--vp-c-bg)', margin: 48 })
     }
 
     onMounted(() => {
@@ -71,7 +71,7 @@ export default {
     })
 
     watch(() => route.path, () => nextTick(() => {
-      mediumZoom('.vp-doc img:not(.medium-zoom-image)', { background: 'var(--vp-c-bg)', margin: 24 })
+      mediumZoom('.vp-doc img:not(.medium-zoom-image)', { background: 'var(--vp-c-bg)', margin: 48 })
     }))
   },
   enhanceApp({ app }) {
