@@ -226,10 +226,33 @@ const Dashboard = () => {
     return acc;
   }, {});
 
-  const procedureData = Object.entries(procedureCounts).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  const sortedProcedureData = Object.entries(procedureCounts)
+    .map(([name, value]) => ({ name, value: value as number }))
+    .sort((a, b) => b.value - a.value);
+
+  let procedureData = sortedProcedureData;
+  const totalProcedures = sortedProcedureData.reduce((acc, curr) => acc + curr.value, 0);
+  let splitIndex = 5;
+  let accumulated = 0;
+  for (let i = 0; i < sortedProcedureData.length; i++) {
+    accumulated += sortedProcedureData[i].value;
+    const remaining = totalProcedures - accumulated;
+    if (remaining <= totalProcedures * 0.5) {
+      splitIndex = Math.max(splitIndex, i + 1);
+      break;
+    }
+  }
+
+  if (sortedProcedureData.length > splitIndex) {
+    const topProcedures = sortedProcedureData.slice(0, splitIndex);
+    const otherProceduresCount = sortedProcedureData.slice(splitIndex).reduce((acc, curr) => acc + curr.value, 0);
+    if (otherProceduresCount > 0) {
+      procedureData = [
+        ...topProcedures,
+        { name: 'Outros', value: otherProceduresCount }
+      ];
+    }
+  }
 
   const statusCounts = filteredLeads.reduce((acc: any, lead: any) => {
     acc[lead.status] = (acc[lead.status] || 0) + 1;
@@ -747,10 +770,11 @@ const Dashboard = () => {
                         data={procedureData}
                         cx="50%"
                         cy="50%"
-                        outerRadius={70}
+                        outerRadius={75}
                         dataKey="value"
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                         labelLine={true}
+                        fontSize={12}
                       >
                         {procedureData.map((entry, index) => (
                           <Cell key={index} fill={`hsl(${index * 40}, 70%, 50%)`} />
