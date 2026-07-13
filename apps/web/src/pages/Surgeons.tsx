@@ -21,6 +21,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PROCEDURES } from "@/lib/constants";
 import { Plus, Pencil, UserX, UserCheck, Loader2, Stethoscope, Calendar, Clock, MapPin, Mail, Phone, FileText, IdCard, Search, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -79,6 +81,7 @@ export default function Surgeons() {
   const urlSurgeonId = searchParams.get("surgeonId");
   const [selectedSurgeonId, setSelectedSurgeonId] = useState<string | null>(urlSurgeonId);
   const [search, setSearch] = useState("");
+  const [procedureFilter, setProcedureFilter] = useState("all");
   
   const updateUrl = useCallback((updates: Record<string, string | null>) => {
     const newParams = new URLSearchParams(searchParams.toString());
@@ -178,11 +181,13 @@ export default function Surgeons() {
   };
 
   const surgeons = data?.surgeons || [];
-  const filteredSurgeons = surgeons.filter((s: any) => 
-    s.name.toLowerCase().includes(search.toLowerCase()) || 
-    s.specialty.toLowerCase().includes(search.toLowerCase()) ||
-    s.crm.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredSurgeons = surgeons.filter((s: any) => {
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || 
+                          s.specialty.toLowerCase().includes(search.toLowerCase()) ||
+                          s.crm.toLowerCase().includes(search.toLowerCase());
+    const matchesProcedure = procedureFilter === "all" || (s.procedures && s.procedures.includes(procedureFilter));
+    return matchesSearch && matchesProcedure;
+  });
 
   return (
     <AppLayout title="Corpo Clínico">
@@ -194,19 +199,33 @@ export default function Surgeons() {
           selectedSurgeonId && "hidden lg:block"
         )}>
           {/* Cabeçalho da Lista + Busca/Novo */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Buscar médico..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Buscar médico..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+              </div>
+              {isAdmin && (
+                <Button size="sm" onClick={() => setIsCreateOpen(true)} className="ml-2">
+                  <Plus className="mr-1 h-4 w-4" /> Novo
+                </Button>
+              )}
             </div>
-            {isAdmin && (
-              <Button size="sm" onClick={() => setIsCreateOpen(true)} className="ml-2">
-                <Plus className="mr-1 h-4 w-4" /> Novo
-              </Button>
-            )}
+            
+            <Select value={procedureFilter} onValueChange={setProcedureFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filtrar por procedimento..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Procedimentos</SelectItem>
+                {PROCEDURES.map(proc => (
+                  <SelectItem key={proc} value={proc}>{proc}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 mt-4">
             {loading ? (
                <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : filteredSurgeons.length === 0 ? (
@@ -319,6 +338,21 @@ export default function Surgeons() {
                     
                     <div className="mt-6 pb-6">
                       <TabsContent value="overview" className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                        {selectedSurgeon.procedures && selectedSurgeon.procedures.length > 0 && (
+                          <div className="p-4 rounded-xl bg-muted/20 border border-dashed">
+                            <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+                              <Stethoscope className="h-4 w-4 text-primary" /> Procedimentos Habilitados
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedSurgeon.procedures.map((proc: string) => (
+                                <Badge key={proc} variant="secondary" className="bg-background border hover:bg-muted font-normal text-xs">
+                                  {proc}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                           <div className="p-4 rounded-lg bg-muted/30 border space-y-1">
                             <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><IdCard className="h-3 w-3"/> CPF</p>

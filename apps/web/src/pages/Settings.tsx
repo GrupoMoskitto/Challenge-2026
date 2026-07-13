@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { PROCEDURES } from "@/lib/constants";
 import { toast } from "sonner";
 import { useQuery, useMutation } from "@apollo/client";
 import {
@@ -39,6 +40,7 @@ import {
   CREATE_SCHEDULE_BLOCK,
   UPDATE_SCHEDULE_BLOCK,
   DELETE_SCHEDULE_BLOCK,
+  UPDATE_SURGEON,
 } from "@/lib/queries";
 import {
   Dialog,
@@ -67,7 +69,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, Calendar as CalendarIcon, Clock, AlertTriangle, Mic, Paperclip, Smile, CheckCheck } from "lucide-react";
+import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, Calendar as CalendarIcon, Clock, AlertTriangle, Mic, Paperclip, Smile, CheckCheck, Stethoscope } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -309,6 +311,7 @@ const Settings = () => {
   const [createBlock] = useMutation(CREATE_SCHEDULE_BLOCK);
   const [updateBlock] = useMutation(UPDATE_SCHEDULE_BLOCK);
   const [deleteBlock] = useMutation(DELETE_SCHEDULE_BLOCK);
+  const [updateSurgeon] = useMutation(UPDATE_SURGEON);
 
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
   const systemUsers = usersData?.users?.edges?.map((e: any) => e.node) || [];
@@ -1127,6 +1130,91 @@ const Settings = () => {
                           </div>
                         </div>
                       )}
+
+                      {/* PROCEDIMENTOS HABILITADOS */}
+                      <div className="border rounded-xl p-6 bg-muted/30 mb-8">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                              <Stethoscope className="h-5 w-5 text-primary" /> 
+                              Procedimentos Habilitados
+                            </h3>
+                            <p className="text-sm text-muted-foreground">Adicione ou remova procedimentos que este médico pode realizar</p>
+                          </div>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className="gap-2">
+                                <Plus className="h-4 w-4" /> Adicionar
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="end">
+                              <div className="p-2 border-b">
+                                <p className="text-xs font-semibold px-2 py-1 text-muted-foreground">Selecione o procedimento</p>
+                              </div>
+                              <div className="max-h-[300px] overflow-y-auto p-1">
+                                {PROCEDURES.filter(p => !selectedSurgeon.procedures?.includes(p)).length === 0 && (
+                                  <div className="p-3 text-center text-sm text-muted-foreground">Todos os procedimentos já adicionados</div>
+                                )}
+                                {PROCEDURES.filter(p => !selectedSurgeon.procedures?.includes(p)).map(proc => (
+                                  <div 
+                                    key={proc}
+                                    onClick={async () => {
+                                      const currentProcedures = selectedSurgeon.procedures || [];
+                                      try {
+                                        await updateSurgeon({
+                                          variables: {
+                                            input: {
+                                              id: selectedSurgeon.id,
+                                              procedures: [...currentProcedures, proc]
+                                            }
+                                          }
+                                        });
+                                        toast.success(`Procedimento adicionado`);
+                                      } catch (err: any) {
+                                        toast.error(err.message);
+                                      }
+                                    }}
+                                    className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center justify-between group"
+                                  >
+                                    {proc}
+                                    <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {!selectedSurgeon.procedures?.length ? (
+                            <p className="text-sm text-muted-foreground italic py-2">Nenhum procedimento habilitado.</p>
+                          ) : (
+                            selectedSurgeon.procedures.map((proc: string) => (
+                              <Badge key={proc} variant="secondary" className="px-3 py-1 text-sm bg-background border hover:bg-muted group flex items-center gap-1.5">
+                                {proc}
+                                <X 
+                                  className="h-3 w-3 opacity-50 cursor-pointer hover:opacity-100 text-destructive transition-opacity" 
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      await updateSurgeon({
+                                        variables: {
+                                          input: {
+                                            id: selectedSurgeon.id,
+                                            procedures: selectedSurgeon.procedures.filter((p: string) => p !== proc)
+                                          }
+                                        }
+                                      });
+                                      toast.success("Procedimento removido");
+                                    } catch (err: any) {
+                                      toast.error(err.message);
+                                    }
+                                  }}
+                                />
+                              </Badge>
+                            ))
+                          )}
+                        </div>
+                      </div>
 
                       <div className="border rounded-xl p-6 bg-muted/30">
                         <div className="flex items-center justify-between mb-6">

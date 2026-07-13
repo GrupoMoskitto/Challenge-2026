@@ -14,8 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Calendar } from "@/components/ui/calendar";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Trash, Search, Loader2, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Trash, Search, Loader2, AlertTriangle, Stethoscope } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_APPOINTMENTS_BY_DATE, GET_SURGEONS, GET_PATIENTS, CREATE_APPOINTMENT, UPDATE_APPOINTMENT, DELETE_APPOINTMENT, UPDATE_APPOINTMENT_STATUS } from "@/lib/queries";
 import { validatePhone, sanitizeInput, checkSurgeonAvailability } from "@/lib/validation";
@@ -625,6 +626,43 @@ const Agenda = () => {
                   ))}
                 </SelectContent>
               </Select>
+              {selectedSlot?.doctorId && surgeons.find((s: any) => s.id === selectedSlot.doctorId)?.procedures?.length > 0 && (
+                <div className="pt-1.5 animate-in fade-in slide-in-from-top-1">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1.5 flex items-center gap-1">
+                    <Stethoscope className="h-3 w-3" /> Habilitado para:
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {(() => {
+                      const procs = surgeons.find((s: any) => s.id === selectedSlot.doctorId)?.procedures || [];
+                      const displayProcs = procs.slice(0, 4);
+                      const hiddenCount = procs.length - 4;
+                      return (
+                        <>
+                          {displayProcs.map((proc: string) => (
+                            <Badge key={proc} variant="outline" className="text-[9px] py-0 h-4 bg-muted/30">{proc}</Badge>
+                          ))}
+                          {hiddenCount > 0 && (
+                            <TooltipProvider delayDuration={0}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex cursor-help">
+                                    <Badge variant="outline" className="text-[9px] py-0 h-4 bg-muted/30 font-bold">+{hiddenCount}</Badge>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="z-[100]">
+                                  <div className="text-xs space-y-1">
+                                    {procs.slice(4).map((p: string) => <div key={p}>{p}</div>)}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Aviso de Horário não permitido */}

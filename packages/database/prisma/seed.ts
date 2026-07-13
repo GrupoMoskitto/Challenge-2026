@@ -40,15 +40,15 @@ async function main() {
   const surgeons = await Promise.all([
     prisma.$transaction(async (tx) => {
       await tx.user.create({ data: { email: 'sergio.v@hsr.com.br', name: 'Dr. Sérgio Vasconcelos', role: UserRole.SURGEON, password: hashedPassword } });
-      return tx.surgeon.create({ data: { name: 'Dr. Sérgio Vasconcelos', specialty: 'Cirurgia Plástica', crm: '123456-SP', email: 'sergio.v@hsr.com.br', phone: '5511999991111', cpf: '111.111.111-11', rg: '11.111.111-1', address: 'Av. Paulista, 1000' } });
+      return tx.surgeon.create({ data: { name: 'Dr. Sérgio Vasconcelos', specialty: 'Cirurgia Plástica', crm: '123456-SP', email: 'sergio.v@hsr.com.br', phone: '5511999991111', cpf: '111.111.111-11', rg: '11.111.111-1', address: 'Av. Paulista, 1000', procedures: ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia'] } });
     }),
     prisma.$transaction(async (tx) => {
       await tx.user.create({ data: { email: 'helena.m@hsr.com.br', name: 'Dra. Helena Mendes', role: UserRole.SURGEON, password: hashedPassword } });
-      return tx.surgeon.create({ data: { name: 'Dra. Helena Mendes', specialty: 'Dermatologia', crm: '654321-SP', email: 'helena.m@hsr.com.br', phone: '5511999992222', cpf: '222.222.222-22', rg: '22.222.222-2', address: 'Av. Faria Lima, 2000' } });
+      return tx.surgeon.create({ data: { name: 'Dra. Helena Mendes', specialty: 'Dermatologia', crm: '654321-SP', email: 'helena.m@hsr.com.br', phone: '5511999992222', cpf: '222.222.222-22', rg: '22.222.222-2', address: 'Av. Faria Lima, 2000', procedures: ['Cirurgia Dermatológica', 'Implante Capilar'] } });
     }),
     prisma.$transaction(async (tx) => {
       await tx.user.create({ data: { email: 'beatriz.m@hsr.com.br', name: 'Dra. Beatriz Matos', role: UserRole.SURGEON, password: hashedPassword } });
-      return tx.surgeon.create({ data: { name: 'Dra. Beatriz Matos', specialty: 'Cirurgia Geral', crm: '112233-SP', email: 'beatriz.m@hsr.com.br', phone: '5511999993333', cpf: '333.333.333-33', rg: '33.333.333-3', address: 'Rua Augusta, 3000' } });
+      return tx.surgeon.create({ data: { name: 'Dra. Beatriz Matos', specialty: 'Cirurgia Geral', crm: '112233-SP', email: 'beatriz.m@hsr.com.br', phone: '5511999993333', cpf: '333.333.333-33', rg: '33.333.333-3', address: 'Rua Augusta, 3000', procedures: ['Consulta Inicial', 'Retorno', 'Hérnia Abdominal', 'Cirurgia bariátrica'] } });
     }),
   ]);
 

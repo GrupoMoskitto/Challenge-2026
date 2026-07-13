@@ -12,8 +12,9 @@ export function showUndoableToast(
   undoFn: () => Promise<void>,
   undoMessage: string = "Desfazer"
 ) {
-  lastUndoAction?.undoFn().catch(console.error);
-  
+  // Do not execute the previous undo action automatically.
+  // Just clear it so it can't be triggered anymore.
+  lastUndoAction = null;
   lastUndoAction = { undoFn, message };
   
   toast(message, {

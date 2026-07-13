@@ -239,6 +239,7 @@ export const typeDefs = gql`
     phone: String!
     isActive: Boolean!
     appointmentDuration: Int!
+    procedures: [String!]!
     appointments: [Appointment!]!
     availability: [AvailabilitySlot!]!
     extraAvailability: [ExtraAvailabilitySlot!]!
@@ -246,6 +247,8 @@ export const typeDefs = gql`
     createdAt: DateTime!
     updatedAt: DateTime!
   }
+
+
 
   type AvailabilitySlot {
     id: ID!
@@ -593,6 +596,8 @@ export const typeDefs = gql`
     email: String!
     phone: String!
     password: String!
+    appointmentDuration: Int
+    procedures: [String!]
   }
 
   input UpdateSurgeonInput {
@@ -606,6 +611,7 @@ export const typeDefs = gql`
     email: String
     phone: String
     appointmentDuration: Int
+    procedures: [String!]
   }
 
   input CreateUserInput {

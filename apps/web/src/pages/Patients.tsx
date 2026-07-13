@@ -27,7 +27,8 @@ import {
   Trash2,
   Info,
   UploadCloud,
-  ArrowLeft
+  ArrowLeft,
+  Stethoscope
 } from "lucide-react";
 import { useQuery, useMutation } from "@apollo/client";
 import { useAuth } from "@/lib/auth";
@@ -60,6 +61,7 @@ import { usePatientModal } from "@/components/PatientModalContext";
 import { AuditDiff } from "@/components/AuditDiff";
 import { HistoricalDatePicker } from "@/components/ui/historical-date-picker";
 import { TimePicker } from "@/components/ui/time-picker";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { checkSurgeonAvailability } from "@/lib/validation";
 
 const documentTypeLabels: Record<string, string> = {
@@ -935,6 +937,43 @@ const Patients = () => {
                   ))}
                 </SelectContent>
               </Select>
+              {newApptForm.surgeonId && surgeonsData?.surgeons?.find((s: any) => s.id === newApptForm.surgeonId)?.procedures?.length > 0 && (
+                <div className="pt-1.5 animate-in fade-in slide-in-from-top-1">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1.5 flex items-center gap-1">
+                    <Stethoscope className="h-3 w-3" /> Habilitado para:
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {(() => {
+                      const procs = surgeonsData?.surgeons?.find((s: any) => s.id === newApptForm.surgeonId)?.procedures || [];
+                      const displayProcs = procs.slice(0, 4);
+                      const hiddenCount = procs.length - 4;
+                      return (
+                        <>
+                          {displayProcs.map((proc: string) => (
+                            <Badge key={proc} variant="outline" className="text-[9px] py-0 h-4 bg-muted/30">{proc}</Badge>
+                          ))}
+                          {hiddenCount > 0 && (
+                            <TooltipProvider delayDuration={0}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex cursor-help">
+                                    <Badge variant="outline" className="text-[9px] py-0 h-4 bg-muted/30 font-bold">+{hiddenCount}</Badge>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="z-[100]">
+                                  <div className="text-xs space-y-1">
+                                    {procs.slice(4).map((p: string) => <div key={p}>{p}</div>)}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

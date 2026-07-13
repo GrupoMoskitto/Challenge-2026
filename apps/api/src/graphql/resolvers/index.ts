@@ -177,6 +177,7 @@ interface CreateSurgeonInput {
   email: string;
   phone: string;
   password?: string;
+  procedures?: string[];
 }
 
 interface UpdateSurgeonInput {
@@ -190,6 +191,7 @@ interface UpdateSurgeonInput {
   email?: string;
   phone?: string;
   appointmentDuration?: number;
+  procedures?: string[];
 }
 
 interface CreateUserInput {

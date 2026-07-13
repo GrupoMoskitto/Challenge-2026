@@ -268,6 +268,7 @@ export const GET_SURGEONS = gql`
       email
       phone
       isActive
+      procedures
       availability {
         dayOfWeek
         startTime
@@ -294,6 +295,7 @@ export const CREATE_SURGEON = gql`
       id
       name
       isActive
+      procedures
     }
   }
 `;
@@ -304,6 +306,7 @@ export const UPDATE_SURGEON = gql`
       id
       name
       isActive
+      procedures
     }
   }
 `;
@@ -727,6 +730,7 @@ export const GET_SURGEONS_SCHEDULE = gql`
     surgeons {
       id
       name
+      procedures
       availability {
         id
         dayOfWeek
