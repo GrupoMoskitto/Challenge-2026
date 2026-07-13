@@ -53,7 +53,15 @@ async function main() {
   ]);
 
   const origins = ['Instagram', 'TikTok', 'Google Ads', 'Indicação', 'Site', 'Facebook'];
-  const procedures = ['Rinoplastia', 'Lipoaspiração', 'Mamoplastia', 'Abdominoplastia', 'Blefaroplastia', 'Otoplastia', 'Lipo HD'];
+  const procedures = [
+    "Consulta Inicial", "Retorno", "Abdominoplastia", "Artroscopia no Joelho", "Blefaroplastia", 
+    "Cirurgia bariátrica", "Cirurgia da Fimose", "Cirurgia de Laqueadura", "Cirurgia de Mão", "Cirurgia de Varizes", 
+    "Cirurgia Dermatológica", "Cirurgia Otorrinolaringológica", "Endometriose por Laparoscopia", 
+    "Fertilização In Vitro (FIV)", "Hérnia Abdominal", "Hidrocelectomia", "Histerectomia", "Histeroscopia", 
+    "Implante Capilar", "Laparoscopia Ginecológica", "Lipo HD", "Lipoaspiração", "Mamoplastia", 
+    "Nutricionista", "Orquiectomia", "Otoplastia", "Plástica nos Seios", "Prótese Peniana", 
+    "Rinoplastia", "Vasectomia", "Outro"
+  ];
   const generateCpf = () => `${Math.floor(100+Math.random()*899)}.${Math.floor(100+Math.random()*899)}.${Math.floor(100+Math.random()*899)}-${Math.floor(10+Math.random()*89)}`;
   const randomItem = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
 

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { PROCEDURES } from "@/lib/constants";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -918,16 +919,9 @@ const Patients = () => {
                   <SelectValue placeholder="Selecione o procedimento" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Consulta Inicial">Consulta Inicial</SelectItem>
-                  <SelectItem value="Retorno">Retorno</SelectItem>
-                  <SelectItem value="Rinoplastia">Rinoplastia</SelectItem>
-                  <SelectItem value="Lipoaspiração">Lipoaspiração</SelectItem>
-                  <SelectItem value="Mamoplastia">Mamoplastia</SelectItem>
-                  <SelectItem value="Abdominoplastia">Abdominoplastia</SelectItem>
-                  <SelectItem value="Blefaroplastia">Blefaroplastia</SelectItem>
-                  <SelectItem value="Otoplastia">Otoplastia</SelectItem>
-                  <SelectItem value="Lipo HD">Lipo HD</SelectItem>
-                  <SelectItem value="Outro">Outro</SelectItem>
+                  {PROCEDURES.map(proc => (
+                    <SelectItem key={proc} value={proc}>{proc}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
