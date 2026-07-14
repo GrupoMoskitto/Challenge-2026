@@ -212,12 +212,7 @@ const Settings = () => {
   const defaultTab = "profile";
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || defaultTab);
 
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab && availableTabs.includes(tab)) {
-      setActiveTab(tab);
-    }
-  }, [searchParams, availableTabs]);
+
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -268,6 +263,16 @@ const Settings = () => {
   const { data: evoData, loading: evoLoading, refetch: refetchEvo, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
   const { data: testPhoneData } = useQuery(GET_TEST_PHONE_LAST_DIGITS, { skip: !isAdmin });
   const { data: scheduleData, refetch: refetchSchedule } = useQuery(GET_SURGEONS_SCHEDULE, { skip: !isAdmin });
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && availableTabs.includes(tab)) {
+      setActiveTab(tab);
+    }
+    const surgeonId = searchParams.get("surgeonId");
+    if (surgeonId) {
+      setSelectedSurgeonId(surgeonId);
+    }
+  }, [searchParams, availableTabs]);
 
   useEffect(() => {
     if (templatesError) toast.error("Erro ao carregar templates: " + templatesError.message);

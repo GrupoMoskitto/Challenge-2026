@@ -313,6 +313,9 @@ export default function Surgeons() {
                         }}>
                           <Pencil className="h-4 w-4" /> Editar
                         </Button>
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(`/settings?tab=schedule&surgeonId=${selectedSurgeon.id}`)}>
+                          <Calendar className="h-4 w-4" /> Editar Agenda
+                        </Button>
                         <Button 
                           variant="outline" 
                           size="sm"
