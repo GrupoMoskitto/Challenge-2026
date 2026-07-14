@@ -24,6 +24,8 @@ import {
   GET_USERS,
   GET_EVOLUTION_API_INSTANCES,
   GET_TEST_PHONE_LAST_DIGITS,
+  GET_ACTIVE_INSTANCE,
+  SET_ACTIVE_INSTANCE,
   CREATE_USER,
   TOGGLE_USER_STATUS,
   UPDATE_USER,
@@ -261,6 +263,7 @@ const Settings = () => {
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
   const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS, { skip: !isAdmin });
   const { data: evoData, loading: evoLoading, refetch: refetchEvo, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
+  const { data: activeInstanceData, refetch: refetchActiveInstance } = useQuery(GET_ACTIVE_INSTANCE, { skip: !isAdmin });
   const { data: testPhoneData } = useQuery(GET_TEST_PHONE_LAST_DIGITS, { skip: !isAdmin });
   const { data: scheduleData, refetch: refetchSchedule } = useQuery(GET_SURGEONS_SCHEDULE, { skip: !isAdmin });
   useEffect(() => {
@@ -307,6 +310,12 @@ const Settings = () => {
     },
   });
   const [connectEvolutionInstance] = useMutation(CONNECT_EVOLUTION_INSTANCE);
+  const [setActiveInstance] = useMutation(SET_ACTIVE_INSTANCE, {
+    onCompleted: () => {
+      toast.success("Instância ativa atualizada com sucesso!");
+      refetchActiveInstance();
+    }
+  });
 
   const [createAvail] = useMutation(CREATE_AVAILABILITY_SLOT);
   const [updateAvail] = useMutation(UPDATE_AVAILABILITY_SLOT);
@@ -321,6 +330,7 @@ const Settings = () => {
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
   const systemUsers = usersData?.users?.edges?.map((e: any) => e.node) || [];
   const evolutionInstances: any[] = evoData?.evolutionApiInstances || [];
+  const activeWhatsAppInstance = activeInstanceData?.activeWhatsAppInstance;
   const surgeons = scheduleData?.surgeons || [];
   const selectedSurgeon = surgeons.find((s: any) => s.id === selectedSurgeonId);
 
@@ -879,6 +889,18 @@ const Settings = () => {
                               </div>
                             )}
                           </div>
+                          {inst.loggedIn && (
+                            <Button 
+                              variant={activeWhatsAppInstance === inst.instanceName ? "default" : "outline"} 
+                              size="sm"
+                              className="w-32"
+                              onClick={() => setActiveInstance({ variables: { name: inst.instanceName } })}
+                              disabled={activeWhatsAppInstance === inst.instanceName}
+                              title={activeWhatsAppInstance === inst.instanceName ? "Instância atual" : "Tornar esta instância a padrão"}
+                            >
+                              {activeWhatsAppInstance === inst.instanceName ? "Instância Ativa" : "Tornar Ativa"}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

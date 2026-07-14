@@ -44,7 +44,14 @@ export const whatsappWorker = new Worker<WhatsAppJobData>(
     const { appointmentId, postOpId, leadId, phone, message, triggerDays, instanceName: jobInstanceName } = job.data;
 
     try {
-      const defaultInstance = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
+      let defaultInstance = process.env.EVOLUTION_INSTANCE_NAME || 'crmed-whatsapp';
+      const setting = await prisma.systemSetting.findUnique({
+        where: { key: 'ACTIVE_WHATSAPP_INSTANCE' }
+      });
+      if (setting?.value) {
+        defaultInstance = setting.value;
+      }
+      
       const instanceName = jobInstanceName || defaultInstance;
       const result = await WhatsappSender.sendMessage(instanceName, phone, message, leadId);
 

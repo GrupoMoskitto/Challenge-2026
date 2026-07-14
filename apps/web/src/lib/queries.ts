@@ -725,6 +725,18 @@ export const CONNECT_EVOLUTION_INSTANCE = gql`
   }
 `;
 
+export const GET_ACTIVE_INSTANCE = gql`
+  query GetActiveInstance {
+    activeWhatsAppInstance
+  }
+`;
+
+export const SET_ACTIVE_INSTANCE = gql`
+  mutation SetActiveWhatsAppInstance($name: String!) {
+    setActiveWhatsAppInstance(name: $name)
+  }
+`;
+
 export const GET_SURGEONS_SCHEDULE = gql`
   query GetSurgeonsSchedule {
     surgeons {

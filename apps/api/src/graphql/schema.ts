@@ -866,6 +866,7 @@ export const typeDefs = gql`
     createEvolutionInstance(name: String!): EvolutionApiInstance!
     deleteEvolutionInstance(name: String!): Boolean!
     connectEvolutionInstance(name: String!): EvolutionConnectionPayload!
+    setActiveWhatsAppInstance(name: String!): Boolean!
 
     # Budgets
     createBudget(input: CreateBudgetInput!): Budget!
@@ -982,6 +983,7 @@ export const typeDefs = gql`
     # Integration Status
     evolutionApiInstances: [EvolutionApiInstance!]!
     pingEvolutionInstance(name: String!): EvolutionPingResult!
+    activeWhatsAppInstance: String
     
     # Test Configuration
     testPhoneLastDigits: String
