@@ -159,7 +159,7 @@ const Agenda = () => {
       const appt = appointments.find((a: any) => a.id === apptId);
       if (appt) {
         const time = format(new Date(appt.scheduledAt), 'HH:mm');
-        openNewAppointment(appt.surgeonId, time, appt);
+        openNewAppointment(appt.surgeon?.id, time, appt);
         // Clear the param so it doesn't reopen if closed
         const newParams = new URLSearchParams(searchParams);
         newParams.delete("appointmentId");

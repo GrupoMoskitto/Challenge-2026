@@ -329,12 +329,15 @@ export const GET_APPOINTMENTS_BY_DATE = gql`
       procedure
       riskScore
       riskLevel
+      notes
       patient {
         id
         medicalRecord
+        phone
         lead {
           id
           name
+          phone
         }
       }
       surgeon {
