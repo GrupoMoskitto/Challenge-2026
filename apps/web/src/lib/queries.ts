@@ -268,6 +268,7 @@ export const GET_SURGEONS = gql`
       email
       phone
       isActive
+      procedures
       availability {
         dayOfWeek
         startTime
@@ -294,6 +295,7 @@ export const CREATE_SURGEON = gql`
       id
       name
       isActive
+      procedures
     }
   }
 `;
@@ -304,6 +306,7 @@ export const UPDATE_SURGEON = gql`
       id
       name
       isActive
+      procedures
     }
   }
 `;
@@ -326,12 +329,15 @@ export const GET_APPOINTMENTS_BY_DATE = gql`
       procedure
       riskScore
       riskLevel
+      notes
       patient {
         id
         medicalRecord
+        phone
         lead {
           id
           name
+          phone
         }
       }
       surgeon {
@@ -722,11 +728,24 @@ export const CONNECT_EVOLUTION_INSTANCE = gql`
   }
 `;
 
+export const GET_ACTIVE_INSTANCE = gql`
+  query GetActiveInstance {
+    activeWhatsAppInstance
+  }
+`;
+
+export const SET_ACTIVE_INSTANCE = gql`
+  mutation SetActiveWhatsAppInstance($name: String!) {
+    setActiveWhatsAppInstance(name: $name)
+  }
+`;
+
 export const GET_SURGEONS_SCHEDULE = gql`
   query GetSurgeonsSchedule {
     surgeons {
       id
       name
+      procedures
       availability {
         id
         dayOfWeek

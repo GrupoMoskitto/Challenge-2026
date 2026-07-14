@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { useQuery, useMutation } from "@apollo/client";
 import { useAuth } from "@/lib/auth";
@@ -19,9 +20,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, UserX, UserCheck, Loader2, Stethoscope, Calendar, Clock, MapPin, Mail, Phone, FileText, Fingerprint } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PROCEDURES } from "@/lib/constants";
+import { Plus, Pencil, UserX, UserCheck, Loader2, Stethoscope, Calendar, Clock, MapPin, Mail, Phone, FileText, IdCard, Search, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCPF, formatPhone, sanitizeInput } from "@/lib/validation";
@@ -53,6 +55,8 @@ const statusLabels: Record<string, string> = {
 export default function Surgeons() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data, loading, refetch } = useQuery(GET_SURGEONS, {
     variables: { includeInactive: true },
@@ -74,7 +78,28 @@ export default function Surgeons() {
   const [formData, setFormData] = useState(initialForm);
   const [editData, setEditData] = useState<any>(null);
 
-  const [selectedSurgeonId, setSelectedSurgeonId] = useState<string | null>(null);
+  const urlSurgeonId = searchParams.get("surgeonId");
+  const [selectedSurgeonId, setSelectedSurgeonId] = useState<string | null>(urlSurgeonId);
+  const [search, setSearch] = useState("");
+  const [procedureFilter, setProcedureFilter] = useState("all");
+  
+  const updateUrl = useCallback((updates: Record<string, string | null>) => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null) newParams.delete(key);
+      else newParams.set(key, value);
+    });
+    if (newParams.toString() !== searchParams.toString()) {
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (urlSurgeonId !== selectedSurgeonId) {
+      setSelectedSurgeonId(urlSurgeonId);
+    }
+  }, [urlSurgeonId, selectedSurgeonId]);
+
   const [toggleDialogOpen, setToggleDialogOpen] = useState(false);
   const [surgeonToToggle, setSurgeonToToggle] = useState<{id: string, name: string, active: boolean} | null>(null);
   
@@ -156,119 +181,304 @@ export default function Surgeons() {
   };
 
   const surgeons = data?.surgeons || [];
+  const filteredSurgeons = surgeons.filter((s: any) => {
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || 
+                          s.specialty.toLowerCase().includes(search.toLowerCase()) ||
+                          s.crm.toLowerCase().includes(search.toLowerCase());
+    const matchesProcedure = procedureFilter === "all" || (s.procedures && s.procedures.includes(procedureFilter));
+    return matchesSearch && matchesProcedure;
+  });
 
   return (
     <AppLayout title="Corpo Clínico">
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Gestão de Médicos</h2>
-            <p className="text-muted-foreground text-sm">Gerencie o corpo clínico, acessos e disponibilidades.</p>
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+        
+        {/* Coluna Esquerda: Lista de Médicos */}
+        <div className={cn(
+          "space-y-4 w-full lg:w-1/3 lg:shrink-0",
+          selectedSurgeonId && "hidden lg:block"
+        )}>
+          {/* Cabeçalho da Lista + Busca/Novo */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Buscar médico..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+              </div>
+              {isAdmin && (
+                <Button size="sm" onClick={() => setIsCreateOpen(true)} className="ml-2">
+                  <Plus className="mr-1 h-4 w-4" /> Novo
+                </Button>
+              )}
+            </div>
+            
+            <Select value={procedureFilter} onValueChange={setProcedureFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filtrar por procedimento..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Procedimentos</SelectItem>
+                {PROCEDURES.map(proc => (
+                  <SelectItem key={proc} value={proc}>{proc}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          {isAdmin && (
-            <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto shadow-md">
-              <Plus className="mr-2 h-4 w-4" /> Novo Médico
-            </Button>
-          )}
-        </div>
 
-        <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Profissionais Cadastrados</CardTitle>
-            <CardDescription>Lista de médicos ativos e inativos no sistema.</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <div className="space-y-2 mt-4">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-primary opacity-50" />
-                <p className="text-sm text-muted-foreground animate-pulse">Carregando corpo clínico...</p>
-              </div>
-            ) : surgeons.length === 0 ? (
-              <div className="text-center py-20 border-2 border-dashed rounded-xl bg-muted/20">
-                <Stethoscope className="h-10 w-10 mx-auto mb-3 opacity-20 text-primary" />
-                <p className="text-muted-foreground font-medium">Nenhum médico encontrado.</p>
-                <Button variant="link" onClick={() => setIsCreateOpen(true)} className="mt-2">Cadastrar o primeiro</Button>
-              </div>
+               <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : filteredSurgeons.length === 0 ? (
+              <div className="py-12 text-center bg-muted/20 rounded-lg border-2 border-dashed text-sm text-muted-foreground">Nenhum médico encontrado</div>
             ) : (
-              <div className="grid gap-4">
-                {surgeons.map((s: any) => (
-                  <div 
-                    key={s.id} 
-                    className={cn(
-                      "group flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl border transition-all duration-200",
-                      s.isActive 
-                        ? "bg-background hover:border-primary/40 hover:shadow-md cursor-pointer" 
-                        : "bg-muted/30 opacity-60 grayscale-[0.5]"
-                    )}
-                    onClick={() => setSelectedSurgeonId(s.id)}
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className={cn(
-                        "h-12 w-12 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors",
-                        s.isActive ? "bg-primary/5 border-primary/10 group-hover:bg-primary/10" : "bg-muted border-muted-foreground/10"
-                      )}>
-                        <Stethoscope className={cn("h-6 w-6", s.isActive ? "text-primary" : "text-muted-foreground")} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-bold text-base truncate group-hover:text-primary transition-colors">{s.name}</h3>
-                          {!s.isActive && <Badge variant="secondary" className="text-[10px] h-4 px-1.5 uppercase font-black tracking-tighter">Inativo</Badge>}
+              filteredSurgeons.map((s: any) => (
+                <Card 
+                  key={s.id} 
+                  className={cn(
+                    "cursor-pointer transition-all hover:border-primary/50", 
+                    selectedSurgeonId === s.id && "border-primary ring-1 ring-primary/20 bg-primary/5",
+                    !s.isActive && "opacity-60 grayscale-[0.5]"
+                  )}
+                  onClick={() => { setSelectedSurgeonId(s.id); updateUrl({ surgeonId: s.id }); }}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={cn(
+                          "h-10 w-10 rounded-full flex items-center justify-center shrink-0 border-2",
+                          s.isActive ? (selectedSurgeonId === s.id ? "bg-primary/20 border-primary/30" : "bg-primary/5 border-primary/10") : "bg-muted border-muted-foreground/10"
+                        )}>
+                          <Stethoscope className={cn("h-5 w-5", s.isActive ? "text-primary" : "text-muted-foreground")} />
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-                          <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                            <Badge variant="outline" className="text-[9px] font-bold py-0 h-4">{s.specialty}</Badge>
-                          </div>
-                          <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">•</span>
-                          <div className="text-xs text-muted-foreground/80 flex items-center gap-1">
-                            <Fingerprint className="h-3 w-3 opacity-50" /> CRM: <span className="font-mono">{s.crm}</span>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm truncate">{s.name}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-[9px] font-semibold py-0 h-4 bg-muted/30 truncate">{s.specialty}</Badge>
+                            <span className="text-[10px] text-muted-foreground/80 flex items-center gap-1">
+                              CRM <span className="font-mono font-medium text-foreground">{s.crm}</span>
+                            </span>
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-4 md:mt-0 ml-auto md:ml-0" onClick={(e) => e.stopPropagation()}>
-                      <div className="hidden lg:flex flex-col items-end mr-4 text-right">
-                        <p className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest">Contato</p>
-                        <p className="text-xs font-medium">{formatPhone(s.phone)}</p>
-                      </div>
-                      
-                      <Button variant="secondary" size="sm" className="h-9 px-4 rounded-lg font-bold text-xs" onClick={() => setSelectedSurgeonId(s.id)}>
-                        Ver Perfil
-                      </Button>
-                      
-                      {isAdmin && (
-                        <>
-                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg hover:bg-primary/10 hover:text-primary" onClick={() => {
-                            setEditData({ ...s });
-                            setIsEditOpen(true);
-                          }}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          
-                          <Button 
-                            variant="ghost"
-                            size="icon" 
-                            className={cn(
-                              "h-9 w-9 rounded-lg",
-                              s.isActive ? "text-destructive hover:bg-destructive/10" : "text-green-600 hover:bg-green-600/10"
-                            )}
-                            onClick={() => {
-                              setSurgeonToToggle({ id: s.id, name: s.name, active: s.isActive });
-                              setToggleDialogOpen(true);
-                            }}
-                            disabled={toggling}
-                          >
-                            {s.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                          </Button>
-                        </>
+                      {!s.isActive && (
+                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5 uppercase font-black tracking-tighter">Inativo</Badge>
                       )}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  </CardContent>
+                </Card>
+              ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Coluna Direita: Detalhes do Médico */}
+        <div className={cn(
+          "flex-1 min-w-0 bg-card border rounded-xl shadow-sm overflow-hidden",
+          !selectedSurgeonId && "hidden lg:flex items-center justify-center bg-muted/20 border-dashed"
+        )}>
+          {!selectedSurgeonId ? (
+            <div className="text-center p-10">
+              <Stethoscope className="mx-auto h-12 w-12 text-muted-foreground/30 mb-3" />
+              <p className="text-muted-foreground font-medium">Selecione um médico para ver os detalhes</p>
+            </div>
+          ) : (
+            selectedSurgeon && (
+              <div className="flex flex-col h-full bg-background relative overflow-y-auto max-h-[calc(100vh-140px)]">
+                {/* Back button — mobile only */}
+                <Button variant="ghost" size="sm" className="lg:hidden absolute top-4 left-4 z-10 gap-1.5 text-muted-foreground" onClick={() => { setSelectedSurgeonId(null); updateUrl({ surgeonId: null }); }}>
+                  <ArrowLeft className="h-4 w-4" /> Voltar
+                </Button>
+
+                <div className="p-6 pt-12 lg:pt-6 pb-0">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <Stethoscope className="h-8 w-8" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-2xl font-semibold tracking-tight">{selectedSurgeon.name}</h2>
+                          {!selectedSurgeon.isActive && <span className="bg-destructive/10 text-destructive text-[10px] px-2 py-0.5 rounded-full font-bold">INATIVO</span>}
+                        </div>
+                        <p className="text-muted-foreground text-sm mt-1">
+                          {selectedSurgeon.specialty} • CRM: {selectedSurgeon.crm}
+                        </p>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => {
+                          setEditData({ ...selectedSurgeon });
+                          setIsEditOpen(true);
+                        }}>
+                          <Pencil className="h-4 w-4" /> Editar
+                        </Button>
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(`/settings?tab=schedule&surgeonId=${selectedSurgeon.id}`)}>
+                          <Calendar className="h-4 w-4" /> Editar Agenda
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className={cn("gap-2", selectedSurgeon.isActive ? "text-destructive border-destructive/20 hover:bg-destructive/10" : "text-green-600 border-green-600/20 hover:bg-green-600/10")}
+                          onClick={() => {
+                            setSurgeonToToggle({ id: selectedSurgeon.id, name: selectedSurgeon.name, active: selectedSurgeon.isActive });
+                            setToggleDialogOpen(true);
+                          }}
+                          disabled={toggling}
+                        >
+                          {selectedSurgeon.isActive ? <><UserX className="h-4 w-4" /> Desativar</> : <><UserCheck className="h-4 w-4" /> Reativar</>}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <Tabs defaultValue="overview" className="mt-8">
+                    <TabsList className="w-full grid grid-cols-3">
+                      <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+                      <TabsTrigger value="agenda">Agenda Hoje</TabsTrigger>
+                      <TabsTrigger value="schedule">Disponibilidade</TabsTrigger>
+                    </TabsList>
+                    
+                    <div className="mt-6 pb-6">
+                      <TabsContent value="overview" className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                        {selectedSurgeon.procedures && selectedSurgeon.procedures.length > 0 && (
+                          <div className="p-4 rounded-xl bg-muted/20 border border-dashed">
+                            <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+                              <Stethoscope className="h-4 w-4 text-primary" /> Procedimentos Habilitados
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedSurgeon.procedures.map((proc: string) => (
+                                <Badge key={proc} variant="secondary" className="bg-background border hover:bg-muted font-normal text-xs">
+                                  {proc}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="p-4 rounded-lg bg-muted/30 border space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><IdCard className="h-3 w-3"/> CPF</p>
+                            <p className="text-sm font-medium">{formatCPF(selectedSurgeon.cpf) || "Não informado"}</p>
+                          </div>
+                          <div className="p-4 rounded-lg bg-muted/30 border space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><FileText className="h-3 w-3"/> RG</p>
+                            <p className="text-sm font-medium">{selectedSurgeon.rg || "Não informado"}</p>
+                          </div>
+                          <div className="p-4 rounded-lg bg-muted/30 border space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3"/> Telefone</p>
+                            <p className="text-sm font-medium">{formatPhone(selectedSurgeon.phone) || "Não informado"}</p>
+                          </div>
+                          <div className="p-4 rounded-lg bg-muted/30 border space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3"/> E-mail / Login</p>
+                            <p className="text-sm font-medium">{selectedSurgeon.email || "Não informado"}</p>
+                          </div>
+                          <div className="col-span-2 p-4 rounded-lg bg-muted/30 border space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3"/> Endereço</p>
+                            <p className="text-sm font-medium">{selectedSurgeon.address || "Não informado"}</p>
+                          </div>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="agenda" className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold text-lg flex items-center gap-2">
+                            <Calendar className="h-5 w-5 text-primary" /> Consultas de Hoje
+                          </h3>
+                          <span className="text-sm text-muted-foreground font-medium">{format(new Date(), "dd 'de' MMMM", { locale: ptBR })}</span>
+                        </div>
+                        
+                        {apptsLoading ? (
+                          <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                        ) : todayAppointments.length === 0 ? (
+                          <div className="text-center p-10 bg-muted/20 border border-dashed rounded-xl">
+                            <p className="text-muted-foreground">Nenhuma consulta agendada para hoje.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {todayAppointments.map((apt: any) => (
+                              <div 
+                                key={apt.id} 
+                                className="flex gap-4 p-4 border rounded-xl bg-card hover:border-primary/30 hover:bg-muted/10 transition-colors cursor-pointer group"
+                                onClick={() => {
+                                  const aptDate = format(new Date(apt.scheduledAt), 'yyyy-MM-dd');
+                                  navigate(`/schedule?date=${aptDate}&appointmentId=${apt.id}`);
+                                }}
+                              >
+                                <div className="flex flex-col items-center justify-center bg-muted/30 px-3 py-1 rounded-md shrink-0 group-hover:bg-primary/10 transition-colors">
+                                  <span className="font-bold text-lg">{format(new Date(apt.scheduledAt), "HH:mm")}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold truncate group-hover:text-primary transition-colors">{apt.patient?.lead?.name || 'Paciente'}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{apt.procedure}</p>
+                                </div>
+                                <div className="shrink-0 flex items-center">
+                                  <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full border", statusColors[apt.status])}>
+                                    {statusLabels[apt.status] || apt.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </TabsContent>
+
+                      <TabsContent value="schedule" className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                        <div className="space-y-3">
+                          <h3 className="font-semibold flex items-center gap-2"><Clock className="h-4 w-4" /> Horários Fixos Semanais</h3>
+                          {selectedSurgeon.availability?.length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-4 bg-muted/20 border border-dashed rounded-lg">Sem horários customizados. Atende no Perfil Padrão.</p>
+                          ) : (
+                            <div className="grid gap-2">
+                              {selectedSurgeon.availability?.map((av: any) => (
+                                <div key={av.dayOfWeek} className="flex justify-between items-center p-3 border rounded-lg bg-card">
+                                  <span className="font-medium text-sm">{daysOfWeek[av.dayOfWeek]}</span>
+                                  <span className="text-sm bg-primary/10 text-primary font-mono px-2 py-0.5 rounded">{av.startTime} - {av.endTime}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-3">
+                          <h3 className="font-semibold flex items-center gap-2"><Plus className="h-4 w-4" /> Plantões / Exceções</h3>
+                          {selectedSurgeon.extraAvailability?.length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-4 bg-muted/20 border border-dashed rounded-lg">Nenhum plantão extra agendado.</p>
+                          ) : (
+                            <div className="grid gap-2">
+                              {selectedSurgeon.extraAvailability?.map((ea: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center p-3 border rounded-lg bg-card">
+                                  <span className="font-medium text-sm">{format(new Date(ea.date), 'dd/MM/yyyy')}</span>
+                                  <span className="text-sm bg-green-500/10 text-green-700 font-mono px-2 py-0.5 rounded">{ea.startTime} - {ea.endTime}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-3">
+                          <h3 className="font-semibold flex items-center gap-2 text-destructive"><UserX className="h-4 w-4" /> Férias / Bloqueios</h3>
+                          {selectedSurgeon.blocks?.length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-4 bg-muted/20 border border-dashed rounded-lg">Nenhum bloqueio registrado.</p>
+                          ) : (
+                            <div className="grid gap-2">
+                              {selectedSurgeon.blocks?.map((block: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center p-3 border rounded-lg bg-destructive/5">
+                                  <span className="text-sm font-medium">{format(new Date(block.startDate), 'dd/MM/yyyy')} a {format(new Date(block.endDate), 'dd/MM/yyyy')}</span>
+                                  <span className="text-[10px] uppercase font-bold text-destructive">Bloqueado</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </TabsContent>
+                    </div>
+                  </Tabs>
+                </div>
+              </div>
+            )
+          )}
+        </div>
       </div>
 
       {/* Modal Criar Médico */}
@@ -386,161 +596,7 @@ export default function Surgeons() {
         </DialogContent>
       </Dialog>
 
-      {/* Perfil Detalhado do Médico (Sheet) */}
-      <Sheet open={!!selectedSurgeonId} onOpenChange={(open) => !open && setSelectedSurgeonId(null)}>
-        <SheetContent className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto sm:border-l sm:rounded-l-2xl shadow-2xl p-0">
-          {selectedSurgeon && (
-            <div className="flex flex-col h-full bg-background">
-              <div className="p-6 pb-0">
-                <SheetHeader className="text-left">
-                  <div className="flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Stethoscope className="h-8 w-8" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <SheetTitle className="text-2xl">{selectedSurgeon.name}</SheetTitle>
-                        {!selectedSurgeon.isActive && <span className="bg-destructive/10 text-destructive text-[10px] px-2 py-0.5 rounded-full font-bold">INATIVO</span>}
-                      </div>
-                      <SheetDescription className="text-base mt-1">
-                        {selectedSurgeon.specialty} • CRM: {selectedSurgeon.crm}
-                      </SheetDescription>
-                    </div>
-                  </div>
-                </SheetHeader>
 
-                <Tabs defaultValue="overview" className="mt-8">
-                  <TabsList className="w-full grid grid-cols-3">
-                    <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-                    <TabsTrigger value="agenda">Agenda Hoje</TabsTrigger>
-                    <TabsTrigger value="schedule">Disponibilidade</TabsTrigger>
-                  </TabsList>
-                  
-                  <div className="mt-6 pb-6">
-                    <TabsContent value="overview" className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 rounded-lg bg-muted/30 border space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Fingerprint className="h-3 w-3"/> CPF</p>
-                          <p className="text-sm font-medium">{formatCPF(selectedSurgeon.cpf) || "Não informado"}</p>
-                        </div>
-                        <div className="p-4 rounded-lg bg-muted/30 border space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><FileText className="h-3 w-3"/> RG</p>
-                          <p className="text-sm font-medium">{selectedSurgeon.rg || "Não informado"}</p>
-                        </div>
-                        <div className="p-4 rounded-lg bg-muted/30 border space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3"/> Telefone</p>
-                          <p className="text-sm font-medium">{formatPhone(selectedSurgeon.phone) || "Não informado"}</p>
-                        </div>
-                        <div className="p-4 rounded-lg bg-muted/30 border space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3"/> E-mail / Login</p>
-                          <p className="text-sm font-medium">{selectedSurgeon.email || "Não informado"}</p>
-                        </div>
-                        <div className="col-span-2 p-4 rounded-lg bg-muted/30 border space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3"/> Endereço</p>
-                          <p className="text-sm font-medium">{selectedSurgeon.address || "Não informado"}</p>
-                        </div>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="agenda" className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-lg flex items-center gap-2">
-                          <Calendar className="h-5 w-5 text-primary" /> Consultas de Hoje
-                        </h3>
-                        <span className="text-sm text-muted-foreground font-medium">{format(new Date(), "dd 'de' MMMM", { locale: ptBR })}</span>
-                      </div>
-                      
-                      {apptsLoading ? (
-                        <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-                      ) : todayAppointments.length === 0 ? (
-                        <div className="text-center p-10 bg-muted/20 border border-dashed rounded-xl">
-                          <p className="text-muted-foreground">Nenhuma consulta agendada para hoje.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {todayAppointments.map((apt: any) => (
-                            <div 
-                              key={apt.id} 
-                              className="flex gap-4 p-4 border rounded-xl bg-card hover:border-primary/30 hover:bg-muted/10 transition-colors cursor-pointer group"
-                              onClick={() => {
-                                const aptDate = format(new Date(apt.scheduledAt), 'yyyy-MM-dd');
-                                navigate(`/schedule?date=${aptDate}&appointmentId=${apt.id}`);
-                              }}
-                            >
-                              <div className="flex flex-col items-center justify-center bg-muted/30 px-3 py-1 rounded-md shrink-0 group-hover:bg-primary/10 transition-colors">
-                                <span className="font-bold text-lg">{format(new Date(apt.scheduledAt), "HH:mm")}</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold truncate group-hover:text-primary transition-colors">{apt.patient?.lead?.name || 'Paciente'}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">{apt.procedure}</p>
-                              </div>
-                              <div className="shrink-0 flex items-center">
-                                <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full border", statusColors[apt.status])}>
-                                  {statusLabels[apt.status] || apt.status}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="schedule" className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                      <div className="space-y-3">
-                        <h3 className="font-semibold flex items-center gap-2"><Clock className="h-4 w-4" /> Horários Fixos Semanais</h3>
-                        {selectedSurgeon.availability?.length === 0 ? (
-                          <p className="text-sm text-muted-foreground p-4 bg-muted/20 border border-dashed rounded-lg">Sem horários customizados. Atende no Perfil Padrão.</p>
-                        ) : (
-                          <div className="grid gap-2">
-                            {selectedSurgeon.availability?.map((av: any) => (
-                              <div key={av.dayOfWeek} className="flex justify-between items-center p-3 border rounded-lg bg-card">
-                                <span className="font-medium text-sm">{daysOfWeek[av.dayOfWeek]}</span>
-                                <span className="text-sm bg-primary/10 text-primary font-mono px-2 py-0.5 rounded">{av.startTime} - {av.endTime}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-3">
-                        <h3 className="font-semibold flex items-center gap-2"><Plus className="h-4 w-4" /> Plantões / Exceções</h3>
-                        {selectedSurgeon.extraAvailability?.length === 0 ? (
-                          <p className="text-sm text-muted-foreground p-4 bg-muted/20 border border-dashed rounded-lg">Nenhum plantão extra agendado.</p>
-                        ) : (
-                          <div className="grid gap-2">
-                            {selectedSurgeon.extraAvailability?.map((ea: any, idx: number) => (
-                              <div key={idx} className="flex justify-between items-center p-3 border rounded-lg bg-card">
-                                <span className="font-medium text-sm">{format(new Date(ea.date), 'dd/MM/yyyy')}</span>
-                                <span className="text-sm bg-green-500/10 text-green-700 font-mono px-2 py-0.5 rounded">{ea.startTime} - {ea.endTime}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-3">
-                        <h3 className="font-semibold flex items-center gap-2 text-destructive"><UserX className="h-4 w-4" /> Férias / Bloqueios</h3>
-                        {selectedSurgeon.blocks?.length === 0 ? (
-                          <p className="text-sm text-muted-foreground p-4 bg-muted/20 border border-dashed rounded-lg">Nenhum bloqueio registrado.</p>
-                        ) : (
-                          <div className="grid gap-2">
-                            {selectedSurgeon.blocks?.map((block: any, idx: number) => (
-                              <div key={idx} className="flex justify-between items-center p-3 border rounded-lg bg-destructive/5">
-                                <span className="text-sm font-medium">{format(new Date(block.startDate), 'dd/MM/yyyy')} a {format(new Date(block.endDate), 'dd/MM/yyyy')}</span>
-                                <span className="text-[10px] uppercase font-bold text-destructive">Bloqueado</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </TabsContent>
-                  </div>
-                </Tabs>
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
 
       {/* Confirmação de Status (Ativar/Desativar) */}
       <AlertDialog open={toggleDialogOpen} onOpenChange={setToggleDialogOpen}>

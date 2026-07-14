@@ -54,11 +54,11 @@ infra/            → Docker, Evolution Go
 
 **Never bypass these security and privacy standards:**
 
-1. **Minimalismo de Dados (Data Minimization):** Return only the necessary fields in GraphQL queries. Avoid over-fetching patient data.
+1. **Data Minimization:** Return only the necessary fields in GraphQL queries. Avoid over-fetching patient data.
 2. **Timezone Offset (UTC-3):** All scheduling queries MUST apply the `-03:00` offset when calculating day boundaries (startOfDay/endOfDay) to prevent late-night appointments from jumping to the next day.
-3. **Autorização Rígida (Access Control):** Clinical management (Surgeons/Schedule Settings) is restricted to ADMIN users. URLs to medical records or uploaded documents MUST be protected by authentication.
-4. **Logs de Auditoria (Audit Trails):** Changes to patient status, complaints, and budgets must always trigger an `AuditLog` via RN06.
-5. **Exclusão Lógica (Soft-Delete):** For database records related to patients, leads or surgeons, use `isActive` or `deletedAt` for soft-deletion instead of hard-deletes to preserve audit integrity and historical data.
+3. **Access Control:** Clinical management (Surgeons/Schedule Settings) is restricted to ADMIN users. URLs to medical records or uploaded documents MUST be protected by authentication.
+4. **Audit Trails:** Changes to patient status, complaints, and budgets must always trigger an `AuditLog` via RN06.
+5. **Soft-Delete:** For database records related to patients, leads or surgeons, use `isActive` or `deletedAt` for soft-deletion instead of hard-deletes to preserve audit integrity and historical data.
 
 ---
 
@@ -90,14 +90,14 @@ infra/            → Docker, Evolution Go
 
 - Always use `throw new Error()` — never silent returns
 - Prefix semantic errors: `RN01_VIOLATION:`, `RN03_VIOLATION:`
-- Authentication errors must be generic: `"Credenciais inválidas"`
+- Authentication errors must be generic: `"Invalid credentials"`
 - Log errors with structured logger: `logger.error('Context', 'Message', error)`
 
 ### Backend Patterns
 
 - **Integrated Creation**: Surgeon creation MUST be a transaction creating both `User` (role: SURGEON) and `Surgeon` records.
-- **Auth check first**: `if (!context.user) throw new Error('Usuário não autenticado')`
-- Role check: `if (context.user.role !== 'ADMIN') throw new Error('Acesso restrito a administradores')`
+- **Auth check first**: `if (!context.user) throw new Error('User not authenticated')`
+- Role check: `if (context.user.role !== 'ADMIN') throw new Error('Access restricted to administrators')`
 - Use cursor-based pagination with `Connection` types (e.g., `UserConnection`, `LeadConnection`)
 - Always create `AuditLog` on status changes (RN06)
 - **Strict Enum Validation**: Use `validateEnum` from `config/rbac` for all GraphQL input strings that map to Prisma enums.
@@ -124,7 +124,7 @@ Frontend must map: `data?.users?.edges?.map((e) => e.node)`
 ## Frontend Patterns
 
 - **TimePicker**: Use the custom `<TimePicker />` component for all time-related selections.
-- **Procedure Sync**: Always use the standard list of procedures (Consulta Inicial, Rinoplastia, etc.) in selection fields across Agenda and Patients.
+- **Procedure Sync**: Always use the standard list of procedures (Initial Consultation, Rhinoplasty, etc.) in selection fields across Agenda and Patients.
 - **Dynamic Agenda**: The agenda grid defaults to 18:00 but MUST expand dynamically up to 23:00 if data requires it.
 - **Search-as-you-type**: Listing patients or leads in select fields should include a debounced server-side filter.
 
@@ -162,7 +162,7 @@ Frontend must map: `data?.users?.edges?.map((e) => e.node)`
   ```tsx
   <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-60 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/20">
     <SomeIcon className="h-10 w-10 mb-2 opacity-50" />
-    <p className="text-sm font-medium">Nenhum registro</p>
+    <p className="text-sm font-medium">No records found</p>
   </div>
   ```
 - **Apollo Cache Updates** — Prefer `cache.modify` over `cache.writeQuery` for partial updates. For list mutations (create/delete), always update the cache immediately:
@@ -266,13 +266,13 @@ pnpm --filter @crmed/workers test:cron       # Triggers the manual execution of 
   
   // On undo, revert to previous state via mutation
   showUndoableToast(
-    "Dados atualizados!",
+    "Data updated!",
     async () => {
       await updatePatient({
         variables: { input: { id: patient.id, ...previousState } }
       });
     },
-    "Desfazer"
+    "Undo"
   );
   ```
 
@@ -368,21 +368,21 @@ All technical documentation lives in `docs/`. Keep it updated when making signif
 
 ---
 
-### Automação WhatsApp & Chatbot (Evolution Go)
+### WhatsApp & Chatbot Automation (Evolution Go)
 
-- A infraestrutura de comunicação baseia-se unicamente na versão Golang do Evolution API (EvoGo), onde o `instanceToken` é mandatório em requisições instance-scoped via header `apikey`.
-- **Prevenção de Duplicação (Estabilidade):** O webhook processa os eventos no worker principal usando uma verificação de `fingerprint` em memória (`Set`) garantindo um lock natural de 10s para não processar e responder duas vezes a mesma mensagem.
+- The communication infrastructure is solely based on the Golang version of Evolution API (EvoGo), where the `instanceToken` is mandatory in instance-scoped requests via the `apikey` header.
+- **Duplication Prevention (Stability):** The webhook processes events in the main worker using an in-memory `fingerprint` verification (`Set`), guaranteeing a natural 10s lock to avoid processing and replying to the same message twice.
 - **Onboarding & Self-Service (State Machine):**
-  A UX atualizada exige confirmações progressivas e oferece autoatendimento:
-  1. `NEW_ASK_NAME` / `NEW_ASK_EMAIL`: Fluxo de captação de leads.
-  2. `VERIFY_DOB_CHALLENGE`: Desafio LGPD (Data de Nascimento) antes de listar agendamentos.
-  3. `VERIFY_DOB_ENRICH`: Progressive Profiling para capturar data de nascimento ausente.
-  4. `APPOINTMENT_LIST`: Autoatendimento para consulta e gestão de horários.
+  The updated UX requires progressive confirmations and offers self-service:
+  1. `NEW_ASK_NAME` / `NEW_ASK_EMAIL`: Lead capture flow.
+  2. `VERIFY_DOB_CHALLENGE`: LGPD Challenge (Date of Birth) before listing appointments.
+  3. `VERIFY_DOB_ENRICH`: Progressive Profiling to capture missing date of birth.
+  4. `APPOINTMENT_LIST`: Self-service for checking and managing schedules.
 
-- **Sistema de Templates & Parser:**
-  - O `NotificationService` utiliza o `TemplateParser` unificado (pacote `@crmed/database`) para interpolar chaves como `{{paciente}}`, `{{procedimento}}` e `{{medico}}`.
-  - Suporta sintaxe de chaves duplas `{{ }}` e formatação nativa do WhatsApp como negrito via asteriscos `*texto*`.
-  - **Graceful Degradation:** Tags nulas são substituídas por termos genéricos (ex: "nosso especialista").
-  - **Single Source of Truth:** O conteúdo e as opções de interação (1️⃣, 2️⃣, 3️⃣) vêm exclusivamente do banco de dados. Nunca hardcode opções no backend.
+- **Template System & Parser:**
+  - The `NotificationService` uses the unified `TemplateParser` (from `@crmed/database` package) to interpolate keys such as `{{paciente}}`, `{{procedimento}}`, and `{{medico}}`.
+  - Supports double curly brace syntax `{{ }}` and native WhatsApp formatting like bold via asterisks `*text*`.
+  - **Graceful Degradation:** Null tags are replaced by generic terms (e.g., "our specialist").
+  - **Single Source of Truth:** Content and interaction options (1️⃣, 2️⃣, 3️⃣) come exclusively from the database. Never hardcode options in the backend.
 
-- **Sandbox Environment:** O código no dev bloqueia mensagens enviadas para números aleatórios a menos que correspondam com precisão com a ENVAR `DEV_ALLOWED_PHONE` localizada na raiz do repositório no arquivo `.env`.
+- **Sandbox Environment:** The code in dev blocks messages sent to random numbers unless they exactly match the `DEV_ALLOWED_PHONE` ENVAR located in the repository root within the `.env` file.

@@ -239,6 +239,7 @@ export const typeDefs = gql`
     phone: String!
     isActive: Boolean!
     appointmentDuration: Int!
+    procedures: [String!]!
     appointments: [Appointment!]!
     availability: [AvailabilitySlot!]!
     extraAvailability: [ExtraAvailabilitySlot!]!
@@ -246,6 +247,8 @@ export const typeDefs = gql`
     createdAt: DateTime!
     updatedAt: DateTime!
   }
+
+
 
   type AvailabilitySlot {
     id: ID!
@@ -593,6 +596,8 @@ export const typeDefs = gql`
     email: String!
     phone: String!
     password: String!
+    appointmentDuration: Int
+    procedures: [String!]
   }
 
   input UpdateSurgeonInput {
@@ -606,6 +611,7 @@ export const typeDefs = gql`
     email: String
     phone: String
     appointmentDuration: Int
+    procedures: [String!]
   }
 
   input CreateUserInput {
@@ -860,6 +866,7 @@ export const typeDefs = gql`
     createEvolutionInstance(name: String!): EvolutionApiInstance!
     deleteEvolutionInstance(name: String!): Boolean!
     connectEvolutionInstance(name: String!): EvolutionConnectionPayload!
+    setActiveWhatsAppInstance(name: String!): Boolean!
 
     # Budgets
     createBudget(input: CreateBudgetInput!): Budget!
@@ -976,6 +983,7 @@ export const typeDefs = gql`
     # Integration Status
     evolutionApiInstances: [EvolutionApiInstance!]!
     pingEvolutionInstance(name: String!): EvolutionPingResult!
+    activeWhatsAppInstance: String
     
     # Test Configuration
     testPhoneLastDigits: String

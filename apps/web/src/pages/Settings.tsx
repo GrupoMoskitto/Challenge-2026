@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { PROCEDURES } from "@/lib/constants";
 import { toast } from "sonner";
 import { useQuery, useMutation } from "@apollo/client";
 import {
@@ -23,6 +24,8 @@ import {
   GET_USERS,
   GET_EVOLUTION_API_INSTANCES,
   GET_TEST_PHONE_LAST_DIGITS,
+  GET_ACTIVE_INSTANCE,
+  SET_ACTIVE_INSTANCE,
   CREATE_USER,
   TOGGLE_USER_STATUS,
   UPDATE_USER,
@@ -39,6 +42,7 @@ import {
   CREATE_SCHEDULE_BLOCK,
   UPDATE_SCHEDULE_BLOCK,
   DELETE_SCHEDULE_BLOCK,
+  UPDATE_SURGEON,
 } from "@/lib/queries";
 import {
   Dialog,
@@ -67,7 +71,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, Calendar as CalendarIcon, Clock, AlertTriangle, Mic, Paperclip, Smile, CheckCheck } from "lucide-react";
+import { User, Users, MessageSquare, Plus, MoreVertical, Pencil, Trash2, Phone as PhoneIcon, Eye, Plug, X, Check, Loader2, Calendar as CalendarIcon, Clock, AlertTriangle, Mic, Paperclip, Smile, CheckCheck, Stethoscope } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -210,12 +214,7 @@ const Settings = () => {
   const defaultTab = "profile";
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || defaultTab);
 
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab && availableTabs.includes(tab)) {
-      setActiveTab(tab);
-    }
-  }, [searchParams, availableTabs]);
+
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -264,8 +263,19 @@ const Settings = () => {
   const { data: templatesData, loading: templatesLoading, refetch: refetchTemplates, error: templatesError } = useQuery(GET_MESSAGE_TEMPLATES);
   const { data: usersData, loading: usersLoading, refetch: refetchUsers, error: usersError } = useQuery(GET_USERS, { skip: !isAdmin });
   const { data: evoData, loading: evoLoading, refetch: refetchEvo, error: evoError } = useQuery(GET_EVOLUTION_API_INSTANCES, { skip: !isAdmin });
+  const { data: activeInstanceData, refetch: refetchActiveInstance } = useQuery(GET_ACTIVE_INSTANCE, { skip: !isAdmin });
   const { data: testPhoneData } = useQuery(GET_TEST_PHONE_LAST_DIGITS, { skip: !isAdmin });
   const { data: scheduleData, refetch: refetchSchedule } = useQuery(GET_SURGEONS_SCHEDULE, { skip: !isAdmin });
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && availableTabs.includes(tab)) {
+      setActiveTab(tab);
+    }
+    const surgeonId = searchParams.get("surgeonId");
+    if (surgeonId) {
+      setSelectedSurgeonId(surgeonId);
+    }
+  }, [searchParams, availableTabs]);
 
   useEffect(() => {
     if (templatesError) toast.error("Erro ao carregar templates: " + templatesError.message);
@@ -300,6 +310,12 @@ const Settings = () => {
     },
   });
   const [connectEvolutionInstance] = useMutation(CONNECT_EVOLUTION_INSTANCE);
+  const [setActiveInstance] = useMutation(SET_ACTIVE_INSTANCE, {
+    onCompleted: () => {
+      toast.success("Instância ativa atualizada com sucesso!");
+      refetchActiveInstance();
+    }
+  });
 
   const [createAvail] = useMutation(CREATE_AVAILABILITY_SLOT);
   const [updateAvail] = useMutation(UPDATE_AVAILABILITY_SLOT);
@@ -309,10 +325,12 @@ const Settings = () => {
   const [createBlock] = useMutation(CREATE_SCHEDULE_BLOCK);
   const [updateBlock] = useMutation(UPDATE_SCHEDULE_BLOCK);
   const [deleteBlock] = useMutation(DELETE_SCHEDULE_BLOCK);
+  const [updateSurgeon] = useMutation(UPDATE_SURGEON);
 
   const templates: MessageTemplate[] = templatesData?.messageTemplates || [];
   const systemUsers = usersData?.users?.edges?.map((e: any) => e.node) || [];
   const evolutionInstances: any[] = evoData?.evolutionApiInstances || [];
+  const activeWhatsAppInstance = activeInstanceData?.activeWhatsAppInstance;
   const surgeons = scheduleData?.surgeons || [];
   const selectedSurgeon = surgeons.find((s: any) => s.id === selectedSurgeonId);
 
@@ -871,6 +889,18 @@ const Settings = () => {
                               </div>
                             )}
                           </div>
+                          {inst.loggedIn && (
+                            <Button 
+                              variant={activeWhatsAppInstance === inst.instanceName ? "default" : "outline"} 
+                              size="sm"
+                              className="w-32"
+                              onClick={() => setActiveInstance({ variables: { name: inst.instanceName } })}
+                              disabled={activeWhatsAppInstance === inst.instanceName}
+                              title={activeWhatsAppInstance === inst.instanceName ? "Instância atual" : "Tornar esta instância a padrão"}
+                            >
+                              {activeWhatsAppInstance === inst.instanceName ? "Instância Ativa" : "Tornar Ativa"}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1127,6 +1157,91 @@ const Settings = () => {
                           </div>
                         </div>
                       )}
+
+                      {/* PROCEDIMENTOS HABILITADOS */}
+                      <div className="border rounded-xl p-6 bg-muted/30 mb-8">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h3 className="font-semibold text-lg flex items-center gap-2">
+                              <Stethoscope className="h-5 w-5 text-primary" /> 
+                              Procedimentos Habilitados
+                            </h3>
+                            <p className="text-sm text-muted-foreground">Adicione ou remova procedimentos que este médico pode realizar</p>
+                          </div>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className="gap-2">
+                                <Plus className="h-4 w-4" /> Adicionar
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="end">
+                              <div className="p-2 border-b">
+                                <p className="text-xs font-semibold px-2 py-1 text-muted-foreground">Selecione o procedimento</p>
+                              </div>
+                              <div className="max-h-[300px] overflow-y-auto p-1">
+                                {PROCEDURES.filter(p => !selectedSurgeon.procedures?.includes(p)).length === 0 && (
+                                  <div className="p-3 text-center text-sm text-muted-foreground">Todos os procedimentos já adicionados</div>
+                                )}
+                                {PROCEDURES.filter(p => !selectedSurgeon.procedures?.includes(p)).map(proc => (
+                                  <div 
+                                    key={proc}
+                                    onClick={async () => {
+                                      const currentProcedures = selectedSurgeon.procedures || [];
+                                      try {
+                                        await updateSurgeon({
+                                          variables: {
+                                            input: {
+                                              id: selectedSurgeon.id,
+                                              procedures: [...currentProcedures, proc]
+                                            }
+                                          }
+                                        });
+                                        toast.success(`Procedimento adicionado`);
+                                      } catch (err: any) {
+                                        toast.error(err.message);
+                                      }
+                                    }}
+                                    className="px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center justify-between group"
+                                  >
+                                    {proc}
+                                    <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {!selectedSurgeon.procedures?.length ? (
+                            <p className="text-sm text-muted-foreground italic py-2">Nenhum procedimento habilitado.</p>
+                          ) : (
+                            selectedSurgeon.procedures.map((proc: string) => (
+                              <Badge key={proc} variant="secondary" className="px-3 py-1 text-sm bg-background border hover:bg-muted group flex items-center gap-1.5">
+                                {proc}
+                                <X 
+                                  className="h-3 w-3 opacity-50 cursor-pointer hover:opacity-100 text-destructive transition-opacity" 
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      await updateSurgeon({
+                                        variables: {
+                                          input: {
+                                            id: selectedSurgeon.id,
+                                            procedures: selectedSurgeon.procedures.filter((p: string) => p !== proc)
+                                          }
+                                        }
+                                      });
+                                      toast.success("Procedimento removido");
+                                    } catch (err: any) {
+                                      toast.error(err.message);
+                                    }
+                                  }}
+                                />
+                              </Badge>
+                            ))
+                          )}
+                        </div>
+                      </div>
 
                       <div className="border rounded-xl p-6 bg-muted/30">
                         <div className="flex items-center justify-between mb-6">

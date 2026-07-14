@@ -177,6 +177,7 @@ interface CreateSurgeonInput {
   email: string;
   phone: string;
   password?: string;
+  procedures?: string[];
 }
 
 interface UpdateSurgeonInput {
@@ -190,6 +191,7 @@ interface UpdateSurgeonInput {
   email?: string;
   phone?: string;
   appointmentDuration?: number;
+  procedures?: string[];
 }
 
 interface CreateUserInput {
@@ -1117,6 +1119,11 @@ export const resolvers = {
         logger.error('EvoGo:ping', (error as Error).message, error);
         return { connected: false, loggedIn: false, state: 'unreachable', latencyMs };
       }
+    },
+    activeWhatsAppInstance: async (_: unknown, __: unknown, context: Context) => {
+      assertAuthenticated(context);
+      const setting = await prisma.systemSetting.findUnique({ where: { key: 'ACTIVE_WHATSAPP_INSTANCE' } });
+      return setting?.value || null;
     },
     testPhoneLastDigits: async (_: unknown, __: unknown, context: Context) => {
       assertAuthenticated(context);
@@ -2355,6 +2362,16 @@ export const resolvers = {
       logger.info('EvoGo:connect', `Final Return -> QR: ${qrCode ? 'Yes' : 'No'}, Connected: ${loggedIn}`);
       
       return { qrCode, pairingCode, connected: loggedIn };
+    },
+    setActiveWhatsAppInstance: async (_: unknown, { name }: { name: string }, context: Context) => {
+      assertAuthenticated(context);
+      assertRole(context, ['ADMIN'], 'alterar instância ativa do WhatsApp');
+      await prisma.systemSetting.upsert({
+        where: { key: 'ACTIVE_WHATSAPP_INSTANCE' },
+        update: { value: name },
+        create: { key: 'ACTIVE_WHATSAPP_INSTANCE', value: name }
+      });
+      return true;
     },
     markNotificationAsRead: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
