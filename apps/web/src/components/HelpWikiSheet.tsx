@@ -6,6 +6,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -1508,19 +1515,19 @@ export function HelpWikiSheet({ open, onOpenChange, userRole }: HelpWikiSheetPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         id="help-wiki-dialog"
-        className="max-w-[90vw] w-[90vw] h-[90vh] max-h-[90vh] p-0 flex flex-col overflow-hidden gap-0 rounded-2xl"
+        className="w-[95vw] max-w-5xl h-[92vh] max-h-[92vh] p-0 flex flex-col overflow-hidden gap-0 rounded-2xl"
       >
         {/* Header */}
-        <DialogHeader className="px-6 py-4 border-b border-border shrink-0">
+        <DialogHeader className="px-4 sm:px-6 py-4 border-b border-border shrink-0">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 shrink-0">
               <HelpCircle className="h-5 w-5 text-primary" />
             </div>
-            <div>
-              <DialogTitle className="text-lg font-bold">
+            <div className="min-w-0">
+              <DialogTitle className="text-base sm:text-lg font-bold leading-tight">
                 Como usar o CRMed
               </DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
                 Guia completo da plataforma — selecione uma seção no menu ao lado
               </p>
             </div>
@@ -1529,9 +1536,9 @@ export function HelpWikiSheet({ open, onOpenChange, userRole }: HelpWikiSheetPro
 
         {/* Body: nav sidebar + content */}
         <div className="flex flex-1 overflow-hidden">
-          {/* Nav sidebar */}
+          {/* Nav sidebar — visible only on md+ */}
           <nav
-            className="w-56 shrink-0 border-r border-border overflow-y-auto py-3 px-2 space-y-0.5 bg-muted/30"
+            className="hidden md:block w-56 shrink-0 border-r border-border overflow-y-auto py-3 px-2 space-y-0.5 bg-muted/30"
             aria-label="Seções da wiki"
           >
             {visibleSections.map((section) => {
@@ -1568,10 +1575,40 @@ export function HelpWikiSheet({ open, onOpenChange, userRole }: HelpWikiSheetPro
 
           {/* Content area */}
           <main
-            className="flex-1 overflow-y-auto px-10 py-8"
+            className="flex-1 overflow-y-auto flex flex-col min-w-0"
             aria-live="polite"
           >
-            {currentSection.content}
+            {/* Mobile section selector — visible only below md */}
+            <div className="md:hidden shrink-0 px-4 pt-4 pb-3 border-b border-border bg-muted/20">
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                Seção
+              </p>
+              <Select value={activeSection} onValueChange={setActiveSection}>
+                <SelectTrigger id="wiki-section-select" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {visibleSections.map((section) => (
+                    <SelectItem key={section.id} value={section.id}>
+                      <span className="flex items-center gap-2">
+                        {section.title}
+                        {section.badge === "admin" && (
+                          <Star className="h-3 w-3 text-amber-500" />
+                        )}
+                        {section.badge === "avançado" && (
+                          <span className="text-[10px] font-bold text-orange-500">ADV</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Section content */}
+            <div className="flex-1 px-4 py-5 sm:px-8 sm:py-7 md:px-10 md:py-8">
+              {currentSection.content}
+            </div>
           </main>
         </div>
       </DialogContent>
