@@ -13,7 +13,9 @@ import {
   Moon,
   Sun,
   Stethoscope,
+  HelpCircle,
 } from "lucide-react";
+import { HelpWikiSheet } from "./HelpWikiSheet";
 import { cn } from "@/lib/utils";
 import { serverLogout } from "@/lib/apollo";
 import { Button } from "./ui/button";
@@ -78,6 +80,7 @@ export function AppSidebar({ onNavigate, isMobileDrawer }: AppSidebarProps) {
     if (isMobileDrawer) return false;
     return localStorage.getItem("sidebar-collapsed") === "true";
   });
+  const [wikiOpen, setWikiOpen] = useState(false);
   const location = useLocation();
 
   // In mobile drawer, always expanded
@@ -112,6 +115,7 @@ export function AppSidebar({ onNavigate, isMobileDrawer }: AppSidebarProps) {
   };
 
   return (
+    <>
     <aside
       className={cn(
         "flex flex-col h-full border-r transition-all duration-300 ease-in-out shrink-0 overflow-hidden",
@@ -156,6 +160,21 @@ export function AppSidebar({ onNavigate, isMobileDrawer }: AppSidebarProps) {
         <ThemeToggle collapsed={isCollapsed} />
       </div>
 
+      {/* Help Wiki Button */}
+      <div className="px-2 py-1 overflow-x-hidden">
+        <button
+          id="help-wiki-button"
+          onClick={() => setWikiOpen(true)}
+          className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 w-full",
+            "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          )}
+        >
+          <HelpCircle className="h-5 w-5 shrink-0" />
+          {!isCollapsed && <span className="whitespace-nowrap">Como usar</span>}
+        </button>
+      </div>
+
       {/* Logout Button */}
       <div className="px-2 pb-2 overflow-x-hidden">
         <Button
@@ -185,5 +204,12 @@ export function AppSidebar({ onNavigate, isMobileDrawer }: AppSidebarProps) {
         </button>
       )}
     </aside>
+
+    <HelpWikiSheet
+      open={wikiOpen}
+      onOpenChange={setWikiOpen}
+      userRole={user?.role}
+    />
+    </>
   );
 }

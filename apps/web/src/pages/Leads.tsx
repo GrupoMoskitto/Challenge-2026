@@ -745,7 +745,7 @@ const Leads = () => {
                 <TabsTrigger value="timeline" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 py-3 sm:py-4 font-bold text-xs sm:text-sm transition-all hover:text-primary whitespace-nowrap">Linha do Tempo</TabsTrigger>
               </TabsList>
             </div>
-            <TabsContent value="details" className="mt-0 p-0 overflow-y-auto flex-1 no-scrollbar bg-muted/5">
+            <TabsContent value="details" className="mt-0 p-0 overflow-y-auto flex-1 no-scrollbar bg-muted/5 animate-in fade-in slide-in-from-bottom-2">
               <div className="px-4 sm:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8 w-full mx-auto">
                 <div className="grid gap-3">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">Identificação</Label>
@@ -814,7 +814,7 @@ const Leads = () => {
                 </div>
               </div>
             </TabsContent>
-            <TabsContent value="timeline" className="p-0 overflow-y-auto flex-1 no-scrollbar bg-muted/5">
+            <TabsContent value="timeline" className="p-0 overflow-y-auto flex-1 no-scrollbar bg-muted/5 animate-in fade-in slide-in-from-bottom-2">
               <LeadTimeline leadId={editingLead?.id} />
             </TabsContent>
             <div className="px-4 sm:px-8 py-3 sm:py-4 border-t bg-background flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 shrink-0">

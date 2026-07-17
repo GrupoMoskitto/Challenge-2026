@@ -164,6 +164,13 @@ const Agenda = () => {
         const newParams = new URLSearchParams(searchParams);
         newParams.delete("appointmentId");
         setSearchParams(newParams, { replace: true });
+        // Scroll the time-ruler to the appointment's slot
+        setTimeout(() => {
+          document.getElementById(`time-slot-${time}`)?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        }, 150);
       }
     }
   }, [appointments, searchParams, setSearchParams, sheetOpen]);
@@ -500,7 +507,11 @@ const Agenda = () => {
               </div>
               <div className="space-y-1.5 md:space-y-2">
                 {timeSlots.map((time) => (
-                  <div key={time} className="h-16 md:h-20 flex items-center justify-center text-xs md:text-sm font-medium text-muted-foreground border-b">
+                  <div
+                    key={time}
+                    id={`time-slot-${time}`}
+                    className="h-16 md:h-20 flex items-center justify-center text-xs md:text-sm font-medium text-muted-foreground border-b"
+                  >
                     {time}
                   </div>
                 ))}

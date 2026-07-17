@@ -575,7 +575,7 @@ const Patients = () => {
               patientList.map((p_item: any) => (
                 <Card 
                   key={p_item.id} 
-                  className={cn("cursor-pointer transition-all hover:border-primary/50", selectedPatientId === p_item.id && "border-primary ring-1 ring-primary/20 bg-primary/5")}
+                  className={cn("cursor-pointer transition-all duration-200 hover:border-primary/50 hover:shadow-sm", selectedPatientId === p_item.id && "border-primary ring-1 ring-primary/20 bg-primary/5")}
                   onClick={() => { setSelectedPatientId(p_item.id); updateUrl({ patientId: p_item.id }); }}
                 >
                   <CardContent className="p-4">
@@ -667,10 +667,10 @@ const Patients = () => {
                   <TabsTrigger value="documents" className="flex-1 whitespace-nowrap px-3">Documentos</TabsTrigger>
                   <TabsTrigger value="postop" className="flex-1 whitespace-nowrap px-3">Pós-Op</TabsTrigger>
                 </TabsList>
-                <TabsContent value="timeline" className="mt-6">
+                <TabsContent value="timeline" className="mt-6 animate-in fade-in slide-in-from-bottom-2">
                   <PatientTimeline patient={patient} />
                 </TabsContent>
-                <TabsContent value="appointments" className="mt-4 space-y-4">
+                <TabsContent value="appointments" className="mt-4 space-y-4 animate-in fade-in slide-in-from-bottom-2">
                   <div className="flex justify-end">
                     <Button size="sm" onClick={() => {
                       setNewApptForm(prev => ({ ...prev, procedure: patient.lead?.procedure || "" }));
@@ -683,7 +683,7 @@ const Patients = () => {
                     patient.appointments?.map((apt: any) => (
                       <Card 
                         key={apt.id} 
-                        className="cursor-pointer hover:border-primary/50 transition-colors hover:shadow-sm"
+                        className="cursor-pointer transition-all duration-200 hover:border-primary/50 hover:shadow-sm"
                         onClick={() => {
                           const aptDate = format(new Date(apt.scheduledAt), 'yyyy-MM-dd');
                           navigate(`/schedule?date=${aptDate}&appointmentId=${apt.id}`);
@@ -730,11 +730,11 @@ const Patients = () => {
                     ))
                   )}
                 </TabsContent>
-                <TabsContent value="documents" className="mt-4 space-y-4">
+                <TabsContent value="documents" className="mt-4 space-y-4 animate-in fade-in slide-in-from-bottom-2">
                   <div className="flex justify-end"><Button size="sm" onClick={() => setNewDocDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Novo</Button></div>
                   {patient.documents?.length === 0 ? <div className="py-20 text-center text-sm text-muted-foreground">Nenhum documento registrado.</div> : (
                     patient.documents?.map((doc: any) => (
-                      <Card key={doc.id}>
+                      <Card key={doc.id} className="transition-all duration-200 hover:shadow-sm hover:border-border/80">
                         <CardContent className="p-3 flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <FileText className="h-5 w-5 text-muted-foreground" />
@@ -779,11 +779,11 @@ const Patients = () => {
                     ))
                   )}
                 </TabsContent>
-                <TabsContent value="postop" className="mt-4 space-y-4">
+                <TabsContent value="postop" className="mt-4 space-y-4 animate-in fade-in slide-in-from-bottom-2">
                   <div className="flex justify-end"><Button size="sm" onClick={() => setNewPostOpDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Agendar</Button></div>
                   {patient.postOps?.length === 0 ? <div className="py-20 text-center text-sm text-muted-foreground">Nenhum registro de pós-operatório.</div> : (
                     patient.postOps?.map((po: any) => (
-                      <Card key={po.id}>
+                      <Card key={po.id} className="transition-all duration-200 hover:shadow-sm hover:border-border/80">
                         <CardContent className="p-3 flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <CalendarIcon className="h-5 w-5 text-muted-foreground" />
