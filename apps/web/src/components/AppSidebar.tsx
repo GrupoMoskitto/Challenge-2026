@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -18,7 +18,6 @@ import {
 import { HelpWikiSheet } from "./HelpWikiSheet";
 import { cn } from "@/lib/utils";
 import { serverLogout } from "@/lib/apollo";
-import { Button } from "./ui/button";
 
 const baseNavItems = [
   { title: "Início", url: "/", icon: LayoutDashboard },
@@ -76,6 +75,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ onNavigate, isMobileDrawer }: AppSidebarProps) {
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(() => {
     if (isMobileDrawer) return false;
     return localStorage.getItem("sidebar-collapsed") === "true";
@@ -125,7 +125,13 @@ export function AppSidebar({ onNavigate, isMobileDrawer }: AppSidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center justify-center h-16 px-4 border-b border-sidebar-border">
-        <img src="/logo.svg" alt="Hospital São Rafael" className={isCollapsed ? "h-8 w-auto object-contain" : "h-9 w-auto object-contain"} />
+        <button
+          onClick={() => navigate("/")}
+          className="focus:outline-none"
+          title="Ir para o Início"
+        >
+          <img src="/logo.svg" alt="Hospital São Rafael" className={isCollapsed ? "h-8 w-auto object-contain" : "h-9 w-auto object-contain"} />
+        </button>
       </div>
 
       {/* Nav Items */}
@@ -177,17 +183,16 @@ export function AppSidebar({ onNavigate, isMobileDrawer }: AppSidebarProps) {
 
       {/* Logout Button */}
       <div className="px-2 pb-2 overflow-x-hidden">
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-            isCollapsed && "justify-center px-0"
-          )}
+        <button
           onClick={handleLogout}
+          className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 w-full",
+            "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          )}
         >
           <LogOut className="h-5 w-5 shrink-0" />
-          {!isCollapsed && <span className="ml-3 whitespace-nowrap">Sair</span>}
-        </Button>
+          {!isCollapsed && <span className="whitespace-nowrap">Sair</span>}
+        </button>
       </div>
 
       {/* Collapse Toggle — hidden in mobile drawer */}
