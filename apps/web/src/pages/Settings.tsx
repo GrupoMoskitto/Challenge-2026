@@ -772,7 +772,7 @@ const Settings = () => {
           )}
         </TabsList>
 
-          <TabsContent value="profile">
+          <TabsContent value="profile" className="animate-in fade-in slide-in-from-bottom-2">
             <Card>
               <CardHeader>
                 <CardTitle>Informações do Perfil</CardTitle>
@@ -823,7 +823,7 @@ const Settings = () => {
           </TabsContent>
 
           {isAdmin && (
-            <TabsContent value="integrations">
+            <TabsContent value="integrations" className="animate-in fade-in slide-in-from-bottom-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Integrações</CardTitle>
@@ -920,7 +920,7 @@ const Settings = () => {
           )}
 
           {isAdmin && (
-            <TabsContent value="users">
+            <TabsContent value="users" className="animate-in fade-in slide-in-from-bottom-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Gerenciamento de Usuários</CardTitle>
@@ -1003,7 +1003,7 @@ const Settings = () => {
           )}
 
           {isAdmin && (
-            <TabsContent value="templates">
+            <TabsContent value="templates" className="animate-in fade-in slide-in-from-bottom-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Templates de Mensagens</CardTitle>
@@ -1119,7 +1119,7 @@ const Settings = () => {
             </TabsContent>
           )}
           {isAdmin && (
-            <TabsContent value="schedule">
+            <TabsContent value="schedule" className="animate-in fade-in slide-in-from-bottom-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Gerenciamento de Agenda</CardTitle>
