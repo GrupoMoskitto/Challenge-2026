@@ -23,6 +23,7 @@ import { validatePhone, sanitizeInput, checkSurgeonAvailability } from "@/lib/va
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { showUndoableToast } from "@/hooks/useUndoableToast";
+import { buildExplicitScheduledAt } from "@/lib/dateUtils";
 import { format, addDays, subDays, parse, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { TimePicker } from "@/components/ui/time-picker";
@@ -309,7 +310,7 @@ const Agenda = () => {
               id: editingAppointmentId,
               surgeonId: selectedSlot.doctorId,
               procedure: sanitizedProcedure,
-              scheduledAt: `${selectedSlot.date}T${selectedSlot.time}:00`,
+              scheduledAt: buildExplicitScheduledAt(selectedSlot.date, selectedSlot.time),
               notes: sanitizedNotes,
             },
           },
@@ -335,7 +336,7 @@ const Agenda = () => {
               patientId: selectedPatientId,
               surgeonId: selectedSlot.doctorId,
               procedure: sanitizedProcedure,
-              scheduledAt: `${selectedSlot.date}T${selectedSlot.time}:00`,
+              scheduledAt: buildExplicitScheduledAt(selectedSlot.date, selectedSlot.time),
               notes: sanitizedNotes,
             },
           },
