@@ -26,7 +26,7 @@ O CRMed implementa rigorosamente as seguintes regras de negócio (RN01 a RN09) p
 - **Erro Semântico**: Violações lançam `RN01_VIOLATION:` como prefixo para rastreamento nos logs.
 
 ### RN02 — Conversão de Lead
-- **Validação**: A mutation `convertLeadToPatient` valida CPF via algoritmo de dígitos verificadores e formato de telefone antes de criar o `Patient`.
+- **Validação**: A mutation `createPatient` (que faz a conversão do lead) valida CPF via algoritmo de dígitos verificadores e formato de telefone antes de criar o `Patient`.
 - **Atomicidade**: A criação do `Patient` e a atualização do `Lead.status` para `CONVERTED` ocorrem em uma única transação Prisma.
 
 ### RN03 — Hierarquia de Acesso

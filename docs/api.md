@@ -53,7 +53,7 @@ Dados em tempo real do painel: agendamentos do dia, pacientes críticos, score h
 | `createLead(input)` | Cria um lead manualmente. Aplica RN01 (unicidade de CPF/email). |
 | `updateLeadStatus(id, status)` | Avança o lead no funil de vendas. |
 | `importLeads(fileUrl)` | Importa leads em lote via CSV. Usa `upsert` para respeitar RN01. |
-| `convertLeadToPatient(input)` | Cria a entidade `Patient` a partir de um lead qualificado. Exige CPF e telefone (RN02). |
+| `createPatient(input)` | Cria a entidade `Patient` a partir de um lead qualificado. Exige CPF e telefone (RN02). |
 
 ### Agendamentos
 
