@@ -15,6 +15,7 @@ import { evoGoClient } from './evolution/evolution.client';
 import { WhatsappChatbot } from './whatsapp/whatsapp.chatbot';
 import { EvoGoWebhookEnvelope, EvoGoMessageWebhookData, EvoGoQRCodeWebhookData, EvoGoReceiptWebhookData } from './evolution/evolution.types';
 import { prisma } from '@crmed/database';
+import { webhookSecurityMiddleware } from './config/webhook-security';
 
 const PORT = process.env.WORKERS_PORT || 3002;
 
@@ -91,7 +92,17 @@ app.post('/test/trigger-postop', async (req, res) => {
     }
 });
 
-app.post('/webhook/evolution', async (req, res) => {
+// CRÍTICA 4 fix: Apply HMAC + IP-allowlist middleware to the Evolution Go webhook route.
+// The webhookSecurityMiddleware was implemented in webhook-security.ts but was never applied
+// here, leaving the endpoint completely open to forged events.
+//   - requireSecret:true  → rejects requests without a valid x-webhook-signature when
+//                           WEBHOOK_SECRET is configured (required in production).
+//   - enforceIpAllowlist:true → rejects IPs not in WEBHOOK_ALLOWED_IPS (env var).
+// In development without WEBHOOK_SECRET set, the middleware allows through after
+// structure validation (non-blocking dev experience). In production both guards activate.
+app.post('/webhook/evolution',
+    webhookSecurityMiddleware({ requireSecret: true, enforceIpAllowlist: true }),
+    async (req, res) => {
     try {
         const body = req.body as EvoGoWebhookEnvelope;
         const { event, data, instanceId } = body;

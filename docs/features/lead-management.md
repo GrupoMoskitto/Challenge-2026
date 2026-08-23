@@ -32,4 +32,4 @@ As principais operações de Leads são:
 - `leads`: Query para listagem com filtros de status e busca textual.
 - `createLead`: Mutation para criação manual.
 - `updateLeadStatus`: Mutation para avançar o lead no funil.
-- `convertLeadToPatient`: Mutation que cria a entidade `Patient` vinculada ao `Lead` (respeitando a **RN02**).
+- `createPatient`: Mutation que cria a entidade `Patient` vinculada ao `Lead` (respeitando a **RN02**).

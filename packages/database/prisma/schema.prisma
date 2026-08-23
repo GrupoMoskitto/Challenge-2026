@@ -75,6 +75,7 @@ model Surgeon {
   updatedAt           DateTime                @updatedAt
   appointmentDuration Int                     @default(30)
   procedures          String[]                @default([])
+  deletedAt           DateTime?
   appointments        Appointment[]
   availability        AvailabilitySlot[]
   budgets             Budget[]
@@ -83,6 +84,7 @@ model Surgeon {
 
   @@index([crm])
   @@index([cpf])
+  @@index([deletedAt])
 }
 
 model AvailabilitySlot {

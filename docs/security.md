@@ -56,7 +56,7 @@ Senhas são armazenadas com **bcryptjs** usando **12 rounds** de salt (acima do 
 
 ## 2. Rate Limiting (Distribuído via Redis)
 
-Três camadas independentes de Rate Limit protegem a API contra abuso e ataques de força bruta. Os contadores são persistidos no **Redis**, garantindo que os limites sejam respeitados mesmo após reinicializações do servidor.
+Três camadas independentes de Rate Limit protegem a API contra abuso e ataques de força bruta. Os contadores são persistidos no **Redis**, garantindo que os limites sejam respeitados mesmo após reinicializações do servidor. Em produção, a API utiliza o header `X-Forwarded-For` para identificar o IP real do cliente através do load balancer (configurado via `app.set('trust proxy', 1)`).
 
 | Limiter | Janela | Limite | Aplica-se a |
 | :--- | :--- | :--- | :--- |
@@ -153,7 +153,7 @@ await enforceStatusChange({
   entityType: 'Appointment',
   entityId: id,
   oldStatus, newStatus,
-  blockedRoles: ['CALL_CENTER'],
+  blockedRoles: ['CALL_CENTER', 'SALES'],
   criticalStatuses: ['COMPLETED', 'NO_SHOW'],
 });
 ```

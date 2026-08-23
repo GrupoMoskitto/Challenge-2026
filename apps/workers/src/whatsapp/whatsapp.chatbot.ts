@@ -6,7 +6,7 @@ import { IdentityService } from '../services/identity.service';
 import { AppointmentService } from '../services/appointment.service';
 import { riskScoreQueue } from '../queues/risk-score.processor';
 
-const recentMessages = new Set<string>();
+import { redisConnection } from '../config/redis';
 
 export class WhatsappChatbot {
   static async handleRawMessage(
@@ -25,12 +25,11 @@ export class WhatsappChatbot {
     }
 
     const messageFingerprint = `${remoteJid}:${textMessage}:${Math.floor(Date.now() / 10000)}`;
-    if (recentMessages.has(messageFingerprint)) {
+    const lock = await redisConnection.set(messageFingerprint, '1', 'EX', 10, 'NX');
+    if (!lock) {
       logger.debug('WhatsApp:Chatbot', `Ignorando mensagem duplicada de ${remoteJid}`);
       return;
     }
-    recentMessages.add(messageFingerprint);
-    setTimeout(() => recentMessages.delete(messageFingerprint), 10000);
 
     await this.processIncoming(instanceId, remoteJid, pushName, textMessage);
   }

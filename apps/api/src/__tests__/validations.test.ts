@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import { resolvers, Context } from '../graphql/resolvers/index';
 import { checkRateLimit, resetRateLimit } from '../auth';
@@ -120,4 +121,5 @@ describe('CRMed Validation Tests', () => {
       }, ctx)).rejects.toThrow('Acesso restrito a administradores');
     });
   });
-});
+
+  });

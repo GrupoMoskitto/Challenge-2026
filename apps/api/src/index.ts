@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import crypto from 'crypto';
 
 const projectRoot = path.resolve(__dirname, '../../..');
 dotenv.config({ path: path.join(projectRoot, '.env') });
@@ -23,6 +24,13 @@ import { logger } from './config/logger';
 const isProduction = process.env.NODE_ENV === 'production';
 
 const app = express();
+
+// CRÍTICA 2 fix: Configure proxy trust so req.ip reflects the real client IP
+// when running behind Nginx or a load balancer (1 = trust exactly one hop).
+// Without this, req.ip is always the proxy's IP (typically 127.0.0.1), making
+// the Redis-backed rate limiters either ineffective or misattributed.
+// If CDN + LB are layered, change to 2 or use a trusted IP list.
+app.set('trust proxy', 1);
 
 app.use(helmet({
   contentSecurityPolicy: isProduction ? undefined : false,
@@ -286,27 +294,52 @@ app.get('/api/uploads/:filename', requireAuth, (req, res) => {
 });
 
 
-async function startServer() {
+export async function startServer() {
+  if (!process.env.INTERNAL_API_KEY) {
+    logger.error('System', 'CRITICAL ERROR: INTERNAL_API_KEY is not set in environment. Refusing to start.');
+    process.exit(1);
+  }
+
   await server.start();
 
   app.use(
     '/graphql',
     expressMiddleware(server, {
       context: async ({ req, res }: { req: express.Request; res: express.Response }): Promise<Context> => {
-        // Internal bypass for workers and system tasks
+        // CRÍTICA 3 fix: Internal bypass for workers and system tasks.
+        // - No hardcoded fallback: if INTERNAL_API_KEY is unset, the bypass is simply
+        //   unavailable (fail-closed). Workers must always have the env var configured.
+        // - Constant-time comparison via crypto.timingSafeEqual to prevent timing attacks.
+        // - TODO(audit): Create a scoped SYSTEM role with only the mutations workers need,
+        //   instead of reusing ADMIN. Tracked in Issue #XX.
         const internalKey = req.headers['x-internal-key'];
-        const validInternalKey = process.env.INTERNAL_API_KEY || 'internal-secret-key';
-        
-        if (internalKey === validInternalKey) {
-          return {
-            user: {
-              userId: 'system',
-              email: 'system@crmed.internal',
-              role: 'ADMIN',
-            },
-            res,
-            ip: req.ip,
-          };
+        const validInternalKey = process.env.INTERNAL_API_KEY;
+
+        if (validInternalKey && internalKey) {
+          const internalKeyStr = Array.isArray(internalKey) ? internalKey[0] : internalKey;
+          let keysMatch = false;
+          try {
+            // Buffers must be the same length for timingSafeEqual; if lengths differ the
+            // comparison would throw, so we handle that explicitly (still constant time
+            // in terms of not leaking the valid key content via length mismatch).
+            const a = Buffer.from(internalKeyStr);
+            const b = Buffer.from(validInternalKey);
+            keysMatch = a.length === b.length && crypto.timingSafeEqual(a, b);
+          } catch {
+            keysMatch = false;
+          }
+
+          if (keysMatch) {
+            return {
+              user: {
+                userId: 'system',
+                email: 'system@crmed.internal',
+                role: 'ADMIN', // TODO(audit): Narrow to SYSTEM role — Issue #XX
+              },
+              res,
+              ip: req.ip,
+            };
+          }
         }
 
         let token = (req as Record<string, unknown> & express.Request).cookies?.access_token as string | undefined;
