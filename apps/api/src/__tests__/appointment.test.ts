@@ -9,11 +9,11 @@ vi.mock('../lib/availability', () => ({
 }));
 
 describe('createAppointment rules (RN08 and Overlap)', () => {
-  let findUniqueSurgeonSpy: any;
+  let findFirstSurgeonSpy: any;
   let transactionSpy: any;
 
   beforeEach(() => {
-    findUniqueSurgeonSpy = vi.spyOn(prisma.surgeon, 'findUnique');
+    findFirstSurgeonSpy = vi.spyOn(prisma.surgeon, 'findFirst');
     transactionSpy = vi.spyOn(prisma, '$transaction');
   });
 
@@ -29,7 +29,7 @@ describe('createAppointment rules (RN08 and Overlap)', () => {
   };
 
   it('bypasses RN08 for ADMIN', async () => {
-    findUniqueSurgeonSpy.mockResolvedValue({ id: 's1', appointmentDuration: 30 } as any);
+    findFirstSurgeonSpy.mockResolvedValue({ id: 's1', appointmentDuration: 30 } as any);
     transactionSpy.mockImplementation(async (cb: any) => {
       return cb({
         appointment: {
@@ -52,7 +52,7 @@ describe('createAppointment rules (RN08 and Overlap)', () => {
   });
 
   it('enforces RN08 for CALL_CENTER and blocks if unavailable', async () => {
-    findUniqueSurgeonSpy.mockResolvedValue({ id: 's1', appointmentDuration: 30 } as any);
+    findFirstSurgeonSpy.mockResolvedValue({ id: 's1', appointmentDuration: 30 } as any);
     (checkSurgeonAvailability as any).mockReturnValue(false); // mock out of hours
 
     const ctx: Context = { user: { userId: '2', email: 'cc@test.com', role: 'CALL_CENTER' } };
@@ -65,7 +65,7 @@ describe('createAppointment rules (RN08 and Overlap)', () => {
   });
 
   it('blocks if overlap exists in transaction (ALTA 1)', async () => {
-    findUniqueSurgeonSpy.mockResolvedValue({ id: 's1', appointmentDuration: 30 } as any);
+    findFirstSurgeonSpy.mockResolvedValue({ id: 's1', appointmentDuration: 30 } as any);
     (checkSurgeonAvailability as any).mockReturnValue(true); // available
 
     transactionSpy.mockImplementation(async (cb: any) => {

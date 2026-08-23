@@ -34,7 +34,7 @@ describe('Appointment Concurrency and Timezone', () => {
       const ctx: Context = { user: { userId: '1', email: 'admin@test.com', role: 'ADMIN' } };
       const input = { patientId: 'p1', surgeonId: 's1', procedure: 'Cons', scheduledAt: '2027-04-01T14:00:00Z' };
 
-      vi.spyOn(prisma.surgeon, 'findUnique').mockResolvedValue({ id: 's1', appointmentDuration: 30 } as any);
+      vi.spyOn(prisma.surgeon, 'findFirst').mockResolvedValue({ id: 's1', appointmentDuration: 30 } as any);
       
       // Simulate transaction behavior with a lock flag
       let isInserted = false;

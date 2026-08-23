@@ -10,6 +10,7 @@ describe('Role Permissions & Access Control', () => {
   let findManyAuditSpy: any;
   let countAuditSpy: any;
   let updateLeadSpy: any;
+  let updateAppointmentSpy: any;
   let createAuditLogSpy: any;
 
   beforeEach(() => {
@@ -20,6 +21,8 @@ describe('Role Permissions & Access Control', () => {
     countAuditSpy = vi.spyOn(prisma.auditLog, 'count');
     updateLeadSpy = vi.spyOn(prisma.lead, 'update');
     createAuditLogSpy = vi.spyOn(prisma.auditLog, 'create');
+    updateAppointmentSpy = vi.spyOn(prisma.appointment, "update").mockResolvedValue({} as any);
+    vi.spyOn(prisma.appointment, "findUnique").mockResolvedValue({ id: "appt-1", status: "SCHEDULED" } as any);
   });
 
   afterEach(() => {

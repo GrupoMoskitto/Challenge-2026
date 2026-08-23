@@ -1,3 +1,4 @@
+import { checkSurgeonAvailability } from '../../lib/availability';
 import { prisma, checkUniqueness, LeadStatus, AppointmentStatus, DocumentStatus, PostOpStatus, BudgetStatus, ComplaintStatus, UserRole, Prisma } from '@crmed/database';
 import { format, subDays } from 'date-fns';
 import { DateTimeScalar, IDScalar, JSONScalar } from '../scalars';
@@ -356,7 +357,6 @@ export const resolvers = {
   DateTime: DateTimeScalar,
   JSON: JSONScalar,
   Patient: {
-    phone: (parent: any, _: any, context: Context) => context.user?.role === "CALL_CENTER" ? "***" : parent.phone,
     address: (parent: any, _: any, context: Context) => context.user?.role === "CALL_CENTER" ? "***" : parent.address,
     lead: async (parent: { leadId: string }) => {
       return prisma.lead.findUnique({ where: { id: parent.leadId } });
@@ -369,7 +369,8 @@ export const resolvers = {
       const lead = await prisma.lead.findUnique({ where: { id: parent.leadId } });
       return lead?.email ?? null;
     },
-    phone: async (parent: { leadId: string }) => {
+    phone: async (parent: { leadId: string }, _: any, context: Context) => {
+      if (context.user?.role === "CALL_CENTER") return "***";
       const lead = await prisma.lead.findUnique({ where: { id: parent.leadId } });
       return lead?.phone ?? null;
     },
@@ -722,8 +723,7 @@ export const resolvers = {
     patient: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       const decodedId = decodeId(id);
-      return prisma.patient.findUnique({
-        where: { id: decodedId },
+      return prisma.patient.findFirst({ where: { id: decodedId, deletedAt: null },
         include: { 
           lead: { include: { contacts: true } }, 
           documents: { orderBy: { date: 'desc' } },
@@ -1780,16 +1780,62 @@ export const resolvers = {
       });
       return updated;
     },
-    createAppointment: async (_: unknown, { input }: { input: CreateAppointmentInput }, context: Context) => {
+        createAppointment: async (_: unknown, { input }: { input: CreateAppointmentInput }, context: Context) => {
       assertAuthenticated(context);
+      
       const scheduledAt = new Date(input.scheduledAt);
       if (scheduledAt < new Date()) {
         throw new Error('Não é possível criar agendamentos no passado');
       }
-      const appointment = await prisma.appointment.create({ data: { ...input, patientId: decodeId(input.patientId), surgeonId: decodeId(input.surgeonId), scheduledAt }, include: { patient: true, surgeon: true } });
-      await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: appointment.id, action: 'CREATED', userId: context.user?.userId, appointmentId: appointment.id } });
-      return appointment;
+
+      const surgeonId = decodeId(input.surgeonId);
+      
+      const surgeon = await prisma.surgeon.findFirst({
+        where: { id: surgeonId, deletedAt: null },
+        include: { availability: true, extraAvailability: true }
+      });
+      if (!surgeon) throw new Error('Médico não encontrado');
+
+      // CRÍTICA 5 - RN08: Block scheduling outside 08:00-18:00 unless exception exists (ADMIN role bypass)
+      const isAdmin = context.user?.role === 'ADMIN';
+      if (!isAdmin) {
+        
+        if (!checkSurgeonAvailability(surgeon, scheduledAt)) {
+          throw new Error('Horário fora do expediente ou indisponível para este médico.');
+        }
+      }
+
+      // ALTA 1 - Overlap check inside $transaction to prevent race conditions
+      return prisma.$transaction(async (tx) => {
+        const duration = surgeon.appointmentDuration || 30;
+        const endAt = new Date(scheduledAt.getTime() + duration * 60000);
+        
+        const overlap = await tx.appointment.findFirst({
+          where: {
+            surgeonId,
+            status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+            OR: [
+              { scheduledAt: { lt: endAt, gte: scheduledAt } },
+              { scheduledAt: { gt: new Date(scheduledAt.getTime() - duration * 60000), lte: scheduledAt } }
+            ]
+          }
+        });
+        
+        if (overlap) {
+          throw new Error('Conflito de horário: o médico já possui consulta agendada neste período.');
+        }
+
+        const appointment = await tx.appointment.create({ 
+          data: { ...input, patientId: decodeId(input.patientId), surgeonId, scheduledAt }, 
+          include: { patient: true, surgeon: true } 
+        });
+        await tx.auditLog.create({ 
+          data: { entityType: 'Appointment', entityId: appointment.id, action: 'CREATED', userId: context.user?.userId, appointmentId: appointment.id } 
+        });
+        return appointment;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     },
+
     updateAppointment: async (_: unknown, { input }: { input: UpdateAppointmentInput }, context: Context) => {
       assertAuthenticated(context);
       const apptId = decodeId(input.id);
@@ -1862,6 +1908,14 @@ export const resolvers = {
       if (!current) throw new Error('Consulta não encontrada');
       
       validateEnum(input.status, AppointmentStatus, 'AppointmentStatus');
+
+      // RN03: Restrict critical statuses
+      if (['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(input.status)) {
+        if (context.user?.role === 'SALES' || context.user?.role === 'CALL_CENTER') {
+          throw new Error('RN03_VIOLATION: Usuários do tipo ' + context.user?.role + ' não podem alterar status para ' + input.status);
+        }
+      }
+
 
       if (current.status !== input.status) {
         await prisma.auditLog.create({ data: { entityType: 'Appointment', entityId: apptId, action: 'STATUS_CHANGE', oldValue: current.status, newValue: input.status, userId: context.user?.userId, appointmentId: apptId } });

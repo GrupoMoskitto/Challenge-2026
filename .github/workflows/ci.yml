@@ -10,11 +10,17 @@ jobs:
   lint-and-test:
     name: Code Quality & Tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
     strategy:
       matrix:
         node-version: [20, 22, 24]
 
     services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
       postgres:
         image: postgres:15-alpine
         env:
@@ -65,7 +71,9 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm --filter @crmed/database exec prisma generate
       - name: Setup Test Database
-        run: pnpm --filter @crmed/database db:push || true
+        env:
+          DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
+        run: pnpm --filter @crmed/database db:push && pnpm --filter @crmed/database db:seed || true
 
       - name: TypeScript Check
         run: |
@@ -82,9 +90,15 @@ jobs:
   business-rules-tests:
     name: Business Rules Tests (RNs)
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
     needs: lint-and-test
 
     services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
       postgres:
         image: postgres:15-alpine
         env:
@@ -133,10 +147,10 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm --filter @crmed/database exec prisma generate
       - name: Setup Test Database
-        run: pnpm --filter @crmed/database db:push || true
+        env:
+          DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
+        run: pnpm --filter @crmed/database db:push && pnpm --filter @crmed/database db:seed || true
 
-      - name: Setup Test Database
-        run: pnpm --filter @crmed/database db:push || true
 
       - name: Run RN01 Tests (Uniqueness)
         run: pnpm --filter @crmed/database test
@@ -169,6 +183,8 @@ jobs:
   pull-request-checks:
     name: Pull Request Validation
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
     if: github.event_name == 'pull_request'
 
     steps:
@@ -247,6 +263,8 @@ jobs:
   database-changes:
     name: Database Schema Validation
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
     if: contains(github.event.pull_request.title, 'schema') || contains(github.event.pull_request.title, 'database') || contains(github.event.pull_request.title, 'prisma')
     needs: lint-and-test
 
@@ -272,7 +290,9 @@ jobs:
           echo "Validating Prisma schema..."
           pnpm --filter @crmed/database exec prisma generate
       - name: Setup Test Database
-        run: pnpm --filter @crmed/database db:push || true
+        env:
+          DATABASE_URL: postgresql://crmed:crmed@localhost:5432/crmed_test?schema=public
+        run: pnpm --filter @crmed/database db:push && pnpm --filter @crmed/database db:seed || true
           
       - name: Check for Migration Safety
         run: |

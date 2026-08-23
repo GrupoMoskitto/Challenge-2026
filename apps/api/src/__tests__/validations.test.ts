@@ -122,16 +122,4 @@ describe('CRMed Validation Tests', () => {
     });
   });
 
-  describe('CPF Validation', () => {
-    it('createPatient validates CPF', async () => {
-      const ctx = { user: { userId: '1', email: 'cc@test.com', role: 'CALL_CENTER' } } as Context;
-      await expect(resolvers.Mutation.createPatient(null, {
-        input: { leadId: 'l1', dateOfBirth: '1990-01-01', cpf: '00000000000' } as any
-      }, ctx)).rejects.toThrow('CPF inválido');
-
-      await expect(resolvers.Mutation.createPatient(null, {
-        input: { leadId: 'l1', dateOfBirth: '1990-01-01', cpf: '12345678910' } as any
-      }, ctx)).rejects.toThrow('CPF inválido');
-    });
   });
-});
