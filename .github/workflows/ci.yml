@@ -64,6 +64,8 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm --filter @crmed/database exec prisma generate
+      - name: Setup Test Database
+        run: pnpm --filter @crmed/database db:push || true
 
       - name: TypeScript Check
         run: |
@@ -130,6 +132,8 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm --filter @crmed/database exec prisma generate
+      - name: Setup Test Database
+        run: pnpm --filter @crmed/database db:push || true
 
       - name: Setup Test Database
         run: pnpm --filter @crmed/database db:push || true
@@ -267,6 +271,8 @@ jobs:
         run: |
           echo "Validating Prisma schema..."
           pnpm --filter @crmed/database exec prisma generate
+      - name: Setup Test Database
+        run: pnpm --filter @crmed/database db:push || true
           
       - name: Check for Migration Safety
         run: |
