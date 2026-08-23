@@ -346,39 +346,18 @@ interface UpdateMessageTemplateInput {
 }
 
 // Evolution API typed responses
-interface EvolutionInstanceResponse {
-  instance?: { state?: string; instanceName?: string };
-  name?: string;
-  instanceName?: string;
-  connectionStatus?: string;
-  status?: string;
-  state?: string;
-  connected?: boolean;
-}
 
-interface EvolutionGoResponse<T> {
-  data: T;
-  message?: string;
-}
 
-interface EvolutionConnectionStateResponse {
-  instance?: { state?: string };
-}
 
-interface EvolutionCreateResponse {
-  instance?: { state?: string };
-}
 
-interface EvolutionConnectResponse {
-  base64?: string;
-  pairingCode?: string;
-}
 
 export const resolvers = {
   ID: IDScalar,
   DateTime: DateTimeScalar,
   JSON: JSONScalar,
   Patient: {
+    phone: (parent: any, _: any, context: Context) => context.user?.role === "CALL_CENTER" ? "***" : parent.phone,
+    address: (parent: any, _: any, context: Context) => context.user?.role === "CALL_CENTER" ? "***" : parent.address,
     lead: async (parent: { leadId: string }) => {
       return prisma.lead.findUnique({ where: { id: parent.leadId } });
     },
@@ -453,6 +432,8 @@ export const resolvers = {
     },
   },
   Lead: {
+    cpf: (parent: any, _: any, context: Context) => context.user?.role === "CALL_CENTER" ? "***" : parent.cpf,
+    phone: (parent: any, _: any, context: Context) => context.user?.role === "CALL_CENTER" ? "***" : parent.phone,
     contacts: async (parent: { id: string }) => {
       return prisma.contact.findMany({
         where: { leadId: parent.id },
@@ -460,13 +441,13 @@ export const resolvers = {
       });
     },
     patient: async (parent: { id: string }) => {
-      return prisma.patient.findUnique({
-        where: { leadId: parent.id },
+      return prisma.patient.findFirst({
+        where: { leadId: parent.id, deletedAt: null },
       });
     },
     appointments: async (parent: { id: string }) => {
-      const patient = await prisma.patient.findUnique({
-        where: { leadId: parent.id },
+      const patient = await prisma.patient.findFirst({
+        where: { leadId: parent.id, deletedAt: null },
       });
       if (!patient) return [];
       
@@ -535,6 +516,9 @@ export const resolvers = {
     },
   },
   Surgeon: {
+    cpf: (parent: any, _: any, context: Context) => context.user?.role === "CALL_CENTER" ? "***" : parent.cpf,
+    phone: (parent: any, _: any, context: Context) => context.user?.role === "CALL_CENTER" ? "***" : parent.phone,
+    address: (parent: any, _: any, context: Context) => context.user?.role === "CALL_CENTER" ? "***" : parent.address,
     availability: async (parent: { id: string }) => {
       return prisma.availabilitySlot.findMany({
         where: { surgeonId: parent.id },
@@ -838,16 +822,18 @@ export const resolvers = {
     },
     surgeons: async (_: unknown, { includeInactive }: { includeInactive?: boolean }, context: Context) => {
       assertAuthenticated(context);
+      const where: any = { deletedAt: null };
+      if (!includeInactive) where.isActive = true;
       return prisma.surgeon.findMany({
-        where: includeInactive ? undefined : { isActive: true },
+        where,
         include: { availability: true, extraAvailability: true, blocks: true },
       });
     },
     surgeon: async (_: unknown, { id }: { id: string }, context: Context) => {
       assertAuthenticated(context);
       const decodedId = decodeId(id);
-      return prisma.surgeon.findUnique({
-        where: { id: decodedId },
+      return prisma.surgeon.findFirst({
+        where: { id: decodedId, deletedAt: null },
         include: { availability: true, extraAvailability: true, blocks: true },
       });
     },
@@ -865,7 +851,7 @@ export const resolvers = {
       const dayOfWeek = targetDate.getDay();
       
       const surgeonsWithSlots = await prisma.surgeon.findMany({
-        where: { isActive: true },
+        where: { isActive: true, deletedAt: null },
         include: {
           availability: {
             where: {

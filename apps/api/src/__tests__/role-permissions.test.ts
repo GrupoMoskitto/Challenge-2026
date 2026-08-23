@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolvers, Context } from '../graphql/resolvers/index';
 import { prisma } from '@crmed/database';
@@ -86,6 +87,65 @@ describe('Role Permissions & Access Control', () => {
       const result = await resolvers.Mutation.updateLeadStatus(null, { input }, context);
       expect(result.status).toBe(LeadStatus.CONVERTED);
       expect(updateLeadSpy).toHaveBeenCalled();
+    });
+    it('should block CALL_CENTER from changing appointment status to COMPLETED', async () => {
+      vi.spyOn(prisma.appointment, 'findUnique').mockResolvedValue({ id: 'appt-1', status: 'SCHEDULED' } as any);
+      const context: Context = { user: { userId: 'cc-1', email: 'cc@test.com', role: 'CALL_CENTER' } };
+      const input = { id: 'appt-1', status: 'COMPLETED' };
+
+      await expect(resolvers.Mutation.updateAppointmentStatus(null, { input }, context))
+        .rejects.toThrow(/RN03_VIOLATION/);
+    });
+
+    it('should block SALES from changing appointment status to NO_SHOW', async () => {
+      vi.spyOn(prisma.appointment, 'findUnique').mockResolvedValue({ id: 'appt-1', status: 'SCHEDULED' } as any);
+      const context: Context = { user: { userId: 'sales-1', email: 'sales@test.com', role: 'SALES' } };
+      const input = { id: 'appt-1', status: 'NO_SHOW' };
+
+      await expect(resolvers.Mutation.updateAppointmentStatus(null, { input }, context))
+        .rejects.toThrow(/RN03_VIOLATION/);
+    });
+
+    it('should allow ADMIN to change appointment status to COMPLETED', async () => {
+      const mockAppt = { id: 'appt-1', status: 'SCHEDULED' };
+      vi.spyOn(prisma.appointment, 'findUnique').mockResolvedValue(mockAppt as any);
+      const updateSpy = vi.spyOn(prisma.appointment, 'update').mockResolvedValue({ ...mockAppt, status: 'COMPLETED' } as any);
+      createAuditLogSpy.mockResolvedValue({});
+
+      const context: Context = { user: { userId: 'admin-1', email: 'admin@test.com', role: 'ADMIN' } };
+      const input = { id: 'appt-1', status: 'COMPLETED' };
+
+      const result = await resolvers.Mutation.updateAppointmentStatus(null, { input }, context);
+      expect(result.status).toBe('COMPLETED');
+      expect(updateSpy).toHaveBeenCalled();
+    });
+  });
+  
+  describe('Data Masking (RN07 - LGPD Challenge)', () => {
+    it('masks sensitive data (CPF, phone, address) for CALL_CENTER role', async () => {
+      const callCenterCtx = { user: { userId: '3', role: 'CALL_CENTER', email: 'callcenter@test.com' } };
+      
+      const leadData = { cpf: '12345678909', phone: '11999999999' };
+      const patientData = { address: 'Rua Secreta, 123' };
+      
+      // Test Lead resolvers
+      const leadCpf = resolvers.Lead?.cpf?.(leadData as any, {}, callCenterCtx as any, {} as any);
+      const leadPhone = resolvers.Lead?.phone?.(leadData as any, {}, callCenterCtx as any, {} as any);
+      
+      expect(leadCpf).toBe('***');
+      expect(leadPhone).toBe('***');
+      
+      // Test Patient address resolver
+      const patientAddress = resolvers.Patient?.address?.(patientData as any, {}, callCenterCtx as any, {} as any);
+      expect(patientAddress).toBe('***');
+      
+      // Verify ADMIN can see the real data
+      const adminCtx = { user: { userId: '1', role: 'ADMIN', email: 'admin@test.com' } };
+      const unmaskedCpf = resolvers.Lead?.cpf?.(leadData as any, {}, adminCtx as any, {} as any);
+      const unmaskedAddress = resolvers.Patient?.address?.(patientData as any, {}, adminCtx as any, {} as any);
+      
+      expect(unmaskedCpf).toBe('12345678909');
+      expect(unmaskedAddress).toBe('Rua Secreta, 123');
     });
   });
 });
