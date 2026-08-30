@@ -33,25 +33,19 @@ export function useAuthSimple() {
   
   const hasToken = !!authToken;
   
-  console.log('useAuthSimple - authToken:', authToken ? 'exists' : 'null', 'hasToken:', hasToken);
-  
   const { data, loading, refetch, error } = useQuery<{ me: User }>(GET_ME, {
     skip: !hasToken,
     fetchPolicy: 'network-only',
   });
 
-  console.log('useAuthSimple - query state:', { loading, hasData: !!data, hasError: !!error, data });
-
   // Determinar se ainda está verificando
   const isChecking = useMemo(() => {
     const checking = hasToken && loading;
-    console.log('useAuthSimple - isChecking calculation:', { hasToken, loading, result: checking });
     return checking;
   }, [hasToken, loading]);
 
   // Processar resultado da query
   useEffect(() => {
-    console.log('useAuthSimple - useEffect triggered:', { data, error });
     if (error) {
       console.error('Auth error:', error);
       // Se token inválido, limpar tudo
@@ -59,7 +53,6 @@ export function useAuthSimple() {
         e.message.includes('não autenticado') || 
         e.message.includes('Credenciais inválidas')
       )) {
-        console.log('Clearing invalid tokens');
         setStoredUser(null);
         localStorage.removeItem('auth_token');
         localStorage.removeItem('refresh_token');
@@ -68,14 +61,11 @@ export function useAuthSimple() {
     }
 
     if (data) {
-      console.log('Query returned data:', data);
       if (data.me) {
         // Usuário válido - atualizar storage
-        console.log('Setting user from query:', data.me.email);
         setStoredUser(JSON.stringify(data.me));
       } else {
         // Usuário null - token inválido ou não existe
-        console.log('No user in response, clearing tokens');
         setStoredUser(null);
         localStorage.removeItem('auth_token');
         localStorage.removeItem('refresh_token');
